@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "./theme/ThemeContext";
 import NavBar from "./components/NavBar";
+import Home from "./pages/Home";
 
 const PAGES = ["home", "vault", "brew", "table", "notebook"];
 
@@ -30,30 +31,27 @@ export default function App() {
     }}>
       <div style={{
         flex: 1,
-        overflowY: "auto",
+        overflow: "hidden",
         paddingBottom: NAV_HEIGHT,
-        WebkitOverflowScrolling: "touch",
       }}>
-        {PAGES.map((page) => (
-          <div
-            key={page}
-            style={{
-              display: activePage === page ? "flex" : "none",
-              alignItems: "center",
-              justifyContent: "center",
-              height: "100%",
-            }}
-          >
+        {activePage === "home" && <Home />}
+        {activePage !== "home" && (
+          <div style={{
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            height: "100%",
+          }}>
             <span style={{
               fontFamily: "'Zilla Slab', serif",
               fontSize: 28,
               color: textColor,
               textTransform: "capitalize",
             }}>
-              {page}
+              {activePage}
             </span>
           </div>
-        ))}
+        )}
       </div>
 
       <NavBar activePage={activePage} onNavigate={setActivePage} />
