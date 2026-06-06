@@ -5,7 +5,7 @@ const TABS = [
   { id: "home",     label: "Home",     icon: "home"        },
   { id: "vault",    label: "Vault",    icon: "encrypted"   },
   { id: "brew",     label: "Brew",     icon: "science"     },
-  { id: "table",    label: "Pod",      icon: "dining"      },
+  { id: "table",    label: "Pod",      icon: "group"       },
   { id: "notebook", label: "Analysis", icon: "menu_book"   },
 ];
 
