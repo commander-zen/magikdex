@@ -38,7 +38,7 @@ export default function Home() {
       WebkitOverflowScrolling: "touch",
     }}>
       <div style={{
-        padding: "24px 28px 40px",
+        padding: "0 28px 40px",
         display: "flex",
         flexDirection: "column",
         gap: 0,
