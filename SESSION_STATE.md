@@ -1,9 +1,18 @@
 # SESSION_STATE — MTG DNA
 
 ## Cold Start Prompt
-Priority: **RUN THE MIGRATION** — `mtg-dna/supabase/migrations/002_legends.sql` must be run manually in the Supabase SQL editor before the Vault form or Brew save will work (they reference `legends`, `decks.legend_id`, `decks.build_name`, and need `decks.url`/`platform` made nullable). After that: end-to-end test of search → swipe → review → save, then the visual design pass.
+Priority: **RUN THE MIGRATION** — `mtg-dna/supabase/migrations/002_legends.sql` must be run manually in the Supabase SQL editor before the Vault form or Brew save will work. After that: wire mode-specific behavior in Brew (`brewMode` is stored but all four modes currently route to the same search screen — Import Deck especially needs its own flow, the ported ImportSheet is a candidate), then end-to-end test of search → swipe → review → save.
 
 ## Done
+- ✅ 2026-06-10 — Brew overhaul (visual/interaction pass):
+  - ✅ Forced dark palette for all Brew sub-screens (`BREW` constants in Brew.jsx: #0a0e1a base, #e8a020 amber, #7ab89a green) — sub-screens no longer follow app light mode
+  - ✅ Mode-select screen between chip tap and search: New Legend / Import Deck / Free Pile / Card Discovery, PageHeader pattern (HELIX eyebrow, brew title, amber rule), ToolChips-style rows
+  - ✅ Card display frameless — removed surface background, bevel border, box shadow, and the full-screen gradient overlay
+  - ✅ Persistent gesture legend (`← pass  ↑ mainboard  ↓ maybe  → keep`, Noto Sans Mono, dimmed) replaces the one-time animated hint; tip code + TIP_KEY usage removed
+  - ✅ Swipe rewritten flat: translate-only (no rotation), no KEEP/PASS/DECKLIST/MAYBE stamps, no color tint; up flies to top (mainboard), down to bottom (maybe)
+  - ✅ SearchScreen SEARCH button white Win98 bevels removed; done-state buttons re-palette'd; scope held to Brew files only
+
+## Done (earlier)
 - ✅ 2026-06-10 — Legends schema + full brew flow (prompts 1–5):
   - ✅ P1: `supabase/migrations/002_legends.sql` written — legends table, `decks.legend_id` + `build_name`, `url`/`platform` made nullable. **NOT yet run** (needs SQL editor; no CLI/service key available)
   - ✅ P2: Vault deck registry restored from `a0a6016` (it was deliberately stripped in the e968083 redesign) with the two-field pattern: commander name → legends upsert, build name → `decks.build_name`; legacy `legend` text column kept in sync; `deck_name` insert dropped (column doesn't exist in live schema)
@@ -35,6 +44,9 @@ Priority: **RUN THE MIGRATION** — `mtg-dna/supabase/migrations/002_legends.sql
 
 ## Known Issues
 - **Migration 002 not run**: Vault submits and Brew saves will fail with column/table errors until `002_legends.sql` runs in the SQL editor. The app builds and browses fine without it.
+- **brewMode is cosmetic**: the mode selector stores the choice but all four modes route to the same search screen; no mode-specific behavior yet.
+- **Brew board naming**: internal state/props/db section say `decklist`; user-facing copy now says "mainboard" (gesture legend, done state). Rename pass may be wanted before the section values calcify in deck_cards rows.
+- **First-run swipe tip removed**: `helixbrew_swipe_hint_shown` is no longer read or written (persistent gesture legend replaced it); stale keys may linger in users' localStorage harmlessly.
 - **decks.platform CHECK constraint**: live values allow at least `moxfield`/`archidekt`; brew-created decks insert `platform: null` (allowed once 002 makes it nullable). If a 'brew' platform value is wanted later, the CHECK needs altering.
 - **Write-tool NUL corruption (caught)**: two NUL bytes landed in Brew.jsx during this session's write (would have corrupted saved card rows); stripped and verified repo-wide — no other text files affected.
 - **Commander identity is name-only**: legends rows store just `name` for now; `scryfall_id`/`image_uri` are nullable and unpopulated. Enrichment via `fetchCardByName` is a natural follow-up.
