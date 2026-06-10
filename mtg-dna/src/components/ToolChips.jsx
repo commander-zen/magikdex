@@ -25,13 +25,77 @@ export default function ToolChips({ tools }) {
 
   const tierColors = TIER_COLORS[mode];
 
+  // Entries without a tier render first, above the tier groupings,
+  // with the same row treatment and no group heading.
+  const untiered = tools.filter(tool => !tool.tier);
+
   const grouped = TIERS.reduce((acc, t) => {
     acc[t] = tools.filter(tool => tool.tier === t);
     return acc;
   }, {});
 
+  const renderRow = (tool, i, list) => (
+    <a
+      key={tool.name}
+      href={tool.url}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{
+        display: "flex",
+        alignItems: "center",
+        gap: 12,
+        padding: "14px 0",
+        borderBottom: i < list.length - 1 ? `1px solid ${divider}` : "none",
+        textDecoration: "none",
+        WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <div style={{ flex: 1, minWidth: 0 }}>
+        <div style={{
+          fontFamily: "'Noto Sans', sans-serif",
+          fontSize: 15,
+          fontWeight: 400,
+          color: nameColor,
+          lineHeight: 1.2,
+          marginBottom: 3,
+        }}>
+          {tool.name}
+        </div>
+        <div style={{
+          fontFamily: "'Noto Sans', sans-serif",
+          fontSize: 12,
+          fontWeight: 300,
+          color: descColor,
+          lineHeight: 1.5,
+        }}>
+          {tool.desc}
+        </div>
+      </div>
+
+      <span
+        className="material-symbols-rounded"
+        style={{
+          flexShrink: 0,
+          fontSize: 16,
+          fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
+          color: tierColor,
+        }}
+      >
+        arrow_forward
+      </span>
+    </a>
+  );
+
   return (
     <>
+      {untiered.length > 0 && (
+        <div style={{ marginBottom: 24 }}>
+          <div style={{ display: "flex", flexDirection: "column" }}>
+            {untiered.map((tool, i) => renderRow(tool, i, untiered))}
+          </div>
+        </div>
+      )}
+
       {TIERS.filter(t => grouped[t].length > 0).map(tier => (
         <div key={tier} style={{ marginBottom: 24 }}>
           <div style={{
@@ -64,57 +128,7 @@ export default function ToolChips({ tools }) {
           </div>
 
           <div style={{ display: "flex", flexDirection: "column" }}>
-            {grouped[tier].map((tool, i) => (
-              <a
-                key={tool.name}
-                href={tool.url}
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 12,
-                  padding: "14px 0",
-                  borderBottom: i < grouped[tier].length - 1 ? `1px solid ${divider}` : "none",
-                  textDecoration: "none",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div style={{
-                    fontFamily: "'Noto Sans', sans-serif",
-                    fontSize: 15,
-                    fontWeight: 400,
-                    color: nameColor,
-                    lineHeight: 1.2,
-                    marginBottom: 3,
-                  }}>
-                    {tool.name}
-                  </div>
-                  <div style={{
-                    fontFamily: "'Noto Sans', sans-serif",
-                    fontSize: 12,
-                    fontWeight: 300,
-                    color: descColor,
-                    lineHeight: 1.5,
-                  }}>
-                    {tool.desc}
-                  </div>
-                </div>
-
-                <span
-                  className="material-symbols-rounded"
-                  style={{
-                    flexShrink: 0,
-                    fontSize: 16,
-                    fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
-                    color: tierColor,
-                  }}
-                >
-                  arrow_forward
-                </span>
-              </a>
-            ))}
+            {grouped[tier].map((tool, i) => renderRow(tool, i, grouped[tier]))}
           </div>
         </div>
       ))}
