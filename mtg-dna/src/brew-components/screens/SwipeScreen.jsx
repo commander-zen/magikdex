@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useMemo } from "react";
 import { getCardImage } from "../../lib/scryfall.js";
-const NAV_HEIGHT = 60;
 import { getSettings } from "../../lib/settings.js";
+import { useDoubleTap } from "../../hooks/useDoubleTap.js";
+import { useGameChangers } from "../../hooks/useGameChangers.js";
+const NAV_HEIGHT = 60;
 
 const isBasicLand = c => Boolean(c?.type_line?.includes("Basic Land"));
 const isAnyNumber = c => Boolean(c?.oracle_text?.includes("A deck can have any number of cards named"));
@@ -24,6 +26,7 @@ function haptic(pattern = 10) {
 export default function SwipeScreen({
   cards, pile, onPileChange,
   maybeboard, onMaybeboardChange,
+  decklist = [], onDecklistChange,
   onGoToPile, onGoToSearch, onSearchMore, commanderCard, onCommanderCardChange,
   initialIndex, onIndexChange,
   swipeOrder = "name", swipeDir = "desc", onSortChange,
@@ -47,6 +50,7 @@ export default function SwipeScreen({
   const [idx,          setIdx]          = useState(initialIndex ?? 0);
   const [history,      setHistory]      = useState([]);
   const [offset,       setOffset]       = useState(0);
+  const [offsetY,      setOffsetY]      = useState(0);
   const [dragging,     setDragging]     = useState(false);
   const [animOut,      setAnimOut]      = useState(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
@@ -107,6 +111,8 @@ export default function SwipeScreen({
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
       if (e.key === "ArrowRight") doResolve(true);
       if (e.key === "ArrowLeft")  doResolve(false);
+      if (e.key === "ArrowUp")    doDecklist();
+      if (e.key === "ArrowDown")  doMaybe();
       if (e.key === "z" || e.key === "Z") doUndo();
     };
     window.addEventListener("keydown", handler);
@@ -140,22 +146,38 @@ export default function SwipeScreen({
         setHistory(h => [...h, { card, kept: false, maybe: false }]);
       }
       setIdx(i => i + 1);
-      setOffset(0); setAnimOut(null);
+      setOffset(0); setOffsetY(0); setAnimOut(null);
     }, 285);
   }
 
+  // Swipe down — maybe board
   function doMaybe() {
     if (!card || animOut || done) return;
     dismissTipForever();
-    setAnimOut("maybe");
+    setAnimOut("down");
     haptic(8);
     setTimeout(() => {
       const cardEntry = { ...card, instanceId: crypto.randomUUID() };
       setHistory(h => [...h, { card: cardEntry, kept: false, maybe: true }]);
       onMaybeboardChange(prev => [...prev, cardEntry]);
       setIdx(i => i + 1);
-      setOffset(0); setAnimOut(null);
+      setOffset(0); setOffsetY(0); setAnimOut(null);
     }, 260);
+  }
+
+  // Swipe up — straight to the decklist
+  function doDecklist() {
+    if (!card || animOut || done) return;
+    dismissTipForever();
+    setAnimOut("up");
+    haptic(14);
+    setTimeout(() => {
+      const cardEntry = { ...card, instanceId: crypto.randomUUID() };
+      setHistory(h => [...h, { card: cardEntry, kept: false, maybe: false, decklist: true }]);
+      onDecklistChange?.(prev => [...prev, cardEntry]);
+      setIdx(i => i + 1);
+      setOffset(0); setOffsetY(0); setAnimOut(null);
+    }, 285);
   }
 
   function doUndo() {
@@ -166,6 +188,8 @@ export default function SwipeScreen({
       onPileChange(pile.filter(c => c.instanceId !== last.card.instanceId));
     } else if (last.maybe) {
       onMaybeboardChange(prev => prev.filter(c => c.instanceId !== last.card.instanceId));
+    } else if (last.decklist) {
+      onDecklistChange?.(prev => prev.filter(c => c.instanceId !== last.card.instanceId));
     }
     setIdx(i => Math.max(0, i - 1));
     haptic([4, 20, 4]);
@@ -181,7 +205,7 @@ export default function SwipeScreen({
   function onPointerDown(e) {
     if (animOut || done) return;
     e.currentTarget.setPointerCapture(e.pointerId);
-    dragStartRef.current = e.clientX;
+    dragStartRef.current = { x: e.clientX, y: e.clientY };
     setDragging(true);
     const pressedCard = card;
     longPressTimerRef.current = setTimeout(() => {
@@ -191,26 +215,35 @@ export default function SwipeScreen({
 
   function onPointerMove(e) {
     if (!dragging || dragStartRef.current === null) return;
-    const dx = e.clientX - dragStartRef.current;
+    const dx = e.clientX - dragStartRef.current.x;
+    const dy = e.clientY - dragStartRef.current.y;
     setOffset(dx);
-    if (Math.abs(dx) > 5) {
+    setOffsetY(dy);
+    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
       clearTimeout(longPressTimerRef.current);
       longPressTimerRef.current = null;
     }
   }
 
+  // Four-direction map: left = pass, right = keep (pile),
+  // up = decklist, down = maybe. Dominant axis wins.
   function onPointerUp(e) {
     if (!dragging) return;
     clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = null;
     setDragging(false);
-    const dx = dragStartRef.current !== null ? e.clientX - dragStartRef.current : 0;
+    const dx = dragStartRef.current !== null ? e.clientX - dragStartRef.current.x : 0;
+    const dy = dragStartRef.current !== null ? e.clientY - dragStartRef.current.y : 0;
     dragStartRef.current = null;
-    if (dx > SWIPE_THRESHOLD)       doResolve(true);
-    else if (dx < -SWIPE_THRESHOLD) doResolve(false);
+    const horizontal = Math.abs(dx) >= Math.abs(dy);
+    if (horizontal && dx > SWIPE_THRESHOLD)        doResolve(true);
+    else if (horizontal && dx < -SWIPE_THRESHOLD)  doResolve(false);
+    else if (!horizontal && dy < -SWIPE_THRESHOLD) doDecklist();
+    else if (!horizontal && dy > SWIPE_THRESHOLD)  doMaybe();
     else {
       setOffset(0);
-      if (Math.abs(dx) < 10) setCardExpanded(v => !v);
+      setOffsetY(0);
+      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) setCardExpanded(v => !v);
     }
   }
 
@@ -226,25 +259,29 @@ export default function SwipeScreen({
     : animOut === "left" ? -30
     : Math.max(-15, Math.min(15, offset * 0.08));
 
-  const artTransform = animOut === "maybe"
-    ? "translateY(-30px) scale(0.97)"
+  const artTransform =
+      animOut === "up"    ? "translateY(-110vh)"
+    : animOut === "down"  ? "translateY(110vh)"
     : animOut === "right" ? `translateX(110vw) rotate(30deg)`
     : animOut === "left"  ? `translateX(-110vw) rotate(-30deg)`
-    : `translateX(${offset}px) rotate(${rotation}deg)`;
+    : `translate(${offset}px, ${offsetY}px) rotate(${rotation}deg)`;
 
   const artOpacity = animOut ? 0 : 1;
 
   const artTransition = animOut
-    ? (animOut === "maybe"
-        ? "transform 0.26s ease, opacity 0.26s ease"
-        : "transform 280ms ease-in, opacity 280ms ease-in")
+    ? "transform 280ms ease-in, opacity 280ms ease-in"
     : dragging
       ? "none"
       : "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)";
 
-  // Colored tint overlay: 0 until |offset|>20, maxes at 0.35 at threshold (80px)
-  const tintOpacity = Math.min(1, Math.max(0, (Math.abs(offset) - 20) / 60)) * 0.35;
-  const tintColor = offset >= 0 ? "#6BFF9E" : "#FF6B6B";
+  // Colored tint overlay: 0 until |drag|>20, maxes at 0.35 at threshold (80px).
+  // Dominant axis picks the color: green/red horizontal, blue/amber vertical.
+  const verticalDrag = Math.abs(offsetY) > Math.abs(offset);
+  const driveOffset  = verticalDrag ? offsetY : offset;
+  const tintOpacity = Math.min(1, Math.max(0, (Math.abs(driveOffset) - 20) / 60)) * 0.35;
+  const tintColor = verticalDrag
+    ? (offsetY < 0 ? "#5b8fff" : "#f59e0b")
+    : (offset >= 0 ? "#6BFF9E" : "#FF6B6B");
 
   function isCommanderEligible(c) {
     const type = c?.type_line ?? "";
@@ -255,8 +292,16 @@ export default function SwipeScreen({
       oracle.includes("can be your commander")
     );
   }
-  const isGameChanger    = card?.game_changer === true;
+  // Scryfall's game_changer flag when present, hook's oracle-id set as fallback
+  const { gameChangerIds } = useGameChangers();
+  const isGameChanger = card?.game_changer === true ||
+    Boolean(card?.oracle_id && gameChangerIds.has(card.oracle_id));
   const commanderName    = commanderCard?.name ?? null;
+
+  // Double-tap flips double-faced cards (single tap still toggles expand)
+  const handleDoubleTap = useDoubleTap(() => {
+    if (card?.card_faces?.length > 1) setFlipped(f => !f);
+  });
 
   return (
     <div style={{
@@ -282,6 +327,7 @@ export default function SwipeScreen({
           onPointerMove={onPointerMove}
           onPointerUp={onPointerUp}
           onPointerCancel={onPointerUp}
+          onTouchStart={handleDoubleTap}
         >
           {/* Art image — centered, naturally sized so overlays are tight to card bounds */}
           {artUrl && !imgError ? (
@@ -364,7 +410,7 @@ export default function SwipeScreen({
             position: "absolute", top: "50%", left: "50%", zIndex: 5,
             transform: "translate(-50%, -50%) rotate(-15deg)",
             opacity: animOut === "right" ? 0.9 : animOut ? 0 :
-                     Math.min(0.85, Math.max(0, (offset - 20) / 60)),
+                     verticalDrag ? 0 : Math.min(0.85, Math.max(0, (offset - 20) / 60)),
             padding: "var(--space-2) var(--space-4)",
             border: "4px solid #00aa00",
             borderRadius: 0,
@@ -380,7 +426,7 @@ export default function SwipeScreen({
             position: "absolute", top: "50%", left: "50%", zIndex: 5,
             transform: "translate(-50%, -50%) rotate(15deg)",
             opacity: animOut === "left" ? 0.9 : animOut ? 0 :
-                     Math.min(0.85, Math.max(0, (-offset - 20) / 60)),
+                     verticalDrag ? 0 : Math.min(0.85, Math.max(0, (-offset - 20) / 60)),
             padding: "var(--space-2) var(--space-4)",
             border: "4px solid #cc0000",
             borderRadius: 0,
@@ -392,6 +438,38 @@ export default function SwipeScreen({
             pointerEvents: "none",
             transition: dragging ? "none" : "opacity 0.15s ease",
           }}>PASS</div>
+          <div style={{
+            position: "absolute", top: "50%", left: "50%", zIndex: 5,
+            transform: "translate(-50%, -50%)",
+            opacity: animOut === "up" ? 0.9 : animOut ? 0 :
+                     !verticalDrag ? 0 : Math.min(0.85, Math.max(0, (-offsetY - 20) / 60)),
+            padding: "var(--space-2) var(--space-4)",
+            border: "4px solid #5b8fff",
+            borderRadius: 0,
+            color: "#5b8fff",
+            fontFamily: "var(--font-system)",
+            fontSize: "var(--font-size-xl)",
+            fontWeight: "bold",
+            background: "transparent",
+            pointerEvents: "none",
+            transition: dragging ? "none" : "opacity 0.15s ease",
+          }}>DECKLIST</div>
+          <div style={{
+            position: "absolute", top: "50%", left: "50%", zIndex: 5,
+            transform: "translate(-50%, -50%)",
+            opacity: animOut === "down" ? 0.9 : animOut ? 0 :
+                     !verticalDrag ? 0 : Math.min(0.85, Math.max(0, (offsetY - 20) / 60)),
+            padding: "var(--space-2) var(--space-4)",
+            border: "4px solid #f59e0b",
+            borderRadius: 0,
+            color: "#f59e0b",
+            fontFamily: "var(--font-system)",
+            fontSize: "var(--font-size-xl)",
+            fontWeight: "bold",
+            background: "transparent",
+            pointerEvents: "none",
+            transition: dragging ? "none" : "opacity 0.15s ease",
+          }}>MAYBE</div>
 
           {/* Game Changer lightning badge */}
           {isGameChanger && (
@@ -527,7 +605,7 @@ export default function SwipeScreen({
             fontSize: 32, letterSpacing: 4, color: "var(--color-text-primary)",
           }}>ALL CARDS SEEN</div>
           <div style={{ fontFamily: "var(--font-system)", fontSize: 14, color: "var(--color-text-secondary)" }}>
-            {pile.length} card{pile.length !== 1 ? "s" : ""} kept
+            {pile.length} pile · {decklist.length} decklist · {maybeboard.length} maybe
           </div>
           <button
             onClick={onGoToPile}
@@ -575,7 +653,7 @@ export default function SwipeScreen({
             fontSize: 26, color: "rgba(255,255,255,0.65)",
             fontFamily: "'Noto Sans', sans-serif",
             letterSpacing: 4,
-          }}>← →</div>
+          }}>← ↑ ↓ →</div>
         </div>
       )}
     </div>

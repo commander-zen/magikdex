@@ -151,6 +151,18 @@ export default function SearchScreen({ onSearch, loading, error, commanderCard, 
         {/* ── Win98 progress bar ── */}
         <Win98ProgressBar active={loading} />
 
+        {/* ── Search error ── */}
+        {error && !loading && (
+          <div style={{
+            fontSize: 12,
+            color: "var(--danger)",
+            lineHeight: 1.5,
+            margin: "8px 0",
+          }}>
+            {error}
+          </div>
+        )}
+
         {/* ── SEARCH button ── */}
         <button
           onClick={handleSearch}

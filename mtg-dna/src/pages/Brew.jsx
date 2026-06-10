@@ -4,6 +4,10 @@ import ToolChips from "../components/ToolChips";
 import PageHeader from "../components/PageHeader";
 import { BREW_TOOLS } from "../data/tools";
 import SearchScreen from "../brew-components/screens/SearchScreen.jsx";
+import SwipeScreen from "../brew-components/screens/SwipeScreen.jsx";
+import ReviewScreen from "../brew-components/screens/ReviewScreen.jsx";
+import { fetchFirstPageForSwipe } from "../lib/scryfall.js";
+import { supabase } from "../lib/supabase.js";
 
 // The brew-components were ported from Deck Stack, whose styles reference
 // CSS custom properties (--bg, --color-surface, --bevel-*, etc.) in
@@ -60,11 +64,116 @@ function brewThemeVars(theme) {
   };
 }
 
+// Collapse instances to (card_name, section) rows with quantities for deck_cards.
+function buildCardRows(deckId, boards) {
+  const rows = [];
+  for (const [section, cards] of boards) {
+    const counts = new Map();
+    for (const c of cards) counts.set(c.name, (counts.get(c.name) ?? 0) + 1);
+    for (const [card_name, quantity] of counts) {
+      rows.push({ deck_id: deckId, card_name, quantity, section });
+    }
+  }
+  return rows;
+}
+
 export default function Brew() {
   const { theme } = useTheme();
+  // shell | search | swipe | review
   const [brewView, setBrewView] = useState("shell");
 
-  const handleBack = () => setBrewView("shell");
+  const [query, setQuery]           = useState("");
+  const [swipeCards, setSwipeCards] = useState([]);
+  const [swipeIndex, setSwipeIndex] = useState(0);
+  const [swipeOrder, setSwipeOrder] = useState("name");
+  const [swipeDir, setSwipeDir]     = useState("desc");
+  const [pile, setPile]             = useState([]);
+  const [decklist, setDecklist]     = useState([]);
+  const [maybeboard, setMaybeboard] = useState([]);
+
+  const [loading, setLoading]     = useState(false);
+  const [error, setError]         = useState(null);
+  const [saving, setSaving]       = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  function resetBrew() {
+    setQuery("");
+    setSwipeCards([]);
+    setSwipeIndex(0);
+    setPile([]);
+    setDecklist([]);
+    setMaybeboard([]);
+    setError(null);
+    setSaveError(null);
+  }
+
+  async function runSearch(q, order = swipeOrder, dir = swipeDir) {
+    setLoading(true);
+    setError(null);
+    try {
+      const { cards } = await fetchFirstPageForSwipe(q, null, { order, dir });
+      if (!cards.length) throw new Error("No cards found for that query.");
+      setQuery(q);
+      setSwipeCards(cards);
+      setSwipeIndex(0);
+      setBrewView("swipe");
+    } catch (err) {
+      setError(err.message);
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  function handleSortChange(order, dir) {
+    setSwipeOrder(order);
+    setSwipeDir(dir);
+    if (query) runSearch(query, order, dir);
+  }
+
+  // Upsert legend → create deck → bulk insert deck_cards (002 schema).
+  async function handleConfirmSave(commanderName, buildName) {
+    setSaving(true);
+    setSaveError(null);
+    try {
+      const { data: legend, error: legendError } = await supabase
+        .from("legends")
+        .upsert({ name: commanderName }, { onConflict: "name" })
+        .select()
+        .single();
+      if (legendError) throw legendError;
+
+      const { data: deck, error: deckError } = await supabase
+        .from("decks")
+        .insert({
+          legend: commanderName, // legacy text column, kept in sync
+          legend_id: legend.id,
+          build_name: buildName || null,
+          status: "Active",
+        })
+        .select()
+        .single();
+      if (deckError) throw deckError;
+
+      const rows = buildCardRows(deck.id, [
+        ["pile", pile],
+        ["decklist", decklist],
+        ["maybe", maybeboard],
+      ]);
+      for (let i = 0; i < rows.length; i += 100) {
+        const { error: cardError } = await supabase
+          .from("deck_cards")
+          .insert(rows.slice(i, i + 100));
+        if (cardError) throw cardError;
+      }
+
+      resetBrew();
+      setBrewView("shell");
+    } catch (err) {
+      setSaveError(err.message);
+    } finally {
+      setSaving(false);
+    }
+  }
 
   // tools.js is static data, so the Helix: Brew entry carries an action key
   // and the live handler is injected here.
@@ -72,7 +181,15 @@ export default function Brew() {
     t.action === "brew-search" ? { ...t, onClick: () => setBrewView("search") } : t
   );
 
-  if (brewView === "search") {
+  if (brewView !== "shell") {
+    const backTarget = brewView === "search" ? "shell"
+      : brewView === "swipe" ? "search"
+      : "swipe";
+    // Swipe view: the stack strip owns the top edge, so the exit moves bottom-left.
+    const backPosition = brewView === "swipe"
+      ? { bottom: 10, left: 10 }
+      : { top: 10, left: 10 };
+
     return (
       <div style={{
         position: "fixed",
@@ -83,15 +200,12 @@ export default function Brew() {
         WebkitOverflowScrolling: "touch",
         ...brewThemeVars(theme),
       }}>
-        {/* SearchScreen has no back affordance of its own, and this takeover
-            covers the nav bar — without this button there is no way out. */}
         <button
-          onClick={handleBack}
-          aria-label="Back to Brew tools"
+          onClick={() => setBrewView(backTarget)}
+          aria-label="Back"
           style={{
             position: "fixed",
-            top: 10,
-            left: 10,
+            ...backPosition,
             zIndex: 51,
             width: 44,
             height: 44,
@@ -117,14 +231,50 @@ export default function Brew() {
           </span>
         </button>
 
-        <SearchScreen
-          onBack={handleBack}
-          onSearch={(query) => console.log("brew search:", query)}
-          loading={false}
-          error={null}
-          commanderCard={null}
-          onCommanderCardChange={() => {}}
-        />
+        {brewView === "search" && (
+          <SearchScreen
+            onSearch={runSearch}
+            loading={loading}
+            error={error}
+            commanderCard={null}
+            onCommanderCardChange={() => {}}
+          />
+        )}
+
+        {brewView === "swipe" && (
+          <SwipeScreen
+            cards={swipeCards}
+            pile={pile}
+            onPileChange={setPile}
+            maybeboard={maybeboard}
+            onMaybeboardChange={setMaybeboard}
+            decklist={decklist}
+            onDecklistChange={setDecklist}
+            onGoToPile={() => setBrewView("review")}
+            onGoToSearch={() => setBrewView("search")}
+            onSearchMore={() => setBrewView("search")}
+            commanderCard={null}
+            onCommanderCardChange={() => {}}
+            initialIndex={swipeIndex}
+            onIndexChange={setSwipeIndex}
+            swipeOrder={swipeOrder}
+            swipeDir={swipeDir}
+            onSortChange={handleSortChange}
+            activeDeckId={null}
+            onSavePile={() => {}}
+          />
+        )}
+
+        {brewView === "review" && (
+          <ReviewScreen
+            pile={pile}
+            decklist={decklist}
+            maybeboard={maybeboard}
+            onConfirm={handleConfirmSave}
+            saving={saving}
+            error={saveError}
+          />
+        )}
       </div>
     );
   }
