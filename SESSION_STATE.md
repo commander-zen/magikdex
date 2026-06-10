@@ -43,7 +43,8 @@ Priority: **RUN THE MIGRATION** — `mtg-dna/supabase/migrations/002_legends.sql
   - ✅ P8: localStorage keys renamed (`ds_search_history`→`helixbrew_search_history`, `ds_swipe_hint_shown`→`helixbrew_swipe_hint_shown`, `cardstock_settings`→`helixbrew_settings`); zero deck-stack auth/db/supabase imports; `vite build` passes; all 12 brew files parse clean
 
 ## Known Issues
-- **Migration 002 not run**: Vault submits and Brew saves will fail with column/table errors until `002_legends.sql` runs in the SQL editor. The app builds and browses fine without it.
+- **Vault reverted to shell (2026-06-10)**: per request, Vault.jsx is back to the bare PageHeader + ToolChips state (`b63d5cd^` / e968083, byte-identical). The commander+build registry form from `b63d5cd` is gone again — recover it from that commit if wanted. `lib/fetchDecklist.js` is now unused by any page.
+- **Migration 002 not run**: Brew saves will fail with column/table errors until `002_legends.sql` runs in the SQL editor. The app builds and browses fine without it.
 - **brewMode is cosmetic**: the mode selector stores the choice but all four modes route to the same search screen; no mode-specific behavior yet.
 - **Brew board naming**: internal state/props/db section say `decklist`; user-facing copy now says "mainboard" (gesture legend, done state). Rename pass may be wanted before the section values calcify in deck_cards rows.
 - **First-run swipe tip removed**: `helixbrew_swipe_hint_shown` is no longer read or written (persistent gesture legend replaced it); stale keys may linger in users' localStorage harmlessly.
