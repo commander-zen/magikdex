@@ -8,7 +8,13 @@ const isBasicLand = c => Boolean(c?.type_line?.includes("Basic Land"));
 const isAnyNumber = c => Boolean(c?.oracle_text?.includes("A deck can have any number of cards named"));
 const isStackable  = c => isBasicLand(c) || isAnyNumber(c);
 
-const SWIPE_THRESHOLD = 80;
+// Carousel gesture model: horizontal browses, vertical decides.
+const AXIS_LOCK_PX = 10;          // movement that locks the gesture axis
+const SPACING_VW = 92;            // carousel slot width — neighbors peek at the edges
+const BROWSE_COMMIT_RATIO = 0.2;  // fraction of viewport width to commit a browse
+const BROWSE_VELOCITY = 0.5;      // px/ms — fast horizontal flick commits a browse
+const FLICK_RATIO = 0.3;          // fraction of viewport height to commit a decision
+const FLICK_VELOCITY = 0.6;       // px/ms — fast vertical flick commits a decision
 
 const SORT_OPTIONS = [
   { value: "name",   label: "NAME" },
@@ -51,6 +57,7 @@ export default function SwipeScreen({
   const [offsetY,      setOffsetY]      = useState(0);
   const [dragging,     setDragging]     = useState(false);
   const [animOut,      setAnimOut]      = useState(null);
+  const [animBrowse,   setAnimBrowse]   = useState(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [imgError,     setImgError]     = useState(false);
   const [cardExpanded, setCardExpanded] = useState(false);
@@ -60,6 +67,9 @@ export default function SwipeScreen({
   const dragStartRef      = useRef(null);
   const saveTimerRef      = useRef(null);
   const longPressTimerRef = useRef(null);
+  const axisRef           = useRef(null);   // "x" | "y" once locked, null before
+  const velRef            = useRef({ vx: 0, vy: 0 });
+  const lastSampleRef     = useRef(null);
 
   const card = effectiveCards[idx] ?? null;
   const done = idx >= effectiveCards.length;
@@ -102,8 +112,8 @@ export default function SwipeScreen({
   useEffect(() => {
     const handler = e => {
       if (e.target.tagName === "INPUT" || e.target.tagName === "TEXTAREA") return;
-      if (e.key === "ArrowRight") doResolve(true);
-      if (e.key === "ArrowLeft")  doResolve(false);
+      if (e.key === "ArrowRight") browseNext();
+      if (e.key === "ArrowLeft")  browsePrev();
       if (e.key === "ArrowUp")    doDecklist();
       if (e.key === "ArrowDown")  doMaybe();
       if (e.key === "z" || e.key === "Z") doUndo();
@@ -121,30 +131,34 @@ export default function SwipeScreen({
 
   // ── Actions ─────────────────────────────────────────────────────────────────
 
-  function doResolve(keep) {
-    if (!card || animOut || done) return;
-    setAnimOut(keep ? "right" : "left");
-    haptic(keep ? 12 : 6);
+  // Horizontal is browsing only — it never sorts. The pile (and its undo
+  // branch) stays plumbed but is unreachable by gesture for now.
+
+  function browseNext() {
+    if (animOut || animBrowse || done) return;
+    setAnimBrowse("next");
+    haptic(4);
+    setOffset(-window.innerWidth * (SPACING_VW / 100));
     setTimeout(() => {
-      if (keep) {
-        const alreadyInPile = !isStackable(card) && card.oracle_id &&
-          pile.some(c => c.oracle_id === card.oracle_id);
-        if (!alreadyInPile) {
-          const cardEntry = { ...card, instanceId: crypto.randomUUID() };
-          setHistory(h => [...h, { card: cardEntry, kept: true, maybe: false }]);
-          onPileChange(prev => [...prev, cardEntry]);
-        }
-      } else {
-        setHistory(h => [...h, { card, kept: false, maybe: false }]);
-      }
       setIdx(i => i + 1);
-      setOffset(0); setOffsetY(0); setAnimOut(null);
-    }, 285);
+      setOffset(0); setOffsetY(0); setAnimBrowse(null);
+    }, 300);
   }
 
-  // Swipe down — maybe board
+  function browsePrev() {
+    if (animOut || animBrowse || done || idx === 0) { setOffset(0); return; }
+    setAnimBrowse("prev");
+    haptic(4);
+    setOffset(window.innerWidth * (SPACING_VW / 100));
+    setTimeout(() => {
+      setIdx(i => Math.max(0, i - 1));
+      setOffset(0); setOffsetY(0); setAnimBrowse(null);
+    }, 300);
+  }
+
+  // Flick down — maybe board
   function doMaybe() {
-    if (!card || animOut || done) return;
+    if (!card || animOut || animBrowse || done) return;
     setAnimOut("down");
     haptic(8);
     setTimeout(() => {
@@ -156,9 +170,9 @@ export default function SwipeScreen({
     }, 260);
   }
 
-  // Swipe up — straight to the decklist
+  // Flick up — straight to the decklist (mainboard)
   function doDecklist() {
-    if (!card || animOut || done) return;
+    if (!card || animOut || animBrowse || done) return;
     setAnimOut("up");
     haptic(14);
     setTimeout(() => {
@@ -171,7 +185,7 @@ export default function SwipeScreen({
   }
 
   function doUndo() {
-    if (history.length === 0 || animOut) return;
+    if (history.length === 0 || animOut || animBrowse) return;
     const last = history[history.length - 1];
     setHistory(h => h.slice(0, -1));
     if (last.kept) {
@@ -188,9 +202,12 @@ export default function SwipeScreen({
   // ── Pointer events ───────────────────────────────────────────────────────────
 
   function onPointerDown(e) {
-    if (animOut || done) return;
+    if (animOut || animBrowse || done) return;
     e.currentTarget.setPointerCapture(e.pointerId);
     dragStartRef.current = { x: e.clientX, y: e.clientY };
+    axisRef.current = null;
+    velRef.current = { vx: 0, vy: 0 };
+    lastSampleRef.current = { x: e.clientX, y: e.clientY, t: performance.now() };
     setDragging(true);
     const pressedCard = card;
     longPressTimerRef.current = setTimeout(() => {
@@ -202,34 +219,65 @@ export default function SwipeScreen({
     if (!dragging || dragStartRef.current === null) return;
     const dx = e.clientX - dragStartRef.current.x;
     const dy = e.clientY - dragStartRef.current.y;
-    setOffset(dx);
-    setOffsetY(dy);
-    if (Math.abs(dx) > 5 || Math.abs(dy) > 5) {
-      clearTimeout(longPressTimerRef.current);
-      longPressTimerRef.current = null;
+
+    const now = performance.now();
+    const last = lastSampleRef.current;
+    if (last && now > last.t) {
+      velRef.current = {
+        vx: (e.clientX - last.x) / (now - last.t),
+        vy: (e.clientY - last.y) / (now - last.t),
+      };
     }
+    lastSampleRef.current = { x: e.clientX, y: e.clientY, t: now };
+
+    // Axis lock: the first ~10px decide browse vs sort — a gesture can
+    // never switch axes mid-drag.
+    if (axisRef.current === null) {
+      if (Math.max(Math.abs(dx), Math.abs(dy)) > AXIS_LOCK_PX) {
+        axisRef.current = Math.abs(dx) >= Math.abs(dy) ? "x" : "y";
+        clearTimeout(longPressTimerRef.current);
+        longPressTimerRef.current = null;
+      }
+    }
+    if (axisRef.current === "x") setOffset(dx);
+    else if (axisRef.current === "y") setOffsetY(dy);
   }
 
-  // Four-direction map: left = pass, right = keep (pile),
-  // up = decklist, down = maybe. Dominant axis wins.
+  // Horizontal browses (carousel), vertical decides: flick up = mainboard,
+  // flick down = maybe. A vertical release before threshold springs back.
   function onPointerUp(e) {
     if (!dragging) return;
     clearTimeout(longPressTimerRef.current);
     longPressTimerRef.current = null;
     setDragging(false);
-    const dx = dragStartRef.current !== null ? e.clientX - dragStartRef.current.x : 0;
-    const dy = dragStartRef.current !== null ? e.clientY - dragStartRef.current.y : 0;
+    const start = dragStartRef.current;
+    const dx = start !== null ? e.clientX - start.x : 0;
+    const dy = start !== null ? e.clientY - start.y : 0;
     dragStartRef.current = null;
-    const horizontal = Math.abs(dx) >= Math.abs(dy);
-    if (horizontal && dx > SWIPE_THRESHOLD)        doResolve(true);
-    else if (horizontal && dx < -SWIPE_THRESHOLD)  doResolve(false);
-    else if (!horizontal && dy < -SWIPE_THRESHOLD) doDecklist();
-    else if (!horizontal && dy > SWIPE_THRESHOLD)  doMaybe();
-    else {
-      setOffset(0);
-      setOffsetY(0);
-      if (Math.abs(dx) < 10 && Math.abs(dy) < 10) setCardExpanded(v => !v);
+    const axis = axisRef.current;
+    axisRef.current = null;
+    const { vx, vy } = velRef.current;
+
+    if (axis === "x") {
+      const commitDist = window.innerWidth * BROWSE_COMMIT_RATIO;
+      if (dx < 0 && (Math.abs(dx) > commitDist || vx < -BROWSE_VELOCITY)) browseNext();
+      else if (dx > 0 && (Math.abs(dx) > commitDist || vx > BROWSE_VELOCITY)) browsePrev();
+      else setOffset(0);
+      return;
     }
+
+    if (axis === "y") {
+      const flickDist = window.innerHeight * FLICK_RATIO;
+      if (dy < 0 && (Math.abs(dy) > flickDist || vy < -FLICK_VELOCITY)) doDecklist();
+      else if (dy > 0 && (Math.abs(dy) > flickDist || vy > FLICK_VELOCITY)) doMaybe();
+      else setOffsetY(0);
+      return;
+    }
+
+    // No axis locked — treat as a tap
+    setOffset(0);
+    setOffsetY(0);
+    if (Math.abs(dx) < AXIS_LOCK_PX && Math.abs(dy) < AXIS_LOCK_PX) setCardExpanded(v => !v);
   }
 
   // ── Derived visuals ──────────────────────────────────────────────────────────
@@ -240,20 +288,16 @@ export default function SwipeScreen({
   ) : null;
 
   // Flat carousel motion — no rotation, the card's movement is the feedback.
-  const artTransform =
-      animOut === "up"    ? "translateY(-110vh)"
-    : animOut === "down"  ? "translateY(110vh)"
-    : animOut === "right" ? "translateX(110vw)"
-    : animOut === "left"  ? "translateX(-110vw)"
-    : `translate(${offset}px, ${offsetY}px)`;
-
-  const artOpacity = animOut ? 0 : 1;
-
-  const artTransition = animOut
-    ? "transform 280ms ease-in, opacity 280ms ease-in"
-    : dragging
-      ? "none"
+  // The whole strip (current + peeking neighbors) shares one transition.
+  const stripTransition = dragging
+    ? "none"
+    : animBrowse
+      ? "transform 300ms cubic-bezier(0.22, 0.61, 0.36, 1)"
       : "transform 300ms cubic-bezier(0.34, 1.56, 0.64, 1)";
+
+  const currentTransition = animOut
+    ? "transform 280ms ease-in, opacity 280ms ease-in"
+    : stripTransition;
 
   function isCommanderEligible(c) {
     const type = c?.type_line ?? "";
@@ -283,14 +327,11 @@ export default function SwipeScreen({
       overflow: "hidden",
     }}>
 
-      {/* ── Art layer (the draggable) ── */}
+      {/* ── Carousel strip (the gesture layer) ── */}
       {!done && (
         <div
           style={{
             position: "absolute", inset: 0,
-            transform: artTransform,
-            transition: artTransition,
-            opacity: artOpacity,
             cursor: dragging ? "grabbing" : "grab",
             touchAction: "none", userSelect: "none",
             zIndex: 0,
@@ -301,90 +342,113 @@ export default function SwipeScreen({
           onPointerCancel={onPointerUp}
           onTouchStart={handleDoubleTap}
         >
-          {/* Art image — centered, naturally sized so overlays are tight to card bounds */}
-          {artUrl && !imgError ? (
-            <div style={{
-              position: "absolute", inset: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              pointerEvents: "none",
-            }}>
-              {/* Frameless — the card art sits clean on the dark background */}
-              <div style={{
-                position: "relative", lineHeight: 0,
-                width: "88vw",
-                height: "calc(88vw * 1.4)",
-                maxHeight: "62vh",
-              }}>
-                <img
-                  src={artUrl}
-                  alt={card?.name}
-                  draggable={false}
-                  onError={() => setImgError(true)}
-                  style={{
-                    display: "block",
-                    width: "100%",
-                    height: "100%",
-                    objectFit: "contain",
-                    pointerEvents: "none",
-                  }}
-                />
+          {/* Prev / current / next — neighbors peek in from the edges */}
+          {[idx - 1, idx, idx + 1].map(i => {
+            const c = effectiveCards[i];
+            if (!c) return null;
+            const isCurrent = i === idx;
+            const url = isCurrent
+              ? artUrl
+              : (getCardImage(c, "large") ?? getCardImage(c, "normal"));
+            // Keying by card id keeps DOM nodes stable across the post-browse
+            // index swap, so the strip never visually jumps.
+            const transform = isCurrent
+              ? (animOut === "up"   ? "translateY(-110vh)"
+              :  animOut === "down" ? "translateY(110vh)"
+              :  `translate(${offset}px, ${offsetY}px)`)
+              : `translateX(calc(${(i - idx) * SPACING_VW}vw + ${offset}px))`;
+            return (
+              <div
+                key={c.id ?? i}
+                style={{
+                  position: "absolute", inset: 0,
+                  transform,
+                  transition: isCurrent ? currentTransition : stripTransition,
+                  opacity: isCurrent ? (animOut ? 0 : 1) : 0.45,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  pointerEvents: "none",
+                }}
+              >
+                {/* Frameless — the card art sits clean on the dark background */}
+                <div style={{
+                  position: "relative", lineHeight: 0,
+                  width: "88vw",
+                  height: "calc(88vw * 1.4)",
+                  maxHeight: "62vh",
+                }}>
+                  {url && !(isCurrent && imgError) ? (
+                    <img
+                      src={url}
+                      alt={c.name}
+                      draggable={false}
+                      onError={isCurrent ? () => setImgError(true) : undefined}
+                      style={{
+                        display: "block",
+                        width: "100%",
+                        height: "100%",
+                        objectFit: "contain",
+                        pointerEvents: "none",
+                      }}
+                    />
+                  ) : (
+                    <div style={{
+                      position: "absolute", inset: 0,
+                      display: "flex", alignItems: "center", justifyContent: "center",
+                    }}>
+                      <span style={{
+                        fontFamily: "var(--font-system)",
+                        fontSize: 28, color: "var(--color-text-primary)", letterSpacing: 2,
+                        textAlign: "center", padding: "0 32px",
+                      }}>{c.name}</span>
+                    </div>
+                  )}
+                </div>
+
+                {isCurrent && isGameChanger && (
+                  <>
+                    {/* Game Changer electric glow */}
+                    <div style={{
+                      position: "absolute", inset: 0,
+                      animation: "gc-glow 1.5s ease-in-out infinite",
+                      pointerEvents: "none",
+                      zIndex: 3,
+                    }} />
+                    {/* Game Changer lightning badge */}
+                    <div style={{
+                      position: "absolute",
+                      top: "calc(env(safe-area-inset-top) + 52px)",
+                      left: 14,
+                      zIndex: 6,
+                      pointerEvents: "none",
+                    }}>
+                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#00cfff">
+                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
+                      </svg>
+                    </div>
+                  </>
+                )}
+
+                {/* Flip button — double-faced cards only */}
+                {isCurrent && card?.card_faces?.length > 1 && (
+                  <button
+                    onClick={e => { e.stopPropagation(); setFlipped(f => !f); }}
+                    style={{
+                      position: "absolute", bottom: 16, right: 16, zIndex: 5,
+                      background: "rgba(0,0,0,0.6)",
+                      border: "1px solid rgba(255,255,255,0.2)",
+                      borderRadius: 20,
+                      padding: "6px 14px",
+                      fontFamily: "'Noto Sans', sans-serif",
+                      fontSize: 13, letterSpacing: 2,
+                      color: "rgba(255,255,255,0.7)",
+                      cursor: "pointer",
+                      pointerEvents: "auto",
+                    }}
+                  >{flipped ? "FRONT" : "BACK"}</button>
+                )}
               </div>
-            </div>
-          ) : (
-            <div style={{
-              position: "absolute", inset: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-            }}>
-              <span style={{
-                fontFamily: "var(--font-system)",
-                fontSize: 28, color: "var(--color-text-primary)", letterSpacing: 2,
-                textAlign: "center", padding: "0 32px",
-              }}>{card?.name}</span>
-            </div>
-          )}
-
-          {/* Game Changer electric glow */}
-          {isGameChanger && (
-            <div style={{
-              position: "absolute", inset: 0,
-              animation: "gc-glow 1.5s ease-in-out infinite",
-              pointerEvents: "none",
-              zIndex: 3,
-            }} />
-          )}
-
-          {/* Game Changer lightning badge */}
-          {isGameChanger && (
-            <div style={{
-              position: "absolute",
-              top: "calc(env(safe-area-inset-top) + 52px)",
-              left: 14,
-              zIndex: 6,
-              pointerEvents: "none",
-            }}>
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="#00cfff">
-                <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-              </svg>
-            </div>
-          )}
-
-          {/* Flip button — double-faced cards only */}
-          {card?.card_faces?.length > 1 && (
-            <button
-              onClick={e => { e.stopPropagation(); setFlipped(f => !f); }}
-              style={{
-                position: "absolute", bottom: 16, right: 16, zIndex: 5,
-                background: "rgba(0,0,0,0.6)",
-                border: "1px solid rgba(255,255,255,0.2)",
-                borderRadius: 20,
-                padding: "6px 14px",
-                fontFamily: "'Noto Sans', sans-serif",
-                fontSize: 13, letterSpacing: 2,
-                color: "rgba(255,255,255,0.7)",
-                cursor: "pointer",
-              }}
-            >{flipped ? "FRONT" : "BACK"}</button>
-          )}
+            );
+          })}
         </div>
       )}
 
@@ -527,7 +591,7 @@ export default function SwipeScreen({
           color: "var(--muted)",
           whiteSpace: "pre",
         }}>
-          {"← pass  ↑ mainboard  ↓ maybe  → keep"}
+          {"← browse →  ↑ mainboard  ↓ maybe"}
         </div>
       )}
     </div>
