@@ -220,12 +220,16 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   const [error, setError]         = useState(null);
   const [saving, setSaving]       = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [reconnecting, setReconnecting] = useState(false);
 
   // A legend-attached session (launched from LegendIdentity's "brew" verb)
   // skips commander selection and lands directly on the search screen,
   // optionally attaching to that legend's in-progress deck.
   const [attachDeckId, setAttachDeckId]       = useState(null);
   const [existingCardRows, setExistingCardRows] = useState([]);
+
+  const writeQueueRef = useRef([]);
+  const flushingRef   = useRef(false);
 
   // A legend-attached session skips commander/mode selection entirely and
   // drops straight into the swipe carousel, auto-seeded from the legend's
@@ -236,13 +240,26 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     setSessionLabel(session.legend.name);
     let cancelled = false;
     (async () => {
+      // Flick-is-a-write: the session's deck must exist before any swipe can
+      // land, so create it now if the legend has no in-progress deck yet —
+      // matched on legend_id, never a name-insert.
+      let deckId = session.deckId;
+      if (!deckId) {
+        const { data: deck, error: deckError } = await supabase
+          .from("decks")
+          .insert({ legend: session.legend.name, legend_id: session.legend.id, status: "Active" })
+          .select()
+          .single();
+        if (!deckError) deckId = deck.id;
+      }
+
       let existingRows = [];
-      if (session.deckId) {
-        setAttachDeckId(session.deckId);
+      if (deckId) {
+        setAttachDeckId(deckId);
         const { data } = await supabase
           .from("deck_cards")
           .select("card_name, quantity, section")
-          .eq("deck_id", session.deckId);
+          .eq("deck_id", deckId);
         existingRows = data ?? [];
         if (!cancelled) setExistingCardRows(existingRows);
       }
@@ -283,6 +300,75 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  // A flick is a write: each decklist/maybe decision (and its undo) is
+  // queued and applied to deck_cards immediately, fire-and-forget, so the
+  // gesture/animation never blocks on the network. Failed writes retry with
+  // backoff; only persistent failure (3 attempts) surfaces, via `reconnecting`.
+  function commitCard(card, section, delta) {
+    if (!attachDeckId) return;
+    writeQueueRef.current.push({ deckId: attachDeckId, cardName: card.name, section, delta, attempts: 0 });
+    flushWriteQueue();
+  }
+
+  async function flushWriteQueue() {
+    if (flushingRef.current) return;
+    flushingRef.current = true;
+    while (writeQueueRef.current.length > 0) {
+      const item = writeQueueRef.current[0];
+      try {
+        await applyCardDelta(item);
+        writeQueueRef.current.shift();
+        setReconnecting(false);
+      } catch {
+        item.attempts += 1;
+        if (item.attempts >= 3) {
+          setReconnecting(true);
+          writeQueueRef.current.shift();
+          continue;
+        }
+        flushingRef.current = false;
+        setTimeout(flushWriteQueue, 1500);
+        return;
+      }
+    }
+    flushingRef.current = false;
+  }
+
+  // Read-modify-write a single deck_cards row for (deck, card, section).
+  async function applyCardDelta({ deckId, cardName, section, delta }) {
+    const { data: existing, error: selError } = await supabase
+      .from("deck_cards")
+      .select("id, quantity")
+      .eq("deck_id", deckId).eq("card_name", cardName).eq("section", section)
+      .maybeSingle();
+    if (selError) throw selError;
+    const quantity = (existing?.quantity ?? 0) + delta;
+    if (quantity <= 0) {
+      if (existing) {
+        const { error } = await supabase.from("deck_cards").delete().eq("id", existing.id);
+        if (error) throw error;
+      }
+    } else if (existing) {
+      const { error } = await supabase.from("deck_cards").update({ quantity }).eq("id", existing.id);
+      if (error) throw error;
+    } else {
+      const { error } = await supabase.from("deck_cards").insert({ deck_id: deckId, card_name: cardName, section, quantity });
+      if (error) throw error;
+    }
+  }
+
+  // Live review: removing a card from a section is itself a write (-1).
+  function handleRemoveCard(name, section) {
+    const [list, setList] = section === "decklist" ? [decklist, setDecklist]
+      : section === "maybe" ? [maybeboard, setMaybeboard]
+      : [pile, setPile];
+    const idx = list.findIndex(c => c.name === name);
+    if (idx === -1) return;
+    const card = list[idx];
+    setList(prev => prev.filter((_, i) => i !== idx));
+    commitCard(card, section, -1);
   }
 
   // Tapping the Brew tab while already on this page returns to the landing
@@ -335,110 +421,67 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     if (query) runSearch(query, order, dir, sessionLabel);
   }
 
-  // Attached session: merge newly-swiped cards into the existing deck's
-  // rows (combining quantities by card_name + section) and replace the
-  // deck_cards rows wholesale, so save UPDATES the deck instead of
-  // creating a duplicate.
-  async function saveAttachedDeck() {
-    const newRows = buildCardRows(attachDeckId, [
-      ["pile", pile],
-      ["decklist", decklist],
-      ["maybe", maybeboard],
-    ]);
-
-    const merged = new Map();
-    for (const r of existingCardRows) {
-      merged.set(`${r.card_name}|${r.section}`, { deck_id: attachDeckId, card_name: r.card_name, section: r.section, quantity: r.quantity });
-    }
-    for (const r of newRows) {
-      const key = `${r.card_name}|${r.section}`;
-      const existing = merged.get(key);
-      if (existing) existing.quantity += r.quantity;
-      else merged.set(key, r);
-    }
-    const rows = [...merged.values()];
-
-    const { error: delError } = await supabase
-      .from("deck_cards")
-      .delete()
-      .eq("deck_id", attachDeckId);
-    if (delError) throw delError;
-
-    for (let i = 0; i < rows.length; i += 100) {
-      const { error: cardError } = await supabase
-        .from("deck_cards")
-        .insert(rows.slice(i, i + 100));
-      if (cardError) throw cardError;
-    }
-  }
-
-  // Upsert legend → create deck → bulk insert deck_cards (002 schema).
+  // Non-session flows (mode select / Loki dev seed) have no deck yet —
+  // upsert legend → create deck → bulk insert deck_cards (002 schema).
+  // Session flows never reach this: their deck exists from session start
+  // and is kept live by commitCard, so review has no save step.
   async function handleConfirmSave(commanderName, buildName) {
     setSaving(true);
     setSaveError(null);
     try {
-      if (attachDeckId) {
-        await saveAttachedDeck();
-      } else {
-        const { data: legend, error: legendError } = await supabase
-          .from("legends")
-          .upsert({ name: commanderName }, { onConflict: "name" })
-          .select()
-          .single();
-        if (legendError) throw legendError;
+      const { data: legend, error: legendError } = await supabase
+        .from("legends")
+        .upsert({ name: commanderName }, { onConflict: "name" })
+        .select()
+        .single();
+      if (legendError) throw legendError;
 
-        // The legend may have been typed rather than picked from a Scryfall
-        // list — attempt to heal its identity now so the Box tile arrives
-        // with art/oracle data already attached. Best-effort: failures here
-        // shouldn't block the save.
-        if (!legend.image_uri || !legend.type_line) {
-          try {
-            const card = await fetchCardIdentity(commanderName);
-            if (card) {
-              await supabase.from("legends").update({
-                scryfall_id: card.id,
-                image_uri: getCardImage(card, "art_crop"),
-                type_line: card.type_line ?? null,
-                oracle_text: card.oracle_text ?? card.card_faces?.[0]?.oracle_text ?? null,
-                mana_cost: card.mana_cost ?? card.card_faces?.[0]?.mana_cost ?? null,
-                color_identity: card.color_identity ?? [],
-              }).eq("id", legend.id);
-            }
-          } catch { /* best-effort identity backfill */ }
-        }
-
-        const { data: deck, error: deckError } = await supabase
-          .from("decks")
-          .insert({
-            legend: commanderName, // legacy text column, kept in sync
-            legend_id: legend.id,
-            build_name: buildName || null,
-            status: "Active",
-          })
-          .select()
-          .single();
-        if (deckError) throw deckError;
-
-        const rows = buildCardRows(deck.id, [
-          ["pile", pile],
-          ["decklist", decklist],
-          ["maybe", maybeboard],
-        ]);
-        for (let i = 0; i < rows.length; i += 100) {
-          const { error: cardError } = await supabase
-            .from("deck_cards")
-            .insert(rows.slice(i, i + 100));
-          if (cardError) throw cardError;
-        }
+      // The legend may have been typed rather than picked from a Scryfall
+      // list — attempt to heal its identity now so the Box tile arrives
+      // with art/oracle data already attached. Best-effort: failures here
+      // shouldn't block the save.
+      if (!legend.image_uri || !legend.type_line) {
+        try {
+          const card = await fetchCardIdentity(commanderName);
+          if (card) {
+            await supabase.from("legends").update({
+              scryfall_id: card.id,
+              image_uri: getCardImage(card, "art_crop"),
+              type_line: card.type_line ?? null,
+              oracle_text: card.oracle_text ?? card.card_faces?.[0]?.oracle_text ?? null,
+              mana_cost: card.mana_cost ?? card.card_faces?.[0]?.mana_cost ?? null,
+              color_identity: card.color_identity ?? [],
+            }).eq("id", legend.id);
+          }
+        } catch { /* best-effort identity backfill */ }
       }
 
-      const wasSession = !!session;
+      const { data: deck, error: deckError } = await supabase
+        .from("decks")
+        .insert({
+          legend: commanderName, // legacy text column, kept in sync
+          legend_id: legend.id,
+          build_name: buildName || null,
+          status: "Active",
+        })
+        .select()
+        .single();
+      if (deckError) throw deckError;
+
+      const rows = buildCardRows(deck.id, [
+        ["pile", pile],
+        ["decklist", decklist],
+        ["maybe", maybeboard],
+      ]);
+      for (let i = 0; i < rows.length; i += 100) {
+        const { error: cardError } = await supabase
+          .from("deck_cards")
+          .insert(rows.slice(i, i + 100));
+        if (cardError) throw cardError;
+      }
+
       resetBrew();
-      if (wasSession) {
-        onSessionDone?.();
-      } else {
-        setBrewView("shell");
-      }
+      setBrewView("shell");
     } catch (err) {
       setSaveError(err.message);
     } finally {
@@ -549,7 +592,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             decklist={decklist}
             onDecklistChange={setDecklist}
             onGoToPile={() => setBrewView("review")}
-            onExit={() => setBrewView(backTarget)}
+            onExit={handleBack}
             onGoToSearch={() => setBrewView("search")}
             onSearchMore={() => setBrewView("search")}
             commanderCard={sessionLabel ? { name: sessionLabel } : null}
@@ -559,8 +602,8 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             swipeOrder={swipeOrder}
             swipeDir={swipeDir}
             onSortChange={handleSortChange}
-            activeDeckId={null}
-            onSavePile={() => {}}
+            onCardCommit={session ? commitCard : undefined}
+            reconnecting={reconnecting}
           />
         )}
 
@@ -572,6 +615,8 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             onConfirm={handleConfirmSave}
             saving={saving}
             error={saveError}
+            live={!!session}
+            onRemove={handleRemoveCard}
           />
         )}
       </div>

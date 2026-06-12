@@ -38,7 +38,7 @@ export default function SwipeScreen({
   initialIndex, onIndexChange,
   swipeOrder = "name", swipeDir = "desc", onSortChange,
   onGoToBrews,
-  activeDeckId, onSavePile,
+  onCardCommit, reconnecting,
   onDoubleTag,
 }) {
   // Cards already sorted into a pile/decklist/maybeboard leave the carousel
@@ -77,7 +77,6 @@ export default function SwipeScreen({
 
   const didMountRef       = useRef(false);
   const dragStartRef      = useRef(null);
-  const saveTimerRef      = useRef(null);
   const longPressTimerRef = useRef(null);
   const pendingRestoreRef = useRef(null);   // oracle_id awaiting re-insertion after undo
   const axisRef           = useRef(null);   // "x" | "y" once locked, null before
@@ -135,13 +134,6 @@ export default function SwipeScreen({
     return () => window.removeEventListener("keydown", handler);
   });
 
-  useEffect(() => {
-    if (!activeDeckId) return;
-    clearTimeout(saveTimerRef.current);
-    saveTimerRef.current = setTimeout(() => onSavePile?.(pile), 1000);
-    return () => clearTimeout(saveTimerRef.current);
-  }, [pile, activeDeckId]); // eslint-disable-line react-hooks/exhaustive-deps
-
   // ── Actions ─────────────────────────────────────────────────────────────────
 
   // Horizontal is browsing only — it never sorts. The pile (and its undo
@@ -178,6 +170,7 @@ export default function SwipeScreen({
       const cardEntry = { ...card, instanceId: crypto.randomUUID() };
       setHistory(h => [...h, { card: cardEntry, kept: false, maybe: true }]);
       onMaybeboardChange(prev => [...prev, cardEntry]);
+      onCardCommit?.(cardEntry, "maybe", 1);
       // The card leaves the queue entirely — clamp idx so the track
       // centers the next card (or the new last card, if this was it).
       setIdx(i => Math.max(0, Math.min(i, effectiveCards.length - 2)));
@@ -194,6 +187,7 @@ export default function SwipeScreen({
       const cardEntry = { ...card, instanceId: crypto.randomUUID() };
       setHistory(h => [...h, { card: cardEntry, kept: false, maybe: false, decklist: true }]);
       onDecklistChange?.(prev => [...prev, cardEntry]);
+      onCardCommit?.(cardEntry, "decklist", 1);
       setIdx(i => Math.max(0, Math.min(i, effectiveCards.length - 2)));
       setOffset(0); setOffsetY(0); setAnimOut(null);
     }, 285);
@@ -205,10 +199,13 @@ export default function SwipeScreen({
     setHistory(h => h.slice(0, -1));
     if (last.kept) {
       onPileChange(pile.filter(c => c.instanceId !== last.card.instanceId));
+      onCardCommit?.(last.card, "pile", -1);
     } else if (last.maybe) {
       onMaybeboardChange(prev => prev.filter(c => c.instanceId !== last.card.instanceId));
+      onCardCommit?.(last.card, "maybe", -1);
     } else if (last.decklist) {
       onDecklistChange?.(prev => prev.filter(c => c.instanceId !== last.card.instanceId));
+      onCardCommit?.(last.card, "decklist", -1);
     }
     // Removing the id from its pile re-inserts the card into effectiveCards
     // at its original position; once that happens, jump idx to it.
@@ -618,6 +615,11 @@ export default function SwipeScreen({
           {done
             ? `${pile.length} KEPT`
             : `${effectiveCards.length - idx} IN STACK${commanderName ? ` · ${commanderName.toUpperCase()}` : ""}`}
+          {reconnecting && (
+            <div style={{ marginTop: 2, color: "rgba(255,255,255,0.25)", letterSpacing: "0.1em" }}>
+              reconnecting…
+            </div>
+          )}
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 8, pointerEvents: "auto" }}>
           {history.length > 0 && !animOut && (

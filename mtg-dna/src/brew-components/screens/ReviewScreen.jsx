@@ -22,6 +22,7 @@ function groupByName(cards) {
 export default function ReviewScreen({
   pile, decklist, maybeboard,
   onConfirm, saving, error,
+  live, onRemove,
 }) {
   const [commanderName, setCommanderName] = useState("");
   const [buildName, setBuildName] = useState("");
@@ -73,7 +74,7 @@ export default function ReviewScreen({
           letterSpacing: "0.08em",
           color: "var(--text)",
         }}>
-          REVIEW · {total} CARD{total !== 1 ? "S" : ""}
+          {live ? "DECK" : "REVIEW"} · {total} CARD{total !== 1 ? "S" : ""}
         </div>
 
         {/* Grouped card lists */}
@@ -106,58 +107,78 @@ export default function ReviewScreen({
                     textOverflow: "ellipsis",
                     whiteSpace: "nowrap",
                   }}>{name}</span>
-                  {quantity > 1 && (
-                    <span style={{ color: "var(--muted)", flexShrink: 0 }}>×{quantity}</span>
-                  )}
+                  <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
+                    {quantity > 1 && (
+                      <span style={{ color: "var(--muted)" }}>×{quantity}</span>
+                    )}
+                    {live && (
+                      <button
+                        onClick={() => onRemove(name, key)}
+                        aria-label={`Remove ${name}`}
+                        style={{
+                          background: "transparent",
+                          border: "none",
+                          padding: 0,
+                          color: "var(--muted)",
+                          fontFamily: "var(--font-system)",
+                          fontSize: 14,
+                          lineHeight: 1,
+                          cursor: "pointer",
+                        }}
+                      >×</button>
+                    )}
+                  </div>
                 </div>
               ))
             )}
           </div>
         ))}
 
-        {/* Name the brew */}
-        <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
-          <input
-            type="text"
-            placeholder="Commander name"
-            value={commanderName}
-            onChange={e => setCommanderName(e.target.value)}
-            autoComplete="off" autoCorrect="off" spellCheck={false}
-            style={inputStyle}
-          />
-          <input
-            type="text"
-            placeholder="Build name (optional)"
-            value={buildName}
-            onChange={e => setBuildName(e.target.value)}
-            autoComplete="off" autoCorrect="off" spellCheck={false}
-            style={inputStyle}
-          />
-          <button
-            onClick={() => onConfirm(commanderName.trim(), buildName.trim())}
-            disabled={!canSave}
-            style={{
-              width: "100%",
-              background: "var(--color-titlebar)",
-              color: "var(--color-titlebar-text)",
-              fontFamily: "var(--font-system)",
-              fontSize: "var(--font-size-xl)",
-              letterSpacing: "0.12em",
-              border: "none",
-              padding: "16px 24px",
-              borderRadius: 0,
-              cursor: canSave ? "pointer" : "default",
-              opacity: canSave ? 1 : 0.5,
-            }}
-          >
-            {saving ? "SAVING…" : "SAVE BREW"}
-          </button>
-          {error && (
-            <div style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.5 }}>
-              {error}
-            </div>
-          )}
-        </div>
+        {/* Name the brew — live sessions write on every flick, nothing to save */}
+        {!live && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 10, marginTop: 8 }}>
+            <input
+              type="text"
+              placeholder="Commander name"
+              value={commanderName}
+              onChange={e => setCommanderName(e.target.value)}
+              autoComplete="off" autoCorrect="off" spellCheck={false}
+              style={inputStyle}
+            />
+            <input
+              type="text"
+              placeholder="Build name (optional)"
+              value={buildName}
+              onChange={e => setBuildName(e.target.value)}
+              autoComplete="off" autoCorrect="off" spellCheck={false}
+              style={inputStyle}
+            />
+            <button
+              onClick={() => onConfirm(commanderName.trim(), buildName.trim())}
+              disabled={!canSave}
+              style={{
+                width: "100%",
+                background: "var(--color-titlebar)",
+                color: "var(--color-titlebar-text)",
+                fontFamily: "var(--font-system)",
+                fontSize: "var(--font-size-xl)",
+                letterSpacing: "0.12em",
+                border: "none",
+                padding: "16px 24px",
+                borderRadius: 0,
+                cursor: canSave ? "pointer" : "default",
+                opacity: canSave ? 1 : 0.5,
+              }}
+            >
+              {saving ? "SAVING…" : "SAVE BREW"}
+            </button>
+            {error && (
+              <div style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.5 }}>
+                {error}
+              </div>
+            )}
+          </div>
+        )}
 
       </div>
     </div>
