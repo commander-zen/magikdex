@@ -35,7 +35,7 @@ export default function LegendBox({ onSelectLegend }) {
   async function loadLegends() {
     const { data, error } = await supabase
       .from("legends")
-      .select("id, name, scryfall_id, image_uri, type_line, decks(id, status, deck_cards(quantity))")
+      .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks(id, status, deck_cards(quantity))")
       .order("name");
     if (!error) setLegends(data ?? []);
     setLoading(false);
@@ -79,6 +79,7 @@ export default function LegendBox({ onSelectLegend }) {
           type_line: card.type_line ?? null,
           oracle_text: card.oracle_text ?? card.card_faces?.[0]?.oracle_text ?? null,
           mana_cost: card.mana_cost ?? card.card_faces?.[0]?.mana_cost ?? null,
+          color_identity: card.color_identity ?? [],
         };
         await supabase.from("legends").update(patch).eq("id", legend.id);
         if (!cancelled) {

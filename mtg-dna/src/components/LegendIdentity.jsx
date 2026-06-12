@@ -16,6 +16,7 @@ export default function LegendIdentity({ legend, onBack, onBrew }) {
   const { theme, mode } = useTheme();
   const [oracleCard, setOracleCard] = useState(null);
   const [decks, setDecks] = useState(legend.decks ?? []);
+  const [brewPressed, setBrewPressed] = useState(false);
 
   const dimColor    = mode === "light" ? theme.muted : theme.dim;
   const textColor   = mode === "light" ? theme.ink   : theme.white;
@@ -219,25 +220,31 @@ export default function LegendIdentity({ legend, onBack, onBrew }) {
         </div>
 
         {/* Verbs */}
-        <div style={{ display: "flex", gap: 24 }}>
-          <button
-            onClick={() => onBrew(legend, inProgressDeck)}
-            style={{
-              background: "none", border: "none", borderRadius: 0,
-              padding: 0,
-              fontFamily: "'Noto Sans', sans-serif",
-              fontSize: 13,
-              fontWeight: 500,
-              letterSpacing: "0.1em",
-              textTransform: "lowercase",
-              color: ruleColor,
-              cursor: "pointer",
-              WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            brew
-          </button>
-        </div>
+        <button
+          onClick={() => onBrew(legend, inProgressDeck)}
+          onPointerDown={() => setBrewPressed(true)}
+          onPointerUp={() => setBrewPressed(false)}
+          onPointerLeave={() => setBrewPressed(false)}
+          style={{
+            display: "block",
+            width: "100%",
+            height: 48,
+            background: brewPressed ? ruleColor : "transparent",
+            border: `1px solid ${ruleColor}`,
+            borderRadius: 0,
+            padding: 0,
+            fontFamily: "'Zilla Slab', serif",
+            fontSize: 16,
+            letterSpacing: "0.04em",
+            textTransform: "lowercase",
+            textAlign: "center",
+            color: brewPressed ? theme.base : ruleColor,
+            cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          brew
+        </button>
       </div>
     </div>
   );

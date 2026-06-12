@@ -227,20 +227,63 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   const [attachDeckId, setAttachDeckId]       = useState(null);
   const [existingCardRows, setExistingCardRows] = useState([]);
 
+  // A legend-attached session skips commander/mode selection entirely and
+  // drops straight into the swipe carousel, auto-seeded from the legend's
+  // color identity (fetched now if the row hasn't been backfilled yet).
   useEffect(() => {
     if (!session || brewView !== "shell") return;
     setBrewMode("legend");
     setSessionLabel(session.legend.name);
-    if (session.deckId) {
-      setAttachDeckId(session.deckId);
-      supabase
-        .from("deck_cards")
-        .select("card_name, quantity, section")
-        .eq("deck_id", session.deckId)
-        .then(({ data }) => setExistingCardRows(data ?? []));
-    }
-    setBrewView("search");
+    let cancelled = false;
+    (async () => {
+      let existingRows = [];
+      if (session.deckId) {
+        setAttachDeckId(session.deckId);
+        const { data } = await supabase
+          .from("deck_cards")
+          .select("card_name, quantity, section")
+          .eq("deck_id", session.deckId);
+        existingRows = data ?? [];
+        if (!cancelled) setExistingCardRows(existingRows);
+      }
+
+      let colorIdentity = session.legend.color_identity;
+      if (!colorIdentity) {
+        const card = await fetchCardIdentity(session.legend.name);
+        colorIdentity = card?.color_identity ?? [];
+        if (card) {
+          await supabase.from("legends").update({ color_identity: colorIdentity }).eq("id", session.legend.id);
+        }
+      }
+      if (cancelled) return;
+      await seedSwipeQueue(colorIdentity, existingRows);
+    })();
+    return () => { cancelled = true; };
   }, [session]);
+
+  // legal:commander ci<=<identity> -t:land, ordered by edhrec popularity —
+  // dev seed for the legend-attached session's initial queue. Cards already
+  // in the attached deck are filtered out client-side.
+  async function seedSwipeQueue(colorIdentity, excludeRows = []) {
+    setLoading(true);
+    setError(null);
+    try {
+      const ci = colorIdentity?.length ? colorIdentity.join("").toLowerCase() : "c";
+      const q = `legal:commander ci<=${ci} -t:land`;
+      const { cards } = await fetchFirstPageForSwipe(q, null, { order: "edhrec" });
+      if (!cards.length) throw new Error("No cards found for that query.");
+      const exclude = new Set(excludeRows.map(r => r.card_name));
+      setQuery(q);
+      setSwipeCards(cards.filter(c => !exclude.has(c.name)));
+      setSwipeIndex(0);
+      setBrewView("swipe");
+    } catch (err) {
+      setError(err.message);
+      setBrewView("search");
+    } finally {
+      setLoading(false);
+    }
+  }
 
   // Tapping the Brew tab while already on this page returns to the landing
   // (shell) view without discarding the in-progress session — only react
@@ -358,6 +401,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
                 type_line: card.type_line ?? null,
                 oracle_text: card.oracle_text ?? card.card_faces?.[0]?.oracle_text ?? null,
                 mana_cost: card.mana_cost ?? card.card_faces?.[0]?.mana_cost ?? null,
+                color_identity: card.color_identity ?? [],
               }).eq("id", legend.id);
             }
           } catch { /* best-effort identity backfill */ }
@@ -412,12 +456,13 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     // A session launched from the Loki dev seed has no real search to return
     // to — its "back" is the mode/seed screen instead.
     const isLokiSession = sessionLabel === LOKI_SESSION_LABEL;
-    // A legend-attached session skipped commander selection entirely, so
-    // "back" from search exits the session (returns to LegendIdentity)
-    // rather than going to the mode-select screen.
+    // A legend-attached session skips straight to swipe with an auto-seeded
+    // queue, so "back" from swipe exits the session (returns to
+    // LegendIdentity). The in-swipe search affordance only re-seeds the
+    // queue, so "back" from that search returns to swipe rather than exiting.
     const backTarget = brewView === "modes" ? "shell"
-      : brewView === "search" ? (session ? null : "modes")
-      : brewView === "swipe" ? (isLokiSession ? "modes" : "search")
+      : brewView === "search" ? (session ? "swipe" : "modes")
+      : brewView === "swipe" ? (session ? null : (isLokiSession ? "modes" : "search"))
       : "swipe";
 
     function handleBack() {

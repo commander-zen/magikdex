@@ -547,6 +547,32 @@ export default function SwipeScreen({
           {commanderName ?? ""}
         </div>
 
+        {onGoToSearch && (
+          <button
+            onClick={onGoToSearch}
+            aria-label="Search to re-seed queue"
+            style={{
+              width: 40, height: 40,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "transparent", border: "none", padding: 0,
+              color: "rgba(255,255,255,0.7)",
+              cursor: "pointer",
+              flexShrink: 0,
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <span
+              className="material-symbols-rounded"
+              style={{
+                fontSize: 20,
+                fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
+              }}
+            >
+              search
+            </span>
+          </button>
+        )}
+
         <button
           onClick={onGoToPile}
           aria-label="Open review"
