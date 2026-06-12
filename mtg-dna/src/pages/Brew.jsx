@@ -690,6 +690,21 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     );
   }
 
+  // In the magicdex IA, Brew is only ever launched with a session — the
+  // session-init effect flips brewView off "shell" on the next tick. Hold the
+  // dark takeover meanwhile rather than flashing the legacy tool landing.
+  if (session) {
+    return (
+      <div style={{
+        position: "fixed", inset: 0, zIndex: 50,
+        background: BREW.base,
+        ...BREW_VARS,
+      }} />
+    );
+  }
+
+  // Legacy non-session landing (mode select / free pile / discovery). Retained
+  // but no longer reachable now that the tab bar is gone.
   return (
     <div style={{
       height: "100%",

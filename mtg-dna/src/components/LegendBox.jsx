@@ -20,7 +20,7 @@ function deckTotal(deck) {
   return cardSum + 1;
 }
 
-export default function LegendBox({ onSelectLegend }) {
+export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSignal }) {
   const { theme, mode } = useTheme();
   const [legends, setLegends] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -41,9 +41,17 @@ export default function LegendBox({ onSelectLegend }) {
     setLoading(false);
   }
 
+  // Reload on mount and whenever the parent bumps reloadSignal — a brew
+  // session ending refreshes deck totals across the grid and the top block.
   useEffect(() => {
     loadLegends();
-  }, []);
+  }, [reloadSignal]);
+
+  // Keep the parent surface's legend list (and its last-active top block) in
+  // sync through loads, adds, and lazy identity healing.
+  useEffect(() => {
+    onLegendsLoaded?.(legends);
+  }, [legends]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Selecting a card in AddLegendSheet upserts it (no deck) and refreshes the grid.
   async function handleAddLegend(card) {
@@ -92,19 +100,75 @@ export default function LegendBox({ onSelectLegend }) {
 
   if (loading) return null;
 
+  const addTile = (
+    <button
+      onClick={() => setAddOpen(true)}
+      style={{
+        position: "relative",
+        display: "flex",
+        flexDirection: "column",
+        alignItems: "center",
+        justifyContent: "center",
+        gap: 4,
+        width: "100%",
+        aspectRatio: "5 / 4",
+        padding: 0,
+        border: `1px dashed ${dimColor}`,
+        borderRadius: 0,
+        background: "transparent",
+        cursor: "pointer",
+        WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <span
+        className="material-symbols-rounded"
+        style={{ fontSize: 22, color: dimColor }}
+      >
+        add
+      </span>
+      <span style={{
+        fontFamily: "'Noto Sans Mono', monospace",
+        fontSize: 10,
+        color: dimColor,
+      }}>
+        add legend
+      </span>
+    </button>
+  );
+
+  // Empty state: no legends to grid — center the add tile alone with one
+  // dimmed line. The top identity block is suppressed by the parent surface.
+  if (legends.length === 0) {
+    return (
+      <>
+        <div style={{
+          display: "flex",
+          flexDirection: "column",
+          alignItems: "center",
+          gap: 16,
+          padding: "48px 0",
+        }}>
+          <div style={{ width: "40%", maxWidth: 140 }}>{addTile}</div>
+          <div style={{
+            fontFamily: "'Noto Sans Mono', monospace",
+            fontSize: 12,
+            color: dimColor,
+            opacity: 0.6,
+          }}>
+            add your first legend
+          </div>
+        </div>
+        <AddLegendSheet
+          open={addOpen}
+          onClose={() => setAddOpen(false)}
+          onSelect={handleAddLegend}
+        />
+      </>
+    );
+  }
+
   return (
     <>
-      {legends.length === 0 && (
-        <div style={{
-          fontFamily: "'Noto Sans Mono', monospace",
-          fontSize: 12,
-          color: dimColor,
-          opacity: 0.6,
-          marginBottom: 8,
-        }}>
-          no legends yet
-        </div>
-      )}
       <div style={{
         display: "grid",
         gridTemplateColumns: "repeat(3, 1fr)",
@@ -187,39 +251,7 @@ export default function LegendBox({ onSelectLegend }) {
         );
       })}
 
-      <button
-        onClick={() => setAddOpen(true)}
-        style={{
-          position: "relative",
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 4,
-          width: "100%",
-          aspectRatio: "5 / 4",
-          padding: 0,
-          border: `1px dashed ${dimColor}`,
-          borderRadius: 0,
-          background: "transparent",
-          cursor: "pointer",
-          WebkitTapHighlightColor: "transparent",
-        }}
-      >
-        <span
-          className="material-symbols-rounded"
-          style={{ fontSize: 22, color: dimColor }}
-        >
-          add
-        </span>
-        <span style={{
-          fontFamily: "'Noto Sans Mono', monospace",
-          fontSize: 10,
-          color: dimColor,
-        }}>
-          add legend
-        </span>
-      </button>
+      {addTile}
       </div>
 
       <AddLegendSheet

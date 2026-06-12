@@ -4,7 +4,6 @@ import { supabase } from "../lib/supabase.js";
 import { fetchCardByName, getCardImage, formatManaCost } from "../lib/scryfall.js";
 
 const DECK_GATE = 100;
-const NAV_HEIGHT = 60;
 
 // A deck's total = sum of deck_cards quantities + 1 for the commander
 // (the commander itself is never written to deck_cards).
@@ -13,7 +12,10 @@ function deckTotal(deck) {
   return cardSum + 1;
 }
 
-export default function LegendIdentity({ legend, onBack, onBrew }) {
+// The last-active legend's identity, rendered as an in-flow block at the top
+// of the Box (root) surface — not a pushed full-screen route. There is no
+// "back" here: its canonical parent is the surface it already sits on.
+export default function LegendIdentity({ legend, onBrew }) {
   const { theme, mode } = useTheme();
   const [oracleCard, setOracleCard] = useState(null);
   const [decks, setDecks] = useState(legend.decks ?? []);
@@ -59,36 +61,8 @@ export default function LegendIdentity({ legend, onBack, onBrew }) {
   const inProgressDeck = decks.find(d => deckTotal(d) < DECK_GATE) ?? null;
 
   return (
-    <div style={{
-      position: "fixed", inset: 0, zIndex: 50,
-      background: theme.base,
-      overflowY: "auto",
-      WebkitOverflowScrolling: "touch",
-    }}>
-      <button
-        onClick={onBack}
-        aria-label="Back"
-        style={{
-          position: "fixed",
-          top: 10, left: 10,
-          zIndex: 51,
-          width: 44, height: 44,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: "transparent", border: "none", padding: 0,
-          color: textColor,
-          cursor: "pointer",
-          WebkitTapHighlightColor: "transparent",
-        }}
-      >
-        <span
-          className="material-symbols-rounded"
-          style={{ fontSize: 22, fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24" }}
-        >
-          arrow_back
-        </span>
-      </button>
-
-      {/* Art */}
+    <div>
+      {/* Art — full-bleed across the surface, extends under the notch */}
       <div style={{ width: "100%", aspectRatio: "5 / 2", background: theme.border }}>
         {art && (
           <img
@@ -104,9 +78,9 @@ export default function LegendIdentity({ legend, onBack, onBrew }) {
         )}
       </div>
 
-      <div style={{ padding: "20px 20px 40px", paddingBottom: `calc(${NAV_HEIGHT}px + env(safe-area-inset-bottom) + 40px)` }}>
+      <div style={{ padding: "20px 20px 8px" }}>
         {/* Name block */}
-        <div style={{ marginBottom: 32 }}>
+        <div style={{ marginBottom: 28 }}>
           {typeLine && (
             <div style={{
               fontFamily: "'Noto Sans', sans-serif",
@@ -135,7 +109,7 @@ export default function LegendIdentity({ legend, onBack, onBrew }) {
 
         {/* Oracle text + mana cost */}
         {(oracleText || manaCost) && (
-          <div style={{ marginBottom: 32 }}>
+          <div style={{ marginBottom: 28 }}>
             {manaCost && (
               <div style={{
                 fontFamily: "'Noto Sans Mono', monospace",
@@ -162,7 +136,7 @@ export default function LegendIdentity({ legend, onBack, onBrew }) {
         )}
 
         {/* Decks list */}
-        <div style={{ marginBottom: 32 }}>
+        <div style={{ marginBottom: 28 }}>
           {decks.length === 0 ? (
             <div style={{
               fontFamily: "'Noto Sans Mono', monospace",

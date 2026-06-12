@@ -1,38 +1,24 @@
 import { useEffect, useState } from "react";
 import { useTheme } from "./theme/ThemeContext";
-import NavBar from "./components/NavBar";
 import Home from "./pages/Home";
-import Vault from "./pages/Vault";
 import Brew from "./pages/Brew";
-import Table from "./pages/Table";
-import Notebook from "./pages/Notebook";
 
-const NAV_HEIGHT = 60;
-
+// One concern: the Box is the root and the only home. There are no tabs — the
+// root is a single scrolling surface (Home), and brewing opens Brew as a
+// full-screen takeover over it.
 export default function App() {
   const { theme } = useTheme();
-  const [activePage, setActivePage] = useState("home");
-  const [selectedLegend, setSelectedLegend] = useState(null);
   const [brewSession, setBrewSession] = useState(null);
-  const [brewResetSignal, setBrewResetSignal] = useState(0);
-
-  // Tab icons always return their tab to its root view, even when already
-  // on that tab — tapping Home from LegendIdentity goes back to the Box,
-  // tapping Brew from inside a session goes back to the brew landing.
-  function handleNavigate(id) {
-    setActivePage(id);
-    if (id === "home") setSelectedLegend(null);
-    if (id === "brew") setBrewResetSignal(s => s + 1);
-  }
+  // Bumped when a brew session ends so the Box surface re-reads deck totals.
+  const [reloadSignal, setReloadSignal] = useState(0);
 
   function handleLaunchBrew(legend, deck, opts) {
     setBrewSession({ legend, deckId: deck?.id ?? null, startView: opts?.startView ?? null });
-    setActivePage("brew");
   }
 
   function handleBrewSessionDone() {
     setBrewSession(null);
-    setActivePage("home");
+    setReloadSignal(s => s + 1);
   }
 
   useEffect(() => {
@@ -47,31 +33,13 @@ export default function App() {
       height: "100dvh",
       width: "100%",
       background: theme.base,
-      display: "flex",
-      flexDirection: "column",
       overflow: "hidden",
     }}>
-      <div style={{
-        flex: 1,
-        overflow: "hidden",
-        paddingBottom: NAV_HEIGHT,
-      }}>
-        {activePage === "home"     && (
-          <Home
-            selectedLegend={selectedLegend}
-            onSelectLegend={setSelectedLegend}
-            onLaunchBrew={handleLaunchBrew}
-          />
-        )}
-        {activePage === "vault"    && <Vault />}
-        {activePage === "brew"     && (
-          <Brew session={brewSession} onSessionDone={handleBrewSessionDone} resetSignal={brewResetSignal} />
-        )}
-        {activePage === "table"    && <Table />}
-        {activePage === "notebook" && <Notebook />}
-      </div>
+      <Home onLaunchBrew={handleLaunchBrew} reloadSignal={reloadSignal} />
 
-      <NavBar activePage={activePage} onNavigate={handleNavigate} />
+      {brewSession && (
+        <Brew session={brewSession} onSessionDone={handleBrewSessionDone} />
+      )}
     </div>
   );
 }
