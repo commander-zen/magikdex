@@ -4,6 +4,14 @@
 Priority: **RUN THE MIGRATION** — `mtg-dna/supabase/migrations/002_legends.sql` must be run manually in the Supabase SQL editor before the Vault form or Brew save will work. After that: decide the pile's fate (carousel gesture model made it unreachable — see Known Issues), wire mode-specific behavior in Brew (`brewMode` is stored but all four modes route to the same search screen), then end-to-end test of search → swipe → review → save.
 
 ## Done
+- ✅ 2026-06-11 — SwipeScreen card sizing, edge peek, persistent header (`ee0d310`, `26089df`):
+  - ✅ Centered card now dominates: `min(92vw, 420px)` wide, height `min(calc(92vw*1.4), calc(420px*1.4), 70vh)`, replacing the old 88vw/62vh sizing
+  - ✅ Edge-peek slivers (16px, `var(--color-surface)`) at left/right screen edges when a prev/next card exists; track the horizontal drag offset with `stripTransition`
+  - ✅ Gesture thresholds (axis lock, browse/flick ratios + velocities, spring-back) untouched
+  - ✅ New persistent header bar (transparent, zIndex 3): back chevron → `onGoToPile` (exits to review, keeps decisions), center legend name in Zilla Slab, right running tally `decklist.length · maybeboard.length` in Noto Sans Mono
+  - ✅ Existing stack-info strip (count/UNDO/SORT) shifted down 40px to make room; sort dropdown offset adjusted to match
+  - ✅ Review → swipe back-navigation already worked via existing `backTarget` logic in Brew.jsx (review → swipe) and persisted state — no Brew.jsx changes needed
+  - ✅ Build passes (431 kB)
 - ✅ 2026-06-11 — Loki dev seed (`24b531b`):
   - ✅ `LOKI_CLONE_QUERY` exported from `src/lib/scryfall.js` (`legal:commander ci<=u t:creature o:"copy of" -o:"token"`) — hardcoded starting point, flagged do-not-improve; live-checked: 51 cards
   - ✅ "// Loki test session" dev row on the mode-select screen (Noto Sans Mono, dimmed) — skips SearchScreen straight to SwipeScreen via the existing `runSearch` path; shows loading/error inline
