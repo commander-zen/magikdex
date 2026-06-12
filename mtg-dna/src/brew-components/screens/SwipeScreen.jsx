@@ -319,6 +319,13 @@ export default function SwipeScreen({
     if (card?.card_faces?.length > 1) setFlipped(f => !f);
   });
 
+  // The card dominates the screen — ~92vw, capped so it doesn't balloon on
+  // tablets, height follows the card aspect ratio with a viewport cap.
+  const cardWidth  = "min(92vw, 420px)";
+  const cardHeight = "min(calc(92vw * 1.4), calc(420px * 1.4), 70vh)";
+  const hasPrev = idx > 0;
+  const hasNext = idx < effectiveCards.length - 1;
+
   return (
     <div style={{
       position: "fixed", inset: 0,
@@ -372,9 +379,8 @@ export default function SwipeScreen({
                 {/* Frameless — the card art sits clean on the dark background */}
                 <div style={{
                   position: "relative", lineHeight: 0,
-                  width: "88vw",
-                  height: "calc(88vw * 1.4)",
-                  maxHeight: "62vh",
+                  width: cardWidth,
+                  height: cardHeight,
                 }}>
                   {url && !(isCurrent && imgError) ? (
                     <img
@@ -449,6 +455,34 @@ export default function SwipeScreen({
               </div>
             );
           })}
+
+          {/* Edge peek — "there's more here" affordance. A card-back-colored
+              sliver stands in for the neighbor; tracks the horizontal drag
+              so the carousel reads as one continuous strip. */}
+          {hasPrev && (
+            <div style={{
+              position: "absolute",
+              left: 0, top: "50%",
+              width: 16,
+              height: cardHeight,
+              transform: `translateY(-50%) translateX(${offset}px)`,
+              transition: stripTransition,
+              background: "var(--color-surface)",
+              pointerEvents: "none",
+            }} />
+          )}
+          {hasNext && (
+            <div style={{
+              position: "absolute",
+              right: 0, top: "50%",
+              width: 16,
+              height: cardHeight,
+              transform: `translateY(-50%) translateX(${offset}px)`,
+              transition: stripTransition,
+              background: "var(--color-surface)",
+              pointerEvents: "none",
+            }} />
+          )}
         </div>
       )}
 
