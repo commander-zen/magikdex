@@ -8,8 +8,8 @@ import SettingsSheet from "../components/SettingsSheet";
 // localStorage now; a `legends.last_active_at` column can back this later.
 const LAST_KEY = "magicdex-last-legend";
 
-// The Box is the root and the only home: one scrolling surface with the
-// last-active legend's identity block on top and the full Box grid below.
+// The Box is the root and the only home, modeled on a Pokémon storage box:
+// a detail pane on top (the selected legend) and the box tray below.
 export default function Home({ onLaunchBrew, reloadSignal }) {
   const { theme, mode } = useTheme();
   const [legends, setLegends] = useState([]);
@@ -17,15 +17,10 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
   const [settingsOpen, setSettingsOpen] = useState(false);
 
   const glyphColor   = mode === "light" ? `${theme.ink}80` : `${theme.white}80`;
-  const eyebrowColor = mode === "light" ? theme.muted : theme.dim;
   const titleColor   = mode === "light" ? theme.ink   : theme.white;
-  const ruleColor    = mode === "light" ? theme.gold  : theme.amber;
-
-  // Full-bleed art handles the notch when a legend is on top; without it the
-  // wordmark must clear the notch itself. Both clear the home indicator.
-  const contentPad = activeLegend
-    ? "28px 20px calc(env(safe-area-inset-bottom) + 40px)"
-    : "calc(env(safe-area-inset-top) + 28px) 20px calc(env(safe-area-inset-bottom) + 40px)";
+  const dimColor     = mode === "light" ? theme.muted : theme.dim;
+  const trayBg       = mode === "light" ? theme.paper : theme.surface;
+  const borderColor  = mode === "light" ? theme.border : theme.muted;
 
   // Pick the top block on every load: keep the current legend if it survived
   // the reload, else the persisted last-active, else the first in the Box.
@@ -41,8 +36,8 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
     });
   }
 
-  // Tapping a grid tile swaps the top block on the same surface (no push) and
-  // pins that legend as last-active.
+  // Tapping a tray slot swaps the top detail pane on the same surface (no
+  // push) and pins that legend as last-active.
   function selectLegend(legend) {
     localStorage.setItem(LAST_KEY, String(legend.id));
     setActiveLegend(legend);
@@ -57,83 +52,99 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
   return (
     <div style={{
       height: "100%",
-      overflowY: "auto",
-      overflowX: "hidden",
+      display: "flex",
+      flexDirection: "column",
       background: theme.base,
-      position: "relative",
-      WebkitOverflowScrolling: "touch",
+      overflow: "hidden",
     }}>
-      {/* Settings glyph — inconspicuous, top-right over the surface */}
-      <button
-        onClick={() => setSettingsOpen(true)}
-        aria-label="Settings"
-        style={{
-          position: "absolute",
-          top: "calc(env(safe-area-inset-top) + 10px)",
-          right: 12,
-          zIndex: 10,
-          width: 40, height: 40,
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: "transparent", border: "none", padding: 0,
-          cursor: "pointer",
-          WebkitTapHighlightColor: "transparent",
-        }}
-      >
-        <span
-          className="material-symbols-rounded"
+      {/* Top bar — the magıcdex wordmark drops to the eyebrow position so the
+          box header below doesn't compete with it; settings gear on the right. */}
+      <div style={{
+        flexShrink: 0,
+        display: "flex", alignItems: "center", justifyContent: "space-between",
+        paddingTop: "calc(env(safe-area-inset-top) + 10px)",
+        paddingLeft: "calc(env(safe-area-inset-left) + 16px)",
+        paddingRight: 12,
+        paddingBottom: 10,
+      }}>
+        {/* Dotless i (U+0131): lowercase, dot removed, to evoke "dex". */}
+        <div style={{
+          fontFamily: "'Zilla Slab', serif",
+          fontSize: 18,
+          fontWeight: 400,
+          letterSpacing: "0.01em",
+          color: titleColor,
+          lineHeight: 1,
+        }}>
+          mag&#x0131;cdex
+        </div>
+        <button
+          onClick={() => setSettingsOpen(true)}
+          aria-label="Settings"
           style={{
-            fontSize: 20,
-            color: glyphColor,
-            fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
+            width: 40, height: 40,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "transparent", border: "none", padding: 0,
+            cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
           }}
         >
-          settings
-        </span>
-      </button>
+          <span
+            className="material-symbols-rounded"
+            style={{
+              fontSize: 20,
+              color: glyphColor,
+              fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
+            }}
+          >
+            settings
+          </span>
+        </button>
+      </div>
 
-      {/* Top: last-active legend's identity block. Re-mounts (re-fetches) when
-          the active legend changes or a brew session ends (reloadSignal). */}
-      {activeLegend && (
-        <LegendIdentity
-          key={`${activeLegend.id}-${reloadSignal}`}
-          legend={activeLegend}
-          onBrew={launchBrew}
-        />
-      )}
+      {/* TOP PANE (~55%) — the selected legend's detail. Scrolls internally if
+          the oracle text / deck rows overflow; stays put while the tray scrolls. */}
+      <div style={{
+        flex: "55 1 0",
+        minHeight: 0,
+        overflowY: "auto",
+        overflowX: "hidden",
+        WebkitOverflowScrolling: "touch",
+      }}>
+        {activeLegend ? (
+          <LegendIdentity
+            key={`${activeLegend.id}-${reloadSignal}`}
+            legend={activeLegend}
+            onBrew={launchBrew}
+          />
+        ) : (
+          <div style={{
+            height: "100%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            fontFamily: "'Noto Sans Mono', monospace",
+            fontSize: 12,
+            color: dimColor,
+            opacity: 0.6,
+          }}>
+            add your first legend
+          </div>
+        )}
+      </div>
 
-      {/* Below: the full Box grid (+ add-legend tile) */}
-      <div style={{ padding: contentPad }}>
-        {/* Wordmark — "magıcdex" with a dotless i (U+0131): lowercase, dot
-            removed, to evoke "dex". Zilla Slab, the title treatment. "Helix"
-            eyebrow retained for now; trivial to drop. */}
-        <div style={{ marginBottom: 32 }}>
-          <div style={{
-            fontFamily: "'Noto Sans', sans-serif",
-            fontSize: 10,
-            fontWeight: 500,
-            letterSpacing: "0.18em",
-            textTransform: "uppercase",
-            color: eyebrowColor,
-            marginBottom: 4,
-          }}>
-            Helix
-          </div>
-          <div style={{
-            fontFamily: "'Zilla Slab', serif",
-            fontSize: 28,
-            fontWeight: 400,
-            letterSpacing: "0.01em",
-            color: titleColor,
-            lineHeight: 1.1,
-          }}>
-            mag&#x0131;cdex
-          </div>
-          <div style={{ width: 32, height: 1, background: ruleColor, marginTop: 10 }} />
-        </div>
+      {/* BOTTOM PANE (~45%) — the box tray, a distinct surface. */}
+      <div style={{
+        flex: "45 1 0",
+        minHeight: 0,
+        display: "flex",
+        flexDirection: "column",
+        background: trayBg,
+        borderTop: `1px solid ${borderColor}`,
+      }}>
         <LegendBox
           onSelectLegend={selectLegend}
           onLegendsLoaded={handleLegendsLoaded}
           reloadSignal={reloadSignal}
+          activeId={activeLegend?.id}
         />
       </div>
 
