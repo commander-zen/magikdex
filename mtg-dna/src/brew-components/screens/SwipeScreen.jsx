@@ -91,10 +91,11 @@ export default function SwipeScreen({
     if (!document.getElementById("gc-style")) {
       const style = document.createElement("style");
       style.id = "gc-style";
+      // Helix gold/amber breathing glow — single hue, the app's accent.
       style.textContent = `
         @keyframes gc-glow {
-          0%, 100% { box-shadow: 0 0 22px 6px #00cfff, 0 0 48px 16px rgba(0,207,255,0.25); }
-          50%       { box-shadow: 0 0 22px 6px #7b2fff, 0 0 48px 16px rgba(123,47,255,0.25); }
+          0%, 100% { box-shadow: 0 0 16px 3px rgba(232,160,32,0.5), 0 0 36px 10px rgba(232,160,32,0.16); }
+          50%      { box-shadow: 0 0 22px 6px rgba(232,160,32,0.78), 0 0 48px 14px rgba(232,160,32,0.22); }
         }
       `;
       document.head.appendChild(style);
@@ -446,31 +447,45 @@ export default function SwipeScreen({
                       }}>{c.name}</span>
                     </div>
                   )}
-                </div>
 
-                {isCurrent && isGameChanger && (
-                  <>
-                    {/* Game Changer electric glow */}
-                    <div style={{
-                      position: "absolute", inset: 0,
-                      animation: "gc-glow 1.5s ease-in-out infinite",
-                      pointerEvents: "none",
-                      zIndex: 3,
-                    }} />
-                    {/* Game Changer lightning badge */}
-                    <div style={{
-                      position: "absolute",
-                      top: "calc(env(safe-area-inset-top) + 52px)",
-                      left: 14,
-                      zIndex: 6,
-                      pointerEvents: "none",
-                    }}>
-                      <svg width="20" height="20" viewBox="0 0 24 24" fill="#00cfff">
-                        <polygon points="13 2 3 14 12 14 11 22 21 10 12 10 13 2"/>
-                      </svg>
-                    </div>
-                  </>
-                )}
+                  {/* Game Changer indicator — Helix amber, sharp-edged, on the
+                      card's top-left corner. Detection (isGameChanger) is
+                      unchanged; this only restyles the holdover blue glyph. */}
+                  {isCurrent && isGameChanger && (
+                    <>
+                      {/* Amber glow hugging the card's rounded corners */}
+                      <div style={{
+                        position: "absolute", inset: 0,
+                        borderRadius: "5.5% / 4%",
+                        animation: "gc-glow 1.5s ease-in-out infinite",
+                        pointerEvents: "none",
+                        zIndex: 3,
+                      }} />
+                      {/* Bolt chip — Material Symbols glyph on a dark plate */}
+                      <div style={{
+                        position: "absolute",
+                        top: 6, left: 6,
+                        zIndex: 6,
+                        width: 24, height: 24,
+                        display: "flex", alignItems: "center", justifyContent: "center",
+                        background: "rgba(10,14,26,0.85)",
+                        border: "1px solid #e8a020",
+                        pointerEvents: "none",
+                      }}>
+                        <span
+                          className="material-symbols-rounded"
+                          style={{
+                            fontSize: 16,
+                            color: "#e8a020",
+                            fontVariationSettings: "'FILL' 1, 'wght' 500, 'GRAD' 0, 'opsz' 24",
+                          }}
+                        >
+                          bolt
+                        </span>
+                      </div>
+                    </>
+                  )}
+                </div>
 
                 {/* Flip button — double-faced cards only */}
                 {isCurrent && card?.card_faces?.length > 1 && (
