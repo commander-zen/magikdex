@@ -347,6 +347,10 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       // seeded the queue — plus anything decided so far this session.
       const exclude = new Set([...excludeRows.map(r => r.card_name), ...decidedNamesRef.current]);
       setQuery(rawQuery);
+      // The auto-seed arrives in EDHREC-rank order — reflect that in the sort
+      // control so the label names the order actually applied (not "NAME").
+      setSwipeOrder("edhrec");
+      setSwipeDir("asc");
       setSwipeCards(cards.filter(c => !exclude.has(c.name)));
       setSwipeIndex(0);
       if (setView) setBrewView("swipe");

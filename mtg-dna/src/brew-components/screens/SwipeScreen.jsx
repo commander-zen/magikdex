@@ -645,8 +645,10 @@ export default function SwipeScreen({
               fontSize: 10, letterSpacing: 1, cursor: "pointer", lineHeight: 1,
             }}
           >
-            {SORT_OPTIONS.find(o => o.value === swipeOrder)?.label ?? "SORT"}{" "}
-            {swipeDir === "asc" ? "↑" : "↓"}
+            {SORT_OPTIONS.find(o => o.value === swipeOrder)?.label ?? "SORT"}
+            {/* EDHREC is a fixed rank — the asc/desc arrow only applies to
+                NAME/CMC, where the user actually toggles direction. */}
+            {swipeOrder !== "edhrec" && ` ${swipeDir === "asc" ? "↑" : "↓"}`}
           </button>
         </div>
       </div>
