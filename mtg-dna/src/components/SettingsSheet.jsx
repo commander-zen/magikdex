@@ -1,14 +1,29 @@
+import { useState } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
+import { getBrewDefaults, setBrewDefaults } from "../lib/brewDefaults.js";
+
+// Starting-state choices for a fresh swipe seed (per-session controls override).
+const SORT_CHOICES = [
+  { value: "edhrec", label: "EDHREC" },
+  { value: "name",   label: "A–Z" },
+  { value: "cmc",    label: "CMC ↑" },
+];
 
 // The Box surface's only chrome: a bottom sheet behind the gear glyph holding
-// the theme toggle and the colophon that used to live in the footer.
+// the theme toggle, the brew defaults, and the colophon.
 export default function SettingsSheet({ open, onClose }) {
   const { theme, mode, toggleTheme } = useTheme();
+  const [defaults, setDefaults] = useState(getBrewDefaults);
+
+  function updateDefaults(patch) {
+    setDefaults(setBrewDefaults(patch));
+  }
 
   const textColor   = mode === "light" ? theme.ink   : theme.white;
   const dimColor    = mode === "light" ? theme.muted : theme.dim;
   const borderColor = mode === "light" ? theme.border : theme.muted;
+  const accent      = mode === "light" ? theme.gold  : theme.amber;
 
   const rowStyle = {
     display: "flex", alignItems: "center", justifyContent: "space-between",
@@ -81,6 +96,65 @@ export default function SettingsSheet({ open, onClose }) {
               >
                 {mode === "dark" ? "light_mode" : "dark_mode"}
               </span>
+            </span>
+          </div>
+
+          {/* ── Brew defaults — starting state of every fresh swipe seed ── */}
+          <div style={{
+            fontFamily: "'Noto Sans', sans-serif",
+            fontSize: 10,
+            fontWeight: 500,
+            letterSpacing: "0.18em",
+            textTransform: "uppercase",
+            color: dimColor,
+            margin: "20px 0 8px",
+          }}>
+            brew defaults
+          </div>
+
+          {/* Default sort — segmented */}
+          <div style={{ ...rowStyle, cursor: "default" }}>
+            <span style={labelStyle}>default sort</span>
+            <div style={{ display: "flex", border: `1px solid ${borderColor}` }}>
+              {SORT_CHOICES.map((c, idx) => {
+                const active = defaults.sort === c.value;
+                return (
+                  <button
+                    key={c.value}
+                    onClick={() => updateDefaults({ sort: c.value })}
+                    style={{
+                      padding: "6px 10px",
+                      border: "none",
+                      borderLeft: idx > 0 ? `1px solid ${borderColor}` : "none",
+                      background: active ? accent : "transparent",
+                      color: active ? theme.base : dimColor,
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 10,
+                      letterSpacing: "0.06em",
+                      cursor: "pointer",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    {c.label}
+                  </button>
+                );
+              })}
+            </div>
+          </div>
+
+          {/* Exclude lands by default */}
+          <div
+            onClick={() => updateDefaults({ excludeLands: !defaults.excludeLands })}
+            style={rowStyle}
+          >
+            <span style={labelStyle}>exclude lands</span>
+            <span style={{
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 12,
+              letterSpacing: "0.08em",
+              color: defaults.excludeLands ? accent : dimColor,
+            }}>
+              {defaults.excludeLands ? "ON" : "OFF"}
             </span>
           </div>
 

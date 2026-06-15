@@ -7,6 +7,7 @@ import SearchScreen from "../brew-components/screens/SearchScreen.jsx";
 import SwipeScreen from "../brew-components/screens/SwipeScreen.jsx";
 import ReviewScreen from "../brew-components/screens/ReviewScreen.jsx";
 import { fetchFirstPageForSwipe, fetchCardIdentity, getCardImage, LOKI_CLONE_QUERY } from "../lib/scryfall.js";
+import { getBrewDefaults } from "../lib/brewDefaults.js";
 import { supabase } from "../lib/supabase.js";
 
 // Brew sub-screens are always dark, regardless of the app theme mode —
@@ -338,18 +339,21 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     setLoading(true);
     setError(null);
     try {
-      const rawQuery = "-t:land";
+      // The starting order/filter come from the user's persisted brew defaults
+      // (EDHREC + exclude-lands by default); per-session controls still override.
+      const defaults = getBrewDefaults();
+      const rawQuery = defaults.excludeLands ? "-t:land" : "";
       const q = withColorIdentity(rawQuery, colorIdentity);
-      const { cards } = await fetchFirstPageForSwipe(q, null, { order: "edhrec" });
+      const { cards } = await fetchFirstPageForSwipe(q, null, { order: defaults.sort, dir: "asc" });
       if (!cards.length) throw new Error("No cards found for that query.");
       // Exclude every card already in the deck, on either board — recomputed
       // from live deck_cards on every entry, not just the session that first
       // seeded the queue — plus anything decided so far this session.
       const exclude = new Set([...excludeRows.map(r => r.card_name), ...decidedNamesRef.current]);
       setQuery(rawQuery);
-      // The auto-seed arrives in EDHREC-rank order — reflect that in the sort
-      // control so the label names the order actually applied (not "NAME").
-      setSwipeOrder("edhrec");
+      // Reflect the seed's actual order in the sort control so the label names
+      // the order applied (the earlier label-accuracy fix).
+      setSwipeOrder(defaults.sort);
       setSwipeDir("asc");
       setSwipeCards(cards.filter(c => !exclude.has(c.name)));
       setSwipeIndex(0);
@@ -487,7 +491,10 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   function handleSortChange(order, dir) {
     setSwipeOrder(order);
     setSwipeDir(dir);
-    if (query) runSearch(query, order, dir, sessionLabel);
+    // Re-run on any active session even when the query is empty (lands-included
+    // default seeds with no -t:land term) — the color-identity constraint alone
+    // is a valid query.
+    if (query || session) runSearch(query, order, dir, sessionLabel);
   }
 
   // Non-session flows (mode select / Loki dev seed) have no deck yet —
