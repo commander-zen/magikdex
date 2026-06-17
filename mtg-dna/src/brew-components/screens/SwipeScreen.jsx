@@ -532,10 +532,13 @@ export default function SwipeScreen({
                   )}
                 </div>
 
-                {/* Flip button — double-faced cards only */}
+                {/* Flip button — double-faced cards only. One consistent
+                    "flip" label that toggles either direction (front↔back),
+                    not a face-specific FRONT/BACK. Dimmed mono, ≥44px target. */}
                 {isCurrent && card?.card_faces?.length > 1 && (
                   <button
                     onClick={e => { e.stopPropagation(); setFlipped(f => !f); }}
+                    aria-label="Flip card"
                     style={{
                       position: "absolute", bottom: 16, right: 16, zIndex: 5,
                       minHeight: 44, minWidth: 44,
@@ -544,13 +547,13 @@ export default function SwipeScreen({
                       border: "1px solid rgba(255,255,255,0.2)",
                       borderRadius: 20,
                       padding: "6px 14px",
-                      fontFamily: "'Noto Sans', sans-serif",
-                      fontSize: 13, letterSpacing: 2,
-                      color: "rgba(255,255,255,0.7)",
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 12, letterSpacing: "0.1em",
+                      color: "rgba(255,255,255,0.55)",
                       cursor: "pointer",
                       pointerEvents: "auto",
                     }}
-                  >{flipped ? "FRONT" : "BACK"}</button>
+                  >flip</button>
                 )}
               </div>
             );
