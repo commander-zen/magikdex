@@ -284,7 +284,9 @@ export default function ReviewScreen({
                             fontFamily: "'Noto Sans Mono', monospace",
                             fontSize: 10,
                             letterSpacing: "0.08em",
-                            borderRadius: 0,
+                            // Scoped exception to the app's no-radius rule — only
+                            // these five WREC tag chips get a soft pill corner.
+                            borderRadius: 6,
                             cursor: "pointer",
                             WebkitTapHighlightColor: "transparent",
                           }}
