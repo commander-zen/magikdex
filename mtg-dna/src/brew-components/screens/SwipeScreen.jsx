@@ -591,7 +591,7 @@ export default function SwipeScreen({
           onClick={onGoToPile}
           aria-label="Open review"
           style={{
-            display: "flex", alignItems: "center", gap: 2,
+            display: "flex", alignItems: "center", gap: 4,
             minHeight: 44,
             fontFamily: "'Noto Sans Mono', monospace",
             fontSize: 12,
@@ -603,8 +603,15 @@ export default function SwipeScreen({
             WebkitTapHighlightColor: "transparent",
           }}
         >
+          <span
+            className="material-symbols-rounded"
+            style={{ fontSize: 15 }}
+          >
+            checklist
+          </span>
+          <span style={{ letterSpacing: "0.06em" }}>review</span>
           <span style={{ textDecoration: "underline", textDecorationColor: "rgba(255,255,255,0.2)" }}>
-            {decklist.length} · {maybeboard.length}
+            ({decklist.length}·{maybeboard.length})
           </span>
           <span
             className="material-symbols-rounded"

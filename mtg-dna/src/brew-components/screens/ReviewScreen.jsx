@@ -63,6 +63,7 @@ export default function ReviewScreen({
   live, onRemove,
   commander,
   cardTags, onToggleTag,
+  onBack, onHome,
 }) {
   const [commanderName, setCommanderName] = useState("");
   const [buildName, setBuildName] = useState("");
@@ -300,6 +301,10 @@ export default function ReviewScreen({
     );
   }
 
+  // Bottom thumb-zone nav, live sessions only — mirrors the swipe screen's
+  // back-left pattern.
+  const showBottomNav = live && (onBack || onHome);
+
   return (
     <div style={{
       minHeight: "100dvh",
@@ -310,7 +315,7 @@ export default function ReviewScreen({
       flexDirection: "column",
       alignItems: "center",
       overflowY: "auto",
-      paddingBottom: SAFE_BOTTOM,
+      paddingBottom: showBottomNav ? "calc(env(safe-area-inset-bottom) + 64px)" : SAFE_BOTTOM,
     }}>
 
       {/* Frozen header — the commander anchor AND the WREC band stay pinned to
@@ -475,6 +480,68 @@ export default function ReviewScreen({
         )}
 
       </div>
+
+      {/* Bottom thumb-zone nav — live sessions only. Mirrors the swipe screen's
+          back-left pattern: BACK resumes the swipe session where it left off,
+          HOME exits to the legend's DEX entry. Text labels, mono, ≥44px. */}
+      {showBottomNav && (
+        <div style={{
+          position: "fixed",
+          left: 0, right: 0,
+          bottom: 0,
+          zIndex: 5,
+          display: "flex",
+          justifyContent: "center",
+          padding: "0 0 calc(env(safe-area-inset-bottom) + 8px)",
+          background: "linear-gradient(to top, var(--bg) 60%, transparent)",
+        }}>
+          <div style={{
+            width: "100%",
+            maxWidth: 430,
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "space-between",
+            padding: "0 12px",
+          }}>
+            <button
+              onClick={onBack}
+              aria-label="Back to swipe"
+              style={{
+                minHeight: 44,
+                display: "flex", alignItems: "center", gap: 6,
+                background: "transparent", border: "none",
+                color: "var(--text)",
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 12, letterSpacing: "0.08em",
+                padding: "0 10px",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: 18 }}>arrow_back</span>
+              back
+            </button>
+            <button
+              onClick={onHome}
+              aria-label="Home"
+              style={{
+                minHeight: 44,
+                display: "flex", alignItems: "center", gap: 6,
+                background: "transparent", border: "none",
+                color: "var(--muted)",
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 12, letterSpacing: "0.08em",
+                padding: "0 10px",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              home
+              <span className="material-symbols-rounded" style={{ fontSize: 18 }}>home</span>
+            </button>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

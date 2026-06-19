@@ -764,6 +764,17 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     }
   }
 
+  // Review's explicit bottom-zone controls — always the same two targets
+  // regardless of how review was reached (unlike the chevron/hardware-back
+  // ladder above, which still depends on reviewOrigin).
+  function goToSwipe() {
+    setBrewView("swipe");
+  }
+  function goHome() {
+    resetBrew();
+    onSessionDone?.();
+  }
+
   // Hardware/browser Back must behave identically to the in-app chevron. While
   // the takeover is open we trap one synthetic history entry and route every
   // Back — hardware or chevron (via goBack → history.back) — through the same
@@ -804,7 +815,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
         WebkitOverflowScrolling: "touch",
         ...BREW_VARS,
       }}>
-        {brewView !== "swipe" && (
+        {brewView !== "swipe" && !(brewView === "review" && session) && (
           <button
             onClick={goBack}
             aria-label="Back"
@@ -900,6 +911,8 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             commander={session ? { name: session.legend.name, art: session.legend.image_uri } : null}
             cardTags={cardTags}
             onToggleTag={handleToggleTag}
+            onBack={session ? goToSwipe : undefined}
+            onHome={session ? goHome : undefined}
           />
         )}
       </div>
