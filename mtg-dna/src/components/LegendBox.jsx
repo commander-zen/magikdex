@@ -104,6 +104,74 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
     await loadLegends();
   }
 
+  // Paste-import: upsert the legend → create its deck → bulk-insert the
+  // resolved decklist + WREC tags (mirrors Brew.jsx's handleConfirmSave
+  // legend/deck-creation pattern, but the cards/tags come pre-parsed from
+  // moxfieldImport.js instead of an in-progress swipe session). Left open
+  // so AddLegendSheet can show the parse/commander UI and a result summary
+  // before closing itself — this never closes the sheet or selects the
+  // legend on its own.
+  async function handleImportDeck(commanderName, lines) {
+    const { data: legend, error: legendError } = await supabase
+      .from("legends")
+      .upsert({ name: commanderName }, { onConflict: "name" })
+      .select()
+      .single();
+    if (legendError) throw legendError;
+
+    if (!legend.image_uri || !legend.type_line) {
+      try {
+        const card = await fetchCardIdentity(commanderName);
+        if (card) {
+          await supabase.from("legends").update({
+            scryfall_id: card.id,
+            image_uri: getCardImage(card, "art_crop"),
+            type_line: card.type_line ?? null,
+            oracle_text: card.oracle_text ?? card.card_faces?.[0]?.oracle_text ?? null,
+            mana_cost: card.mana_cost ?? card.card_faces?.[0]?.mana_cost ?? null,
+            color_identity: card.color_identity ?? [],
+          }).eq("id", legend.id);
+        }
+      } catch { /* best-effort identity backfill */ }
+    }
+
+    const { data: deck, error: deckError } = await supabase
+      .from("decks")
+      .insert({ legend: commanderName, legend_id: legend.id, status: "Active" })
+      .select()
+      .single();
+    if (deckError) throw deckError;
+
+    const cardRows = lines.map(l => ({
+      deck_id: deck.id, card_name: l.name, quantity: l.quantity, section: "decklist",
+    }));
+
+    const insertedCards = [];
+    for (let i = 0; i < cardRows.length; i += 100) {
+      const { data, error: cardError } = await supabase
+        .from("deck_cards")
+        .insert(cardRows.slice(i, i + 100))
+        .select("id, card_name");
+      if (cardError) throw cardError;
+      insertedCards.push(...data);
+    }
+
+    const tagRows = [];
+    for (const inserted of insertedCards) {
+      const line = lines.find(l => l.name === inserted.card_name);
+      for (const tag of (line?.tags ?? [])) tagRows.push({ deck_card_id: inserted.id, tag });
+    }
+    for (let i = 0; i < tagRows.length; i += 100) {
+      const { error: tagError } = await supabase
+        .from("deck_card_tags")
+        .insert(tagRows.slice(i, i + 100));
+      if (tagError) throw tagError;
+    }
+
+    await loadLegends();
+    return { cardCount: cardRows.length, taggedCount: tagRows.length };
+  }
+
   // Lazily heal legends saved without Scryfall identity (no art_crop/oracle
   // data) — one lookup per legend, persisted onto the legends row so it
   // doesn't repeat on future loads.
@@ -384,6 +452,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
         open={addOpen}
         onClose={() => setAddOpen(false)}
         onSelect={handleAddLegend}
+        onImport={handleImportDeck}
       />
     </>
   );
