@@ -57,6 +57,24 @@ function groupByName(cards) {
   return [...counts.entries()].map(([name, quantity]) => ({ name, quantity }));
 }
 
+// Moxfield bulk-edit text: "<qty> <name> #tag #tag", one card per line, name
+// only (no set/collector — Moxfield resolves printing). WREC tags map
+// straight to plain #hashtags, space-separated after the name; untagged
+// cards get no hashtags. Pulled from cardTags (deck_cards quantity +
+// deck_card_tags), keyed `${section}:${name}` — only the decklist section
+// counts as "the deck" (maybeboard/pile are excluded).
+function buildMoxfieldExport(cardTags, commanderName) {
+  const lines = commanderName ? [`1 ${commanderName}`] : [];
+  for (const key in cardTags) {
+    if (!key.startsWith("decklist:")) continue;
+    const name = key.slice("decklist:".length);
+    const { quantity, tags } = cardTags[key];
+    const hashtags = (tags ?? []).map(t => `#${t}`).join(" ");
+    lines.push(hashtags ? `${quantity} ${name} ${hashtags}` : `${quantity} ${name}`);
+  }
+  return lines.join("\n");
+}
+
 export default function ReviewScreen({
   decklist, maybeboard,
   onConfirm, saving, error,
@@ -76,6 +94,23 @@ export default function ReviewScreen({
   // card with no visible context is guesswork. undefined = not yet resolved,
   // null = name couldn't resolve (show "card data unavailable"), object = card.
   const [cardData, setCardData] = useState({});
+  const [copied, setCopied] = useState(false);
+
+  // Copy is the guaranteed part (works everywhere); the share sheet is a
+  // best-effort bonus where supported — a cancelled/unsupported share never
+  // blocks the copy or the confirmation toast.
+  async function handleExport() {
+    const text = buildMoxfieldExport(cardTags, commander?.name);
+    try {
+      await navigator.clipboard?.writeText(text);
+      setCopied(true);
+      setTimeout(() => setCopied(false), 2400);
+    } catch { /* clipboard may be denied — share sheet below still offers a path */ }
+    if (navigator.share) {
+      try { await navigator.share({ text, title: `${commander?.name ?? "Deck"} export` }); }
+      catch { /* user cancelled or share unsupported for this payload — ignore */ }
+    }
+  }
 
   const groups = {
     decklist: groupByName(decklist),
@@ -391,6 +426,23 @@ export default function ReviewScreen({
             }}>
               {deckCount}/{DECK_GATE}
             </div>
+            {/* Export — Moxfield bulk-edit text, WREC tags as #hashtags. Copy
+                is guaranteed; the share sheet (where supported) is a bonus. */}
+            <button
+              onClick={handleExport}
+              aria-label="Export deck as Moxfield text"
+              style={{
+                width: 44, height: 44, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "transparent", border: "none", padding: 0,
+                color: copied ? "var(--success)" : "var(--muted)",
+                cursor: "pointer", WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: 20 }}>
+                {copied ? "check" : "ios_share"}
+              </span>
+            </button>
           </div>
           )}
 
@@ -550,6 +602,27 @@ export default function ReviewScreen({
               <span className="material-symbols-rounded" style={{ fontSize: 18 }}>home</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Export confirmation — brief dimmed flash, mirrors the app's toast grammar. */}
+      {copied && (
+        <div style={{
+          position: "fixed",
+          left: "50%",
+          bottom: showBottomNav ? "calc(env(safe-area-inset-bottom) + 76px)" : "calc(env(safe-area-inset-bottom) + 24px)",
+          transform: "translateX(-50%)",
+          zIndex: 300,
+          background: "rgba(0,0,0,0.8)",
+          color: "rgba(255,255,255,0.85)",
+          fontFamily: "'Noto Sans Mono', monospace",
+          fontSize: 12,
+          letterSpacing: "0.06em",
+          padding: "8px 14px",
+          border: "1px solid var(--bevel-dark)",
+          pointerEvents: "none",
+        }}>
+          copied — paste into Moxfield bulk edit
         </div>
       )}
     </div>
