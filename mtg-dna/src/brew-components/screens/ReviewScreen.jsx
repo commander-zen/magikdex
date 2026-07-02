@@ -97,6 +97,10 @@ export default function ReviewScreen({
   // null = name couldn't resolve (show "card data unavailable"), object = card.
   const [cardData, setCardData] = useState({});
   const [copied, setCopied] = useState(false);
+  // WREC filter — tapping a non-zero category in the composition band narrows
+  // the list to that category's cards; tapping it again clears. One category
+  // at a time (the band is a composition readout, not a query builder).
+  const [wrecFilter, setWrecFilter] = useState(null);
   // Delete is a two-step inline confirm — no modal, the row itself expands.
   // `deleting` never resets on success: the parent tears the session down and
   // this screen unmounts, so only failure returns control here.
@@ -202,7 +206,14 @@ export default function ReviewScreen({
     outline: "none",
   };
 
-  function renderSection(label, items, sectionKey) {
+  function renderSection(label, allItems, sectionKey) {
+    // An active WREC filter narrows each section to that category's cards;
+    // the header count follows the filtered view so it reads as an answer
+    // ("DECKLIST · 4" = four ramp cards) rather than the unfiltered total.
+    const items = wrecFilter
+      ? allItems.filter(({ name }) =>
+          (cardTags?.[`${sectionKey}:${name}`]?.tags ?? []).includes(wrecFilter))
+      : allItems;
     return (
       <div key={sectionKey}>
         <div style={{
@@ -214,6 +225,7 @@ export default function ReviewScreen({
           marginBottom: 6,
         }}>
           {label} · {items.reduce((n, c) => n + c.quantity, 0)}
+          {wrecFilter && ` · ${LABEL_BY_TAG[wrecFilter]}`}
         </div>
         {items.length === 0 ? (
           <div style={{ fontSize: 12, color: "var(--muted)", padding: "4px 0" }}>—</div>
@@ -515,12 +527,38 @@ export default function ReviewScreen({
             paddingBottom: 8,
             borderTop: showAnchor ? "1px solid var(--bevel-dark)" : "none",
           }}>
-            {wrecCounts.map(({ tag, label, n }, i) => (
-              <span key={tag} style={{ whiteSpace: "nowrap" }}>
-                {i > 0 && <span style={{ color: "var(--muted)", margin: "0 6px" }}>·</span>}
-                <span style={{ color: n === 0 ? "var(--muted)" : "var(--text)" }}>{label} {n}</span>
-              </span>
-            ))}
+            {wrecCounts.map(({ tag, label, n }, i) => {
+              const active = wrecFilter === tag;
+              return (
+                <span key={tag} style={{ whiteSpace: "nowrap" }}>
+                  {i > 0 && <span style={{ color: "var(--muted)", margin: "0 6px" }}>·</span>}
+                  {n === 0 ? (
+                    // Zero categories stay a dimmed readout — nothing to filter to.
+                    <span style={{ color: "var(--muted)" }}>{label} {n}</span>
+                  ) : (
+                    // Tappable filter toggle. Vertical padding + negative margin
+                    // grows the hit area toward 44px without fattening the
+                    // frozen band visually.
+                    <button
+                      onClick={() => setWrecFilter(f => (f === tag ? null : tag))}
+                      style={{
+                        background: "transparent", border: "none",
+                        padding: "14px 2px", margin: "-14px 0",
+                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontSize: 11,
+                        color: active ? "var(--primary)" : "var(--text)",
+                        textDecoration: active ? "underline" : "none",
+                        textUnderlineOffset: 3,
+                        cursor: "pointer",
+                        WebkitTapHighlightColor: "transparent",
+                      }}
+                    >
+                      {label} {n}
+                    </button>
+                  )}
+                </span>
+              );
+            })}
           </div>
         </div>
       )}
