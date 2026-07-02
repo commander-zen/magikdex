@@ -13,6 +13,33 @@ const COLS = 4;
 const ROWS = 2;
 const PAGE_SIZE = COLS * ROWS;
 const BOX_KEY = "magicdex-box";
+const ORDER_KEY = "magicdex-box-order";
+
+// The user's arranged slot order — an array of legend ids in localStorage,
+// the same localStorage-now-column-later pattern as magicdex-last-legend (a
+// legends.position column can back this when multi-device matters). Display
+// order = saved ids that still exist, in saved order, then any unlisted
+// legends in the alphabetical order the query returned — so new adds land
+// after the arranged block. No saved order → pure alphabetical, exactly the
+// pre-arrange behavior.
+function applyBoxOrder(list) {
+  let saved;
+  try { saved = JSON.parse(localStorage.getItem(ORDER_KEY) ?? "null"); } catch { saved = null; }
+  if (!Array.isArray(saved) || saved.length === 0) return list;
+  const byId = new Map(list.map(l => [l.id, l]));
+  const ordered = [];
+  for (const id of saved) {
+    const legend = byId.get(id);
+    if (legend) { ordered.push(legend); byId.delete(id); }
+  }
+  for (const legend of list) if (byId.has(legend.id)) ordered.push(legend);
+  return ordered;
+}
+
+function saveBoxOrder(list) {
+  try { localStorage.setItem(ORDER_KEY, JSON.stringify(list.map(l => l.id))); }
+  catch { /* storage full/disabled — arranging still works for this visit */ }
+}
 
 // Gated ("not yet a deck") slots are darkened with a SCRIM OVERLAY on top of
 // the art — never a CSS filter on the image. Desaturating Scryfall art
@@ -30,6 +57,11 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
     return Number.isFinite(n) && n >= 0 ? n : 0;
   });
   const [toast, setToast] = useState(null);
+  // Pokémon Move-mode adaptation: an explicit arrange mode where tapping a
+  // slot picks the legend up and tapping another swaps the two. While
+  // arranging, slot taps never change the detail-pane selection.
+  const [arranging, setArranging] = useState(false);
+  const [pickedId, setPickedId] = useState(null);
   const attemptedRef = useRef(new Set());
   const toastTimer = useRef(null);
 
@@ -51,8 +83,24 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
       .from("legends")
       .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks(id, status, deck_cards(quantity))")
       .order("name");
-    if (!error) setLegends(data ?? []);
+    if (!error) setLegends(applyBoxOrder(data ?? []));
     setLoading(false);
+  }
+
+  // Swap the picked legend with the tapped one and persist the new order.
+  // Cross-box swaps work for free: the chevrons stay live while arranging,
+  // and the swap is index-based on the one global list the pages window over.
+  function handleArrangeTap(legend) {
+    if (!pickedId) { setPickedId(legend.id); return; }
+    if (pickedId === legend.id) { setPickedId(null); return; }
+    const a = legends.findIndex(l => l.id === pickedId);
+    const b = legends.findIndex(l => l.id === legend.id);
+    setPickedId(null);
+    if (a === -1 || b === -1) return;
+    const next = [...legends];
+    [next[a], next[b]] = [next[b], next[a]];
+    setLegends(next);
+    saveBoxOrder(next);
   }
 
   // Reload on mount and whenever the parent bumps reloadSignal — a brew
@@ -277,8 +325,11 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
 
   return (
     <>
-      {/* Box header bar — pager */}
+      {/* Box header bar — pager, plus the arrange-mode toggle on the right
+          (Pokémon box Move mode: an explicit mode, not a hidden long-press).
+          The pager stays live while arranging so swaps can cross boxes. */}
       <div style={{
+        position: "relative",
         flex: "0 0 auto",
         display: "flex", alignItems: "center", justifyContent: "center",
         gap: 16,
@@ -297,6 +348,26 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
           BOX {safeBox + 1}
         </span>
         {chevron("right", atLast, () => setBox(b => Math.min(boxCount - 1, b + 1)))}
+        {legends.length > 1 && (
+          <button
+            onClick={() => { setArranging(a => !a); setPickedId(null); }}
+            style={{
+              position: "absolute",
+              right: 8, top: "50%", transform: "translateY(-50%)",
+              minHeight: 44, minWidth: 44,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "transparent", border: "none", padding: "0 6px",
+              color: arranging ? ringColor : dimColor,
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 11,
+              letterSpacing: "0.08em",
+              cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            {arranging ? "done" : "arrange"}
+          </button>
+        )}
       </div>
 
       {/* Fixed 4×2 slot grid — fills the tray, no scroll */}
@@ -332,11 +403,12 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
             const art = legend.image_uri;
             const noIdentity = !art && identityFailed.has(legend.id);
             const isActive = legend.id === activeId;
+            const isPicked = arranging && legend.id === pickedId;
 
             return (
               <button
                 key={legend.id}
-                onClick={() => onSelectLegend(legend)}
+                onClick={() => arranging ? handleArrangeTap(legend) : onSelectLegend(legend)}
                 style={{
                   ...slotBase,
                   display: "block",
@@ -402,10 +474,21 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                 </div>
 
                 {/* Selection cursor — overlaid so it paints over the art. */}
-                {isActive && (
+                {isActive && !isPicked && (
                   <div style={{
                     position: "absolute", inset: 0,
                     border: `2px solid ${ringColor}`,
+                    pointerEvents: "none",
+                    zIndex: 2,
+                  }} />
+                )}
+
+                {/* Picked-up cursor (arrange mode) — dashed, distinct from the
+                    solid selection ring, so "held" never reads as "selected". */}
+                {isPicked && (
+                  <div style={{
+                    position: "absolute", inset: 0,
+                    border: `2px dashed ${ringColor}`,
                     pointerEvents: "none",
                     zIndex: 2,
                   }} />
@@ -414,12 +497,14 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
             );
           }
 
-          // The add tile — first empty slot after the last legend.
+          // The add tile — first empty slot after the last legend. Dimmed and
+          // inert while arranging: a mid-swap mistap must not open the sheet.
           if (g === legends.length) {
             return (
               <button
                 key="add"
-                onClick={() => setAddOpen(true)}
+                onClick={arranging ? undefined : () => setAddOpen(true)}
+                disabled={arranging}
                 aria-label="Add legend"
                 style={{
                   ...slotBase,
@@ -427,7 +512,8 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                   alignItems: "center", justifyContent: "center", gap: 2,
                   border: `1px dashed ${dimColor}`,
                   background: "transparent",
-                  cursor: "pointer",
+                  cursor: arranging ? "default" : "pointer",
+                  opacity: arranging ? 0.3 : 1,
                 }}
               >
                 <span className="material-symbols-rounded" style={{ fontSize: 22, color: dimColor }}>
