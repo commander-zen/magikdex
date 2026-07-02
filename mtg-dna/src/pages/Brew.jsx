@@ -104,14 +104,20 @@ function isDefaultSeedQuery(q) {
   return q === "" || q === "-t:land";
 }
 
-// The RPC stack arrives EDHREC-ordered; name/CMC preferences re-sort it
+// The RPC stack arrives relevance-ordered (per-legend EDHREC synergy first,
+// then global EDHREC rank — brew_stack v2); name/CMC preferences re-sort it
 // client-side (the live-search path sorts server-side via the order param
-// instead, and edhrec_rank rides on RPC cards so even EDHREC can re-sort
-// locally after a name/CMC detour).
+// instead). Synergy + edhrec_rank ride on RPC cards so the "edhrec" sort can
+// rebuild that exact order locally after a name/CMC detour; live-search cards
+// carry no synergy, so for them it degrades to plain edhrec_rank.
 function sortStack(cards, order, dir = "asc") {
   const mul = dir === "desc" ? -1 : 1;
   const key = order === "edhrec"
-    ? (a, b) => (a.edhrec_rank ?? Infinity) - (b.edhrec_rank ?? Infinity)
+    ? (a, b) =>
+        // -1e9 floor: real synergy scores are tiny (|s| < 1), and a finite
+        // floor keeps the subtraction NaN-free when neither card has one.
+        (b.synergy ?? -1e9) - (a.synergy ?? -1e9) ||
+        (a.edhrec_rank ?? Infinity) - (b.edhrec_rank ?? Infinity)
     : order === "cmc"
       ? (a, b) => (a.cmc ?? 0) - (b.cmc ?? 0)
       : (a, b) => a.name.localeCompare(b.name);
