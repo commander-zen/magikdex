@@ -7,10 +7,12 @@ const FONTS_HREF =
 
 const ThemeContext = createContext(null);
 
+// Dark is the app default (matching the dark HTML shell and the always-dark
+// brew face) — following a light system preference made first load flash
+// light before the dark surfaces took over. Light remains an explicit
+// settings choice.
 function getInitialMode() {
-  const stored = localStorage.getItem(STORAGE_KEY);
-  if (stored) return stored;
-  return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+  return localStorage.getItem(STORAGE_KEY) ?? "dark";
 }
 
 export function ThemeProvider({ children }) {
@@ -27,18 +29,6 @@ export function ThemeProvider({ children }) {
   useEffect(() => {
     localStorage.setItem(STORAGE_KEY, mode);
   }, [mode]);
-
-  // Follow system preference only when user has no stored override
-  useEffect(() => {
-    const mq = window.matchMedia("(prefers-color-scheme: dark)");
-    const handler = (e) => {
-      if (!localStorage.getItem(STORAGE_KEY)) {
-        setMode(e.matches ? "dark" : "light");
-      }
-    };
-    mq.addEventListener("change", handler);
-    return () => mq.removeEventListener("change", handler);
-  }, []);
 
   const toggleTheme = () => setMode(m => (m === "light" ? "dark" : "light"));
 
