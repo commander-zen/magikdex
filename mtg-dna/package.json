@@ -10,7 +10,8 @@
     "preview": "vite preview",
     "ingest:cards": "node scripts/ingest-cards.mjs",
     "ingest:tags": "node scripts/ingest-tags.mjs",
-    "ingest:legend-tags": "node scripts/ingest-legend-tags.mjs"
+    "ingest:legend-tags": "node scripts/ingest-legend-tags.mjs",
+    "ingest:legend-edhrec": "node scripts/ingest-legend-edhrec.mjs"
   },
   "dependencies": {
     "@supabase/supabase-js": "^2.107.0",
