@@ -68,8 +68,12 @@ export default function SettingsSheet({ open, onClose }) {
     setEmailMsg(null);
     const { error } = await supabase.auth.updateUser({ email: addr });
     setEmailBusy(false);
+    // email_address_invalid renders an empty string for the address (seen
+    // live against test domains) — say something human instead.
     setEmailMsg(error
-      ? error.message
+      ? (error.code === "email_address_invalid"
+          ? "that email doesn't look deliverable — try another"
+          : error.message)
       : "confirmation sent — open the link and your box is backed up");
   }
 

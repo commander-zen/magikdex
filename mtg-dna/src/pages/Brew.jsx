@@ -233,6 +233,63 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   const writeQueueRef = useRef([]);
   const flushingRef   = useRef(false);
 
+  // ── Backup nudge (Ben 2026-07-03): zero barrier to START brewing, but once
+  // someone is >9 kept cards deep they've built something worth keeping —
+  // prompt an unlinked (anonymous, no email) account to back the brew up.
+  // Fires only on GROWTH past the threshold within this session (a resumed
+  // big deck doesn't nudge on entry, only on its next flick), once per
+  // legend per browser (dismiss = don't nag that brew again; Settings always
+  // has the flow).
+  const NUDGE_DECK_SIZE = 10;
+  const [hasEmail, setHasEmail] = useState(null); // null = unknown yet
+  const [showBackupNudge, setShowBackupNudge] = useState(false);
+  const [nudgeEmail, setNudgeEmail] = useState("");
+  const [nudgeBusy, setNudgeBusy] = useState(false);
+  const [nudgeSent, setNudgeSent] = useState(false);
+  const [nudgeError, setNudgeError] = useState(null);
+  const initialDeckSizeRef = useRef(null);
+
+  function nudgeKey(legendId) {
+    return `magicdex-backup-nudge:${legendId}`;
+  }
+
+  useEffect(() => {
+    const total = decklist.length + maybeboard.length;
+    if (!session?.legend?.id || showBackupNudge || nudgeSent) return;
+    if (hasEmail !== false) return; // linked already, or auth state unknown
+    if (initialDeckSizeRef.current === null) return; // session still initializing
+    if (total < NUDGE_DECK_SIZE || total <= initialDeckSizeRef.current) return;
+    try { if (localStorage.getItem(nudgeKey(session.legend.id))) return; } catch { return; }
+    // Threshold-crossing is inherently an effect of list growth — one guarded
+    // setState, no cascade (every early return above keeps it a no-op).
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setShowBackupNudge(true);
+  }, [decklist.length, maybeboard.length, hasEmail, session, showBackupNudge, nudgeSent]);
+
+  function dismissBackupNudge() {
+    try { localStorage.setItem(nudgeKey(session?.legend?.id), "1"); } catch { /* nag again next visit */ }
+    setShowBackupNudge(false);
+  }
+
+  async function sendBackupEmail() {
+    const addr = nudgeEmail.trim();
+    if (!addr || nudgeBusy) return;
+    setNudgeBusy(true);
+    setNudgeError(null);
+    const { error: linkError } = await supabase.auth.updateUser({ email: addr });
+    setNudgeBusy(false);
+    if (linkError) {
+      // Supabase's email_address_invalid message renders an empty string
+      // for the address (seen live) — say something human instead.
+      setNudgeError(linkError.code === "email_address_invalid"
+        ? "that email doesn't look deliverable — try another"
+        : linkError.message);
+      return;
+    }
+    setNudgeSent(true);
+    try { localStorage.setItem(nudgeKey(session?.legend?.id), "1"); } catch { /* flag is best-effort */ }
+  }
+
   // Decided cards (pile/decklist/maybe, this session or earlier) by name —
   // re-seeds and in-session searches must never re-queue them.
   const decidedNamesRef = useRef(new Set());
@@ -247,6 +304,16 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     if (!session || brewView !== "shell") return;
     setBrewMode("legend");
     setSessionLabel(session.legend.name);
+    // Backup-nudge state resets per session; the account's email status is a
+    // local session read (no network).
+    initialDeckSizeRef.current = null;
+    setShowBackupNudge(false);
+    setNudgeSent(false);
+    setNudgeError(null);
+    supabase.auth.getSession().then(({ data }) => {
+      const user = data.session?.user;
+      setHasEmail(user ? Boolean(user.email) : null);
+    });
     let cancelled = false;
     (async () => {
       // Resolve the legend's one deck from the same shared source every
@@ -278,11 +345,17 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
           setExistingCardRows(existingRows);
           // Tally on resume: the header/review counts read live deck contents,
           // not zero — flicks increment from here.
-          setDecklist(expandRows(existingRows, "decklist"));
-          setMaybeboard(expandRows(existingRows, "maybe"));
+          const startDecklist = expandRows(existingRows, "decklist");
+          const startMaybe = expandRows(existingRows, "maybe");
+          setDecklist(startDecklist);
+          setMaybeboard(startMaybe);
           setPile(expandRows(existingRows, "pile"));
+          // Nudge baseline: only growth past this size counts, so resuming a
+          // big deck doesn't prompt on entry — its next flick does.
+          initialDeckSizeRef.current = startDecklist.length + startMaybe.length;
         }
       }
+      if (!cancelled && initialDeckSizeRef.current === null) initialDeckSizeRef.current = 0;
 
       let colorIdentity = session.legend.color_identity;
       if (!colorIdentity) {
@@ -1027,6 +1100,122 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             onDeleteDeck={session ? handleDeleteDeck : undefined}
             onAddMore={session ? handleAddMore : undefined}
           />
+        )}
+
+        {/* Backup nudge — bottom sheet over whichever brew screen is up.
+            Non-blocking by design (Ben: no barrier to entry): "not now"
+            dismisses for this brew, the flow stays available in Settings. */}
+        {showBackupNudge && (
+          <div style={{
+            position: "fixed", left: 0, right: 0, bottom: 0, zIndex: 60,
+            display: "flex", justifyContent: "center",
+            background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+            paddingTop: 40,
+          }}>
+            <div style={{
+              width: "100%", maxWidth: 430,
+              background: "var(--bg)",
+              borderTop: "1px solid var(--primary)",
+              padding: "16px 20px calc(env(safe-area-inset-bottom) + 16px)",
+              display: "flex", flexDirection: "column", gap: 10,
+            }}>
+              {!nudgeSent ? (
+                <>
+                  <div style={{
+                    fontFamily: "'Noto Sans', sans-serif",
+                    fontSize: 13, lineHeight: 1.5,
+                    color: "var(--text)",
+                  }}>
+                    {decklist.length + maybeboard.length} cards in — this brew is
+                    becoming something. Add an email so it can't be lost to a
+                    cleared browser or a new phone. Used for nothing else.
+                  </div>
+                  <input
+                    type="email"
+                    placeholder="email"
+                    value={nudgeEmail}
+                    onChange={e => setNudgeEmail(e.target.value)}
+                    autoComplete="email"
+                    autoCapitalize="off"
+                    spellCheck={false}
+                    style={{
+                      width: "100%", boxSizing: "border-box", minHeight: 44,
+                      background: "transparent",
+                      color: "var(--text)",
+                      fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
+                      border: "1px solid var(--muted)",
+                      padding: "0 12px", borderRadius: 0, outline: "none",
+                    }}
+                  />
+                  <div style={{ display: "flex", gap: 10 }}>
+                    <button
+                      onClick={sendBackupEmail}
+                      disabled={nudgeBusy || !nudgeEmail.trim()}
+                      style={{
+                        minHeight: 44, flex: 1,
+                        background: "transparent",
+                        border: "1px solid var(--primary)",
+                        color: "var(--primary)",
+                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontSize: 11, letterSpacing: "0.06em",
+                        cursor: "pointer",
+                        opacity: nudgeBusy || !nudgeEmail.trim() ? 0.5 : 1,
+                        WebkitTapHighlightColor: "transparent",
+                      }}
+                    >
+                      {nudgeBusy ? "sending…" : "save my brew"}
+                    </button>
+                    <button
+                      onClick={dismissBackupNudge}
+                      style={{
+                        minHeight: 44, flex: 1,
+                        background: "transparent",
+                        border: "1px solid var(--muted)",
+                        color: "var(--muted)",
+                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontSize: 11, letterSpacing: "0.06em",
+                        cursor: "pointer",
+                        WebkitTapHighlightColor: "transparent",
+                      }}
+                    >
+                      not now
+                    </button>
+                  </div>
+                  {nudgeError && (
+                    <div style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.5 }}>
+                      {nudgeError}
+                    </div>
+                  )}
+                </>
+              ) : (
+                <>
+                  <div style={{
+                    fontFamily: "'Noto Sans', sans-serif",
+                    fontSize: 13, lineHeight: 1.5,
+                    color: "var(--text)",
+                  }}>
+                    confirmation sent — tap the link in your inbox and this brew
+                    (and everything else in your box) is safe anywhere.
+                  </div>
+                  <button
+                    onClick={() => setShowBackupNudge(false)}
+                    style={{
+                      minHeight: 44,
+                      background: "transparent",
+                      border: "1px solid var(--primary)",
+                      color: "var(--primary)",
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 11, letterSpacing: "0.06em",
+                      cursor: "pointer",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    got it
+                  </button>
+                </>
+              )}
+            </div>
+          </div>
         )}
       </div>
     );
