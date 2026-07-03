@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase";
 import { fetchCardIdentity, getCardImage } from "../lib/scryfall.js";
-import { deckTotal, fetchLegendDeck, resolveLegendDeck } from "../lib/legendDeck.js";
+import { deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck } from "../lib/legendDeck.js";
 import AddLegendSheet from "./AddLegendSheet";
 
 const DECK_GATE = 100;
@@ -57,13 +57,26 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
     return Number.isFinite(n) && n >= 0 ? n : 0;
   });
   const [toast, setToast] = useState(null);
-  // Pokémon Move-mode adaptation: an explicit arrange mode where tapping a
-  // slot picks the legend up and tapping another swaps the two. While
-  // arranging, slot taps never change the detail-pane selection.
+  // Pokémon Move-mode adaptation, entered via LONG-PRESS (per Ben — the old
+  // header "arrange" toggle is gone): long-press a slot → action sheet →
+  // "move" picks the legend up (dashed ring), tapping another slot swaps the
+  // two and exits the mode. While arranging, slot taps never change the
+  // detail-pane selection.
   const [arranging, setArranging] = useState(false);
   const [pickedId, setPickedId] = useState(null);
+  // Long-press action sheet — the pressed legend, plus the inline delete
+  // confirm state (mirrors the deck view's two-step, no modal-on-modal).
+  const [actionLegend, setActionLegend] = useState(null);
+  const [confirmingDelete, setConfirmingDelete] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState(null);
   const attemptedRef = useRef(new Set());
   const toastTimer = useRef(null);
+  // Long-press detection: 500ms hold, cancelled by >10px drift; the click
+  // that fires after a completed hold is swallowed so it never selects.
+  const pressTimer = useRef(null);
+  const pressOrigin = useRef(null);
+  const suppressClick = useRef(false);
 
   function showToast(msg) {
     setToast(msg);
@@ -87,20 +100,94 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
     setLoading(false);
   }
 
-  // Swap the picked legend with the tapped one and persist the new order.
+  // Swap the picked legend with the tapped one, persist the new order, and
+  // EXIT the mode — long-press → move → place is one gesture arc, not a
+  // sticky mode. Tapping the picked slot again cancels the move the same way.
   // Cross-box swaps work for free: the chevrons stay live while arranging,
   // and the swap is index-based on the one global list the pages window over.
   function handleArrangeTap(legend) {
-    if (!pickedId) { setPickedId(legend.id); return; }
-    if (pickedId === legend.id) { setPickedId(null); return; }
+    if (pickedId === legend.id) { setPickedId(null); setArranging(false); return; }
     const a = legends.findIndex(l => l.id === pickedId);
     const b = legends.findIndex(l => l.id === legend.id);
     setPickedId(null);
+    setArranging(false);
     if (a === -1 || b === -1) return;
     const next = [...legends];
     [next[a], next[b]] = [next[b], next[a]];
     setLegends(next);
     saveBoxOrder(next);
+  }
+
+  // ── Long-press machinery ──────────────────────────────────────────────────
+  function startPress(legend, e) {
+    if (arranging) return; // in-mode taps are placement taps, never presses
+    suppressClick.current = false;
+    pressOrigin.current = { x: e.clientX, y: e.clientY };
+    clearTimeout(pressTimer.current);
+    pressTimer.current = setTimeout(() => {
+      suppressClick.current = true;
+      navigator.vibrate?.(10);
+      setConfirmingDelete(false);
+      setDeleteError(null);
+      setActionLegend(legend);
+    }, 500);
+  }
+  function movePress(e) {
+    if (!pressOrigin.current) return;
+    const dx = e.clientX - pressOrigin.current.x;
+    const dy = e.clientY - pressOrigin.current.y;
+    if (dx * dx + dy * dy > 100) endPress();
+  }
+  function endPress() {
+    clearTimeout(pressTimer.current);
+    pressOrigin.current = null;
+  }
+  useEffect(() => () => clearTimeout(pressTimer.current), []);
+
+  function closeActionSheet() {
+    if (deleting) return;
+    setActionLegend(null);
+    setConfirmingDelete(false);
+    setDeleteError(null);
+  }
+
+  // "move" from the sheet: enter arrange with the pressed legend already
+  // picked up — the next slot tap places it and exits.
+  function handleMoveAction() {
+    setArranging(true);
+    setPickedId(actionLegend.id);
+    closeActionSheet();
+  }
+
+  // Delete OUTRIGHT from the Box, same one-door delete + local-key hygiene as
+  // the deck view's delete row (Brew.jsx): legend + deck + cards + tags leave;
+  // saved order, last-active, and the persisted brew session drop the id.
+  async function handleDeleteAction() {
+    const legend = actionLegend;
+    if (!legend) return;
+    setDeleting(true);
+    setDeleteError(null);
+    try {
+      const deckId = resolveLegendDeck(legend.decks)?.id ?? null;
+      await deleteLegend(legend.id, deckId);
+      try {
+        localStorage.removeItem(`magicdex-brew-session:${legend.id}`);
+        const order = JSON.parse(localStorage.getItem(ORDER_KEY) ?? "null");
+        if (Array.isArray(order)) {
+          localStorage.setItem(ORDER_KEY, JSON.stringify(order.filter(id => id !== legend.id)));
+        }
+        if (localStorage.getItem("magicdex-last-legend") === String(legend.id)) {
+          localStorage.removeItem("magicdex-last-legend");
+        }
+      } catch { /* best-effort local cleanup */ }
+      setDeleting(false);
+      setActionLegend(null);
+      setConfirmingDelete(false);
+      await loadLegends();
+    } catch (err) {
+      setDeleting(false);
+      setDeleteError(err?.message ?? "delete failed — try again");
+    }
   }
 
   // Reload on mount and whenever the parent bumps reloadSignal — a brew
@@ -325,8 +412,8 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
 
   return (
     <>
-      {/* Box header bar — pager, plus the arrange-mode toggle on the right
-          (Pokémon box Move mode: an explicit mode, not a hidden long-press).
+      {/* Box header bar — pager, plus a "cancel" escape on the right while a
+          move is in flight (arrange mode is entered by long-pressing a slot).
           The pager stays live while arranging so swaps can cross boxes. */}
       <div style={{
         position: "relative",
@@ -348,16 +435,16 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
           BOX {safeBox + 1}
         </span>
         {chevron("right", atLast, () => setBox(b => Math.min(boxCount - 1, b + 1)))}
-        {legends.length > 1 && (
+        {arranging && (
           <button
-            onClick={() => { setArranging(a => !a); setPickedId(null); }}
+            onClick={() => { setArranging(false); setPickedId(null); }}
             style={{
               position: "absolute",
               right: 8, top: "50%", transform: "translateY(-50%)",
               minHeight: 44, minWidth: 44,
               display: "flex", alignItems: "center", justifyContent: "center",
               background: "transparent", border: "none", padding: "0 6px",
-              color: arranging ? ringColor : dimColor,
+              color: ringColor,
               fontFamily: "'Noto Sans Mono', monospace",
               fontSize: 11,
               letterSpacing: "0.08em",
@@ -365,7 +452,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            {arranging ? "done" : "arrange"}
+            cancel
           </button>
         )}
       </div>
@@ -408,13 +495,27 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
             return (
               <button
                 key={legend.id}
-                onClick={() => arranging ? handleArrangeTap(legend) : onSelectLegend(legend)}
+                onClick={() => {
+                  // The click that trails a completed long-press must not select.
+                  if (suppressClick.current) { suppressClick.current = false; return; }
+                  if (arranging) handleArrangeTap(legend);
+                  else onSelectLegend(legend);
+                }}
+                onPointerDown={(e) => startPress(legend, e)}
+                onPointerMove={movePress}
+                onPointerUp={endPress}
+                onPointerCancel={endPress}
+                onContextMenu={(e) => e.preventDefault()}
                 style={{
                   ...slotBase,
                   display: "block",
                   border: "none",
                   background: slotBg,
                   cursor: "pointer",
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  WebkitTouchCallout: "none",
+                  touchAction: "manipulation",
                 }}
               >
                 {art ? (
@@ -564,6 +665,132 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
           pointerEvents: "none",
         }}>
           {toast}
+        </div>
+      )}
+
+      {/* Long-press action sheet — move / delete for the pressed legend.
+          Backdrop tap dismisses; delete confirms inline (two-step, no
+          second modal), mirroring the deck view's destructive grammar. */}
+      {actionLegend && (
+        <div
+          onClick={closeActionSheet}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`Actions for ${actionLegend.name}`}
+          style={{
+            position: "fixed", inset: 0, zIndex: 200,
+            background: "rgba(0,0,0,0.55)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            style={{
+              width: "100%", maxWidth: 430,
+              background: theme.base,
+              borderTop: `1px solid ${borderColor}`,
+              padding: "16px 20px calc(env(safe-area-inset-bottom) + 16px)",
+              display: "flex", flexDirection: "column", gap: 12,
+            }}
+          >
+            <div style={{
+              fontFamily: "'Zilla Slab', serif",
+              fontSize: 16,
+              color: textColor,
+              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+            }}>
+              {actionLegend.name}
+            </div>
+            {!confirmingDelete ? (
+              <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={handleMoveAction}
+                  style={{
+                    minHeight: 44, flex: 1,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    background: "transparent",
+                    border: `1px solid ${dimColor}`,
+                    color: textColor,
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 12, letterSpacing: "0.08em",
+                    cursor: "pointer",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: 16 }}>open_with</span>
+                  move
+                </button>
+                <button
+                  onClick={() => setConfirmingDelete(true)}
+                  style={{
+                    minHeight: 44, flex: 1,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    background: "transparent",
+                    border: `1px solid ${dimColor}`,
+                    color: textColor,
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 12, letterSpacing: "0.08em",
+                    cursor: "pointer",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: 16 }}>delete</span>
+                  delete
+                </button>
+              </div>
+            ) : (
+              <>
+                <div style={{
+                  fontFamily: "'Noto Sans', sans-serif",
+                  fontSize: 13, lineHeight: 1.5,
+                  color: dimColor,
+                }}>
+                  Delete {actionLegend.name}? The legend, its deck, and all tags
+                  leave the box. This can't be undone.
+                </div>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={closeActionSheet}
+                    disabled={deleting}
+                    style={{
+                      minHeight: 44, flex: 1,
+                      background: "transparent",
+                      border: `1px solid ${dimColor}`,
+                      color: textColor,
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 12, letterSpacing: "0.08em",
+                      cursor: "pointer",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    cancel
+                  </button>
+                  <button
+                    onClick={handleDeleteAction}
+                    disabled={deleting}
+                    style={{
+                      minHeight: 44, flex: 1,
+                      background: "transparent",
+                      border: "1px solid #a04040",
+                      color: "#a04040",
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 12, letterSpacing: "0.08em",
+                      cursor: deleting ? "default" : "pointer",
+                      opacity: deleting ? 0.6 : 1,
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    {deleting ? "deleting…" : "delete"}
+                  </button>
+                </div>
+                {deleteError && (
+                  <div style={{ fontSize: 12, color: "#a04040", lineHeight: 1.5 }}>
+                    {deleteError}
+                  </div>
+                )}
+              </>
+            )}
+          </div>
         </div>
       )}
 

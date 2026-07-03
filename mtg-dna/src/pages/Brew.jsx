@@ -6,9 +6,9 @@ import { BREW_TOOLS } from "../data/tools";
 import SearchScreen from "../brew-components/screens/SearchScreen.jsx";
 import SwipeScreen from "../brew-components/screens/SwipeScreen.jsx";
 import ReviewScreen from "../brew-components/screens/ReviewScreen.jsx";
-import { fetchFirstPageForSwipe, fetchCardIdentity, getCardImage, fetchBrewStack } from "../lib/scryfall.js";
+import { fetchFirstPageForSwipe, fetchCardIdentity, getCardImage, fetchBrewStack, fetchTagStack, getCardDataBatch } from "../lib/scryfall.js";
 import { getBrewDefaults } from "../lib/brewDefaults.js";
-import { tagCard, untagCard, fetchDeckCardsWithTags, moveDeckCard } from "../lib/deckTags.js";
+import { tagCard, untagCard, fetchDeckCardsWithTags, moveDeckCard, autoWrecTags, applyAutoTags, WREC_TO_OTAGS } from "../lib/deckTags.js";
 import { fetchLegendDeck, deleteLegend } from "../lib/legendDeck.js";
 import { supabase } from "../lib/supabase.js";
 
@@ -104,6 +104,14 @@ function isDefaultSeedQuery(q) {
   return q === "" || q === "-t:land";
 }
 
+// A WREC gap-filling stack persists as the marker query "wrec:<category>"
+// (never sent to Scryfall) so session resume rebuilds it through tag_stack
+// the way default seeds rebuild through brew_stack.
+const WREC_QUERY_PREFIX = "wrec:";
+function wrecQueryCategory(q) {
+  return q?.startsWith(WREC_QUERY_PREFIX) ? q.slice(WREC_QUERY_PREFIX.length) : null;
+}
+
 // The RPC stack arrives relevance-ordered (per-legend EDHREC synergy first,
 // then global EDHREC rank — brew_stack v2); name/CMC preferences re-sort it
 // client-side (the live-search path sorts server-side via the order param
@@ -116,7 +124,11 @@ function sortStack(cards, order, dir = "asc") {
     ? (a, b) =>
         // -1e9 floor: real synergy scores are tiny (|s| < 1), and a finite
         // floor keeps the subtraction NaN-free when neither card has one.
+        // theme_boost (brew_stack v3, migration 012) breaks synergy ties so a
+        // re-sort rebuilds the RPC's exact order; absent (pre-012, live
+        // search, tag_stack) it's 0 everywhere and changes nothing.
         (b.synergy ?? -1e9) - (a.synergy ?? -1e9) ||
+        (b.theme_boost ?? 0) - (a.theme_boost ?? 0) ||
         (a.edhrec_rank ?? Infinity) - (b.edhrec_rank ?? Infinity)
     : order === "cmc"
       ? (a, b) => (a.cmc ?? 0) - (b.cmc ?? 0)
@@ -325,6 +337,40 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     return cards;
   }
 
+  // A WREC category's gap-filling stack (tag_stack RPC): the category's otags
+  // in the color identity, EDHREC-rank ordered, deck rows excluded
+  // server-side. [] when the RPC/ingest isn't in place — callers surface it.
+  async function fetchCategoryStack(category, colorIdentity, order, dir) {
+    const cards = await fetchTagStack({
+      tags: WREC_TO_OTAGS[category] ?? [],
+      colorIdentity,
+      deckId: attachDeckId,
+    });
+    if (!cards.length) return [];
+    return order === "edhrec" ? cards : sortStack(cards, order, dir);
+  }
+
+  // "add more <category>" from the deck list's WREC band: deal that
+  // category's stack and drop into the swipe. Throws (for the button's
+  // inline error) when no stack exists; decided-this-session names are
+  // excluded on top of the RPC's deck-row exclusion.
+  async function handleAddMore(category) {
+    const cards = await fetchCategoryStack(category, legendColorIdentity, "edhrec", "asc");
+    const exclude = new Set([
+      ...existingCardRows.map(r => r.card_name),
+      ...decidedNamesRef.current,
+    ]);
+    const filtered = cards.filter(c => !exclude.has(c.name));
+    if (!filtered.length) throw new Error("no cards to deal for this category");
+    setQuery(`${WREC_QUERY_PREFIX}${category}`);
+    setSwipeOrder("edhrec");
+    setSwipeDir("asc");
+    setSwipeCards(filtered);
+    setSwipeIndex(0);
+    setReviewOrigin("swipe");
+    setBrewView("swipe");
+  }
+
   // Default seed for the legend-attached session's initial queue — relevance-
   // first via fetchDefaultStack. Cards already in the attached deck are
   // filtered out client-side.
@@ -380,9 +426,13 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       const rawQuery = persisted.query ?? "";
       // A resumed default seed goes back through the relevance stack, not the
       // generic live search — otherwise reopening a legend would silently swap
-      // its tag-filtered stack for an unfiltered one.
+      // its tag-filtered stack for an unfiltered one. A persisted wrec: marker
+      // resumes its category stack the same way (never sent to Scryfall).
       let cards;
-      if (isDefaultSeedQuery(rawQuery)) {
+      const wrecCategory = wrecQueryCategory(rawQuery);
+      if (wrecCategory) {
+        cards = await fetchCategoryStack(wrecCategory, colorIdentity, order, dir);
+      } else if (isDefaultSeedQuery(rawQuery)) {
         cards = await fetchDefaultStack(colorIdentity, order, dir, rawQuery === "-t:land");
       } else {
         ({ cards } = await fetchFirstPageForSwipe(withColorIdentity(rawQuery, colorIdentity), null, { order, dir }));
@@ -422,7 +472,12 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // backoff; only persistent failure (3 attempts) surfaces, via `reconnecting`.
   function commitCard(card, section, delta) {
     if (!attachDeckId) return;
-    writeQueueRef.current.push({ deckId: attachDeckId, cardName: card.name, section, delta, attempts: 0 });
+    writeQueueRef.current.push({
+      deckId: attachDeckId, cardName: card.name, section, delta, attempts: 0,
+      // oracle_id rides along so a fresh insert can auto-apply WREC tags
+      // (RPC-stack and live-search cards both carry it).
+      oracleId: card.oracle_id ?? null,
+    });
     flushWriteQueue();
   }
 
@@ -451,7 +506,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   }
 
   // Read-modify-write a single deck_cards row for (deck, card, section).
-  async function applyCardDelta({ deckId, cardName, section, delta }) {
+  async function applyCardDelta({ deckId, cardName, section, delta, oracleId }) {
     const { data: existing, error: selError } = await supabase
       .from("deck_cards")
       .select("id, quantity")
@@ -468,8 +523,21 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       const { error } = await supabase.from("deck_cards").update({ quantity }).eq("id", existing.id);
       if (error) throw error;
     } else {
-      const { error } = await supabase.from("deck_cards").insert({ deck_id: deckId, card_name: cardName, section, quantity });
+      const { data: inserted, error } = await supabase
+        .from("deck_cards")
+        .insert({ deck_id: deckId, card_name: cardName, section, quantity })
+        .select("id")
+        .single();
       if (error) throw error;
+      // Auto-WREC on the FIRST copy only, best-effort: a throw here would
+      // retry the whole delta and double the quantity, so failures are
+      // swallowed — the deck-list heal re-applies missing suggestions.
+      if (oracleId) {
+        try {
+          const suggestions = await autoWrecTags([oracleId]);
+          await applyAutoTags(inserted.id, suggestions.get(oracleId) ?? []);
+        } catch { /* healed on next deck-list open */ }
+      }
     }
   }
 
@@ -515,6 +583,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       next[`${to}:${name}`] = existing
         ? { ...existing,
             tags: [...new Set([...existing.tags, ...entry.tags])],
+            autoTags: [...new Set([...(existing.autoTags ?? []), ...(entry.autoTags ?? [])])],
             quantity: existing.quantity + entry.quantity }
         : entry;
       return next;
@@ -531,17 +600,46 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   }
 
   // Load every deck card's WREC tags when review opens (and on resume), keyed
-  // for O(1) lookup by the review rows.
-  async function loadDeckTags(deckId) {
+  // for O(1) lookup by the review rows. `heal` backfills auto-suggestions for
+  // untagged cards (see healAutoTags), then re-loads once without healing.
+  async function loadDeckTags(deckId, heal = true) {
     if (!deckId) return;
     try {
       const rows = await fetchDeckCardsWithTags(deckId);
       const map = {};
       for (const r of rows) {
-        map[`${r.section}:${r.card_name}`] = { id: r.id, tags: r.tags, quantity: r.quantity };
+        map[`${r.section}:${r.card_name}`] = { id: r.id, tags: r.tags, autoTags: r.autoTags, quantity: r.quantity };
       }
       setCardTags(map);
+      if (heal) healAutoTags(deckId, rows);
     } catch { /* tags are best-effort; review still renders without them */ }
+  }
+
+  // Backfill auto-WREC suggestions for deck cards that predate flick-time
+  // auto-tagging (or whose flick-time write failed). Scope: rows with ZERO
+  // tags only — a card the user has tagged, or stripped down to a subset, is
+  // theirs to keep. (Trade-off: stripping EVERY tag from a card invites its
+  // suggestions back on the next deck-list open.) Names resolve through the
+  // batched cache; one card_tags query covers all of them.
+  async function healAutoTags(deckId, rows) {
+    const bare = rows.filter(r => r.tags.length === 0);
+    if (bare.length === 0) return;
+    try {
+      const { data: byName } = await getCardDataBatch(bare.map(r => r.card_name));
+      const ids = [...new Set(
+        bare.map(r => byName[r.card_name]?.oracle_id).filter(Boolean),
+      )];
+      const suggestions = await autoWrecTags(ids);
+      let touched = false;
+      await Promise.all(bare.map(async r => {
+        const oid = byName[r.card_name]?.oracle_id;
+        const tags = oid ? suggestions.get(oid) : null;
+        if (!tags?.length) return;
+        await applyAutoTags(r.id, tags);
+        touched = true;
+      }));
+      if (touched) loadDeckTags(deckId, false);
+    } catch { /* best-effort — untagged rows just stay untagged this open */ }
   }
 
   useEffect(() => {
@@ -565,20 +663,20 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       if (!deckCardId) return;
     }
     const had = (entry?.tags ?? []).includes(tag);
+    const prevEntry = entry ?? { id: deckCardId, tags: [], autoTags: [], quantity: 1 };
     setCardTags(prev => {
-      const cur = prev[key] ?? { id: deckCardId, tags: [], quantity: 1 };
+      const cur = prev[key] ?? { id: deckCardId, tags: [], autoTags: [], quantity: 1 };
       const tags = had ? cur.tags.filter(t => t !== tag) : [...cur.tags, tag];
-      return { ...prev, [key]: { ...cur, id: deckCardId, tags } };
+      // Removing an auto tag removes its auto marker with it; a re-add later
+      // is a user tag (tagCard inserts with the default 'user' source).
+      const autoTags = had ? (cur.autoTags ?? []).filter(t => t !== tag) : (cur.autoTags ?? []);
+      return { ...prev, [key]: { ...cur, id: deckCardId, tags, autoTags } };
     });
     try {
       if (had) await untagCard(deckCardId, tag);
       else await tagCard(deckCardId, tag);
     } catch {
-      setCardTags(prev => {
-        const cur = prev[key] ?? { id: deckCardId, tags: [], quantity: 1 };
-        const tags = had ? [...cur.tags, tag] : cur.tags.filter(t => t !== tag);
-        return { ...prev, [key]: { ...cur, id: deckCardId, tags } };
-      });
+      setCardTags(prev => ({ ...prev, [key]: prevEntry }));
     }
   }
 
@@ -643,11 +741,12 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   function handleSortChange(order, dir) {
     setSwipeOrder(order);
     setSwipeDir(dir);
-    // An RPC-seeded relevance stack re-sorts in place (its cards carry
-    // matched_tags + edhrec_rank) — re-running the generic live search here
-    // would silently swap the legend's tag-filtered stack for an unfiltered
-    // one. Undecided position resets to the top, matching the re-fetch paths.
-    if (session && isDefaultSeedQuery(query) && swipeCards.some(c => c.matched_tags)) {
+    // An RPC-seeded stack (relevance OR wrec category) re-sorts in place
+    // (its cards carry matched_tags + edhrec_rank) — re-running the generic
+    // live search here would silently swap the tag-filtered stack for an
+    // unfiltered one. Undecided position resets to the top, matching the
+    // re-fetch paths.
+    if (session && (isDefaultSeedQuery(query) || wrecQueryCategory(query)) && swipeCards.some(c => c.matched_tags)) {
       setSwipeCards(sortStack(swipeCards, order, dir));
       setSwipeIndex(0);
       return;
@@ -924,6 +1023,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             onBack={session ? goToSwipe : undefined}
             onHome={session ? goHome : undefined}
             onDeleteDeck={session ? handleDeleteDeck : undefined}
+            onAddMore={session ? handleAddMore : undefined}
           />
         )}
       </div>

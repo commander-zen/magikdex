@@ -84,6 +84,7 @@ export default function ReviewScreen({
   onBack, onHome,
   onDeleteDeck,
   onMoveCard,
+  onAddMore,
 }) {
   const [commanderName, setCommanderName] = useState("");
   const [buildName, setBuildName] = useState("");
@@ -101,6 +102,22 @@ export default function ReviewScreen({
   // the list to that category's cards; tapping it again clears. One category
   // at a time (the band is a composition readout, not a query builder).
   const [wrecFilter, setWrecFilter] = useState(null);
+  // "add more" (gap-filling stack) — pending/error state is local so the
+  // button can report "no cards" inline without a global error channel.
+  const [addingMore, setAddingMore] = useState(false);
+  const [addMoreError, setAddMoreError] = useState(null);
+
+  async function handleAddMore() {
+    setAddingMore(true);
+    setAddMoreError(null);
+    try {
+      await onAddMore(wrecFilter);
+      // Success unmounts this screen (the parent switches to the swipe view).
+    } catch (err) {
+      setAddMoreError(err?.message ?? "couldn't build a stack");
+      setAddingMore(false);
+    }
+  }
   // Delete is a two-step inline confirm — no modal, the row itself expands.
   // `deleting` never resets on success: the parent tears the session down and
   // this screen unmounts, so only failure returns control here.
@@ -233,6 +250,9 @@ export default function ReviewScreen({
           items.map(({ name, quantity }) => {
             const key = `${sectionKey}:${name}`;
             const tags = cardTags?.[key]?.tags ?? [];
+            // Auto-suggested subset (deck_card_tags.source 'auto') — rendered
+            // hollow/dimmed so Ben's tags and the machine's never look alike.
+            const autoTags = cardTags?.[key]?.autoTags ?? [];
             const expanded = expandedKey === key;
             const card = cardData[name];               // undefined | null | object
             const resolved = card !== undefined;       // a lookup has come back
@@ -301,7 +321,12 @@ export default function ReviewScreen({
                         letterSpacing: "0.06em",
                         color: "var(--primary)",
                       }}>
-                        {tags.map(t => LABEL_BY_TAG[t] ?? t).join(" · ")}
+                        {tags.map((t, i) => (
+                          <span key={t} style={autoTags.includes(t) ? { opacity: 0.55 } : undefined}>
+                            {i > 0 && <span style={{ opacity: 1 }}> · </span>}
+                            {LABEL_BY_TAG[t] ?? t}
+                          </span>
+                        ))}
                       </span>
                     )}
                     {quantity > 1 && (
@@ -358,6 +383,9 @@ export default function ReviewScreen({
                   }}>
                     {WREC_CHIPS.map(({ tag, label }) => {
                       const active = tags.includes(tag);
+                      // Auto-suggested: hollow — primary outline/text, no fill.
+                      // A user tag fills solid. Tap behavior is identical.
+                      const auto = active && autoTags.includes(tag);
                       return (
                         <button
                           key={tag}
@@ -366,9 +394,9 @@ export default function ReviewScreen({
                             minHeight: 44,
                             padding: "0 6px",
                             display: "flex", alignItems: "center", justifyContent: "center",
-                            border: `1px solid ${active ? "var(--primary)" : "var(--muted)"}`,
-                            background: active ? "var(--primary)" : "transparent",
-                            color: active ? "var(--color-bg)" : "var(--muted)",
+                            border: `1px ${auto ? "dashed" : "solid"} ${active ? "var(--primary)" : "var(--muted)"}`,
+                            background: active && !auto ? "var(--primary)" : "transparent",
+                            color: auto ? "var(--primary)" : active ? "var(--color-bg)" : "var(--muted)",
                             fontFamily: "'Noto Sans Mono', monospace",
                             fontSize: 10,
                             letterSpacing: "0.08em",
@@ -548,7 +576,7 @@ export default function ReviewScreen({
                     // grows the hit area toward 44px without fattening the
                     // frozen band visually.
                     <button
-                      onClick={() => setWrecFilter(f => (f === tag ? null : tag))}
+                      onClick={() => { setWrecFilter(f => (f === tag ? null : tag)); setAddMoreError(null); }}
                       style={{
                         background: "transparent", border: "none",
                         padding: "14px 2px", margin: "-14px 0",
@@ -595,6 +623,39 @@ export default function ReviewScreen({
         {/* DECKLIST always; MAYBEBOARD only when it holds cards. No pile. */}
         {renderSection("DECKLIST", groups.decklist, "decklist")}
         {maybeboard.length > 0 && renderSection("MAYBEBOARD", groups.maybe, "maybe")}
+
+        {/* Gap-filling: a filtered category view ends in "add more" — deal a
+            swipe stack of that category's tag pool in the commander's colors
+            (agnostic of the plan). Plan is excluded: the main brew stack IS
+            the plan stack, so there's nothing narrower to deal. */}
+        {live && onAddMore && wrecFilter && wrecFilter !== "plan" && (
+          <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+            <button
+              onClick={handleAddMore}
+              disabled={addingMore}
+              style={{
+                minHeight: 44,
+                display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                background: "transparent",
+                border: "1px solid var(--primary)",
+                color: "var(--primary)",
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 12, letterSpacing: "0.08em",
+                cursor: addingMore ? "default" : "pointer",
+                opacity: addingMore ? 0.6 : 1,
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: 16 }}>add</span>
+              {addingMore ? "dealing…" : `add more ${LABEL_BY_TAG[wrecFilter] ?? wrecFilter}`}
+            </button>
+            {addMoreError && (
+              <div style={{ fontSize: 12, color: "var(--danger)", lineHeight: 1.5 }}>
+                {addMoreError}
+              </div>
+            )}
+          </div>
+        )}
 
         {/* Delete — the destructive act sits at the END of the list,
             physically separated from export (top) and back/home (bottom nav)
