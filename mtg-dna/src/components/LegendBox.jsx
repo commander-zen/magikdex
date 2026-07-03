@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase";
 import { fetchCardIdentity, getCardImage } from "../lib/scryfall.js";
-import { deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck } from "../lib/legendDeck.js";
+import { deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck, upsertLegend } from "../lib/legendDeck.js";
 import AddLegendSheet from "./AddLegendSheet";
 
 const DECK_GATE = 100;
@@ -225,9 +225,9 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
       showToast("already in the dex");
       return;
     }
-    await supabase
-      .from("legends")
-      .upsert({ name: card.name, scryfall_id: card.id }, { onConflict: "name" });
+    try {
+      await upsertLegend({ name: card.name, scryfall_id: card.id });
+    } catch { /* add silently no-ops on failure, matching the old unchecked upsert */ }
     setAddOpen(false);
     setLoading(true);
     await loadLegends();
@@ -241,12 +241,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
   // before closing itself — this never closes the sheet or selects the
   // legend on its own.
   async function handleImportDeck(commanderName, lines) {
-    const { data: legend, error: legendError } = await supabase
-      .from("legends")
-      .upsert({ name: commanderName }, { onConflict: "name" })
-      .select()
-      .single();
-    if (legendError) throw legendError;
+    const legend = await upsertLegend({ name: commanderName });
 
     if (!legend.image_uri || !legend.type_line) {
       try {

@@ -1,7 +1,8 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
 import { getBrewDefaults, setBrewDefaults } from "../lib/brewDefaults.js";
+import { supabase } from "../lib/supabase.js";
 
 // Starting-state choices for a fresh swipe seed (per-session controls override).
 const SORT_CHOICES = [
@@ -15,6 +16,26 @@ const SORT_CHOICES = [
 export default function SettingsSheet({ open, onClose }) {
   const { theme, mode, toggleTheme } = useTheme();
   const [defaults, setDefaults] = useState(getBrewDefaults);
+  // The anonymous account's id — shown so the user (mostly Ben, for the
+  // 014 data-claim backfill) can copy it. No other identity exists.
+  const [userId, setUserId] = useState(null);
+  const [idCopied, setIdCopied] = useState(false);
+
+  useEffect(() => {
+    if (!open) return;
+    supabase.auth.getSession().then(({ data }) => {
+      setUserId(data.session?.user?.id ?? null);
+    });
+  }, [open]);
+
+  async function copyUserId() {
+    if (!userId) return;
+    try {
+      await navigator.clipboard?.writeText(userId);
+      setIdCopied(true);
+      setTimeout(() => setIdCopied(false), 1800);
+    } catch { /* clipboard denied — the id is still visible to transcribe */ }
+  }
 
   function updateDefaults(patch) {
     setDefaults(setBrewDefaults(patch));
@@ -176,6 +197,19 @@ export default function SettingsSheet({ open, onClose }) {
               color: defaults.excludeLands ? accent : dimColor,
             }}>
               {defaults.excludeLands ? "ON" : "OFF"}
+            </span>
+          </div>
+
+          {/* Account — the invisible anonymous sign-in's id. Tap to copy
+              (used once for the 014 data-claim; harmless otherwise). */}
+          <div onClick={copyUserId} style={{ ...rowStyle, cursor: userId ? "pointer" : "default" }}>
+            <span style={labelStyle}>account</span>
+            <span style={{
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 11,
+              color: idCopied ? accent : dimColor,
+            }}>
+              {idCopied ? "copied" : userId ? `${userId.slice(0, 8)}…` : "not signed in"}
             </span>
           </div>
 

@@ -9,7 +9,7 @@ import ReviewScreen from "../brew-components/screens/ReviewScreen.jsx";
 import { fetchFirstPageForSwipe, fetchCardIdentity, getCardImage, fetchBrewStack, fetchTagStack, getCardDataBatch } from "../lib/scryfall.js";
 import { getBrewDefaults } from "../lib/brewDefaults.js";
 import { tagCard, untagCard, fetchDeckCardsWithTags, moveDeckCard, autoWrecTags, applyAutoTags, WREC_TO_OTAGS } from "../lib/deckTags.js";
-import { fetchLegendDeck, deleteLegend } from "../lib/legendDeck.js";
+import { fetchLegendDeck, deleteLegend, upsertLegend } from "../lib/legendDeck.js";
 import { supabase } from "../lib/supabase.js";
 
 // Brew sub-screens are always dark, regardless of the app theme mode —
@@ -765,12 +765,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     setSaving(true);
     setSaveError(null);
     try {
-      const { data: legend, error: legendError } = await supabase
-        .from("legends")
-        .upsert({ name: commanderName }, { onConflict: "name" })
-        .select()
-        .single();
-      if (legendError) throw legendError;
+      const legend = await upsertLegend({ name: commanderName });
 
       // The legend may have been typed rather than picked from a Scryfall
       // list — attempt to heal its identity now so the Box tile arrives

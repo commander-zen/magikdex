@@ -32,6 +32,28 @@ export function resolveLegendDeck(decks) {
   );
 }
 
+// One door for creating-or-matching a legend row. Names are unique PER USER
+// after migration 013 (user_id defaults to auth.uid() server-side, so it's
+// never sent from here); the legacy "name" conflict target is retried when
+// the deployed code is ahead of the migration, so deploy order can't break
+// add-legend.
+export async function upsertLegend(fields) {
+  let { data, error } = await supabase
+    .from("legends")
+    .upsert(fields, { onConflict: "user_id,name" })
+    .select()
+    .single();
+  if (error) {
+    ({ data, error } = await supabase
+      .from("legends")
+      .upsert(fields, { onConflict: "name" })
+      .select()
+      .single());
+  }
+  if (error) throw error;
+  return data;
+}
+
 // Deleting a legend removes it OUTRIGHT — the legend row, its deck, the
 // deck's cards, and their tags all go; nothing survives in the Box. Deletes
 // run child→parent because only deck_card_tags → deck_cards cascades at the

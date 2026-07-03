@@ -1,5 +1,5 @@
 import { useState, useEffect } from "react";
-import { getCardData, getCardDataBatch, formatManaCost } from "../../lib/scryfall.js";
+import { getCardData, getCardDataBatch, getCardImage, formatManaCost } from "../../lib/scryfall.js";
 
 // Spine screens pad for the notch (top, clearing the back chevron) and the
 // home indicator (bottom) now that no tab bar absorbs the bottom.
@@ -106,6 +106,18 @@ export default function ReviewScreen({
   // button can report "no cards" inline without a global error channel.
   const [addingMore, setAddingMore] = useState(false);
   const [addMoreError, setAddMoreError] = useState(null);
+  // Tap the commander NAME in the header → the full card, to re-read its
+  // text (same overlay grammar as the swipe screen's commander bar; the
+  // header carries no art — Ben: name only). undefined = lookup failed.
+  const [showCommander, setShowCommander] = useState(false);
+  const [commanderFull, setCommanderFull] = useState(null);
+
+  async function openCommander() {
+    setShowCommander(true);
+    if (commanderFull || !commander?.name) return;
+    const card = await getCardData(commander.name);
+    setCommanderFull(card ?? undefined);
+  }
 
   async function handleAddMore() {
     setAddingMore(true);
@@ -313,20 +325,27 @@ export default function ReviewScreen({
                     ) : null}
                   </span>
                   <div style={{ display: "flex", alignItems: "center", gap: 10, flexShrink: 0 }}>
-                    {/* Active tags, compact, when collapsed — untagged shows nothing */}
+                    {/* Collapsed tags read as quiet DOTS, not text — the auto
+                        tags put amber labels on nearly every row and the list
+                        got loud. Filled dot = user tag, hollow = auto (same
+                        split as the chips); tap the row for the real chips. */}
                     {!expanded && tags.length > 0 && (
-                      <span style={{
-                        fontFamily: "'Noto Sans Mono', monospace",
-                        fontSize: 9,
-                        letterSpacing: "0.06em",
-                        color: "var(--primary)",
-                      }}>
-                        {tags.map((t, i) => (
-                          <span key={t} style={autoTags.includes(t) ? { opacity: 0.55 } : undefined}>
-                            {i > 0 && <span style={{ opacity: 1 }}> · </span>}
-                            {LABEL_BY_TAG[t] ?? t}
-                          </span>
-                        ))}
+                      <span style={{ display: "flex", alignItems: "center", gap: 4 }}>
+                        {tags.map(t => {
+                          const auto = autoTags.includes(t);
+                          return (
+                            <span
+                              key={t}
+                              title={LABEL_BY_TAG[t] ?? t}
+                              style={{
+                                width: 6, height: 6,
+                                borderRadius: "50%",
+                                border: "1px solid var(--primary)",
+                                background: auto ? "transparent" : "var(--primary)",
+                              }}
+                            />
+                          );
+                        })}
                       </span>
                     )}
                     {quantity > 1 && (
@@ -480,8 +499,9 @@ export default function ReviewScreen({
           background: "var(--bg)",
           borderBottom: "1px solid var(--bevel-dark)",
         }}>
-          {/* Commander anchor — padded left of the brew back chevron so the
-              two never overlap. */}
+          {/* Commander anchor — NAME ONLY (no art; the 56px sprite smushed
+              the name on device). Tapping the name opens the full card.
+              Padded left of the brew back chevron so the two never overlap. */}
           {showAnchor && (
           <div style={{
             maxWidth: 430,
@@ -490,37 +510,35 @@ export default function ReviewScreen({
             alignItems: "center",
             gap: 12,
             paddingTop: "calc(env(safe-area-inset-top) + 10px)",
-            paddingBottom: 12,
+            paddingBottom: 10,
             paddingLeft: "calc(env(safe-area-inset-left) + 56px)",
             paddingRight: 20,
           }}>
-            <div style={{
-              width: 56, height: 56, flexShrink: 0,
-              borderRadius: "5.5% / 4%",
-              overflow: "hidden",
-              background: "var(--color-surface)",
-            }}>
-              {commander.art && (
-                <img
-                  src={commander.art}
-                  alt={commander.name}
-                  draggable={false}
-                  style={{ width: "100%", height: "100%", objectFit: "cover" }}
-                />
-              )}
-            </div>
-            <div style={{
-              flex: 1, minWidth: 0,
-              fontFamily: "'Zilla Slab', serif",
-              fontSize: 18,
-              letterSpacing: "0.02em",
-              color: "var(--text)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}>
-              {commander.name}
-            </div>
+            <button
+              onClick={openCommander}
+              aria-label="Show commander card"
+              style={{
+                flex: 1, minWidth: 0,
+                minHeight: 44,
+                display: "flex", alignItems: "center",
+                background: "transparent", border: "none", padding: 0,
+                textAlign: "left",
+                fontFamily: "'Zilla Slab', serif",
+                fontSize: 18,
+                letterSpacing: "0.02em",
+                color: "var(--text)",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <span style={{
+                overflow: "hidden",
+                textOverflow: "ellipsis",
+                whiteSpace: "nowrap",
+              }}>
+                {commander.name}
+              </span>
+            </button>
             <div style={{
               fontFamily: "'Noto Sans Mono', monospace",
               fontSize: 13,
@@ -549,50 +567,53 @@ export default function ReviewScreen({
           </div>
           )}
 
-          {/* WREC composition band — frozen with the anchor. Counts per
-              category (by quantity). Multi-tag so they can exceed deck size; a
-              0 reads dimmed as a structural gap. */}
+          {/* WREC composition band — frozen with the anchor. Five EQUAL cells
+              (count over a micro label), no separators — the old inline
+              "LABEL n · LABEL n" run read as one busy string on device. A 0
+              stays dimmed (the dump-stat tell); non-zero cells filter on tap. */}
           <div style={{
             maxWidth: 430,
             margin: "0 auto",
-            display: "flex", flexWrap: "wrap", alignItems: "center",
-            fontFamily: "'Noto Sans Mono', monospace",
-            fontSize: 11,
-            paddingLeft: 20, paddingRight: 20,
-            paddingTop: showAnchor ? 8 : "calc(env(safe-area-inset-top) + 10px)",
-            paddingBottom: 8,
+            display: "grid",
+            gridTemplateColumns: "repeat(5, 1fr)",
+            paddingLeft: 12, paddingRight: 12,
+            paddingTop: showAnchor ? 0 : "calc(env(safe-area-inset-top) + 6px)",
+            paddingBottom: 4,
             borderTop: showAnchor ? "1px solid var(--bevel-dark)" : "none",
           }}>
-            {wrecCounts.map(({ tag, label, n }, i) => {
+            {wrecCounts.map(({ tag, label, n }) => {
               const active = wrecFilter === tag;
+              const dim = n === 0;
               return (
-                <span key={tag} style={{ whiteSpace: "nowrap" }}>
-                  {i > 0 && <span style={{ color: "var(--muted)", margin: "0 6px" }}>·</span>}
-                  {n === 0 ? (
-                    // Zero categories stay a dimmed readout — nothing to filter to.
-                    <span style={{ color: "var(--muted)" }}>{label} {n}</span>
-                  ) : (
-                    // Tappable filter toggle. Vertical padding + negative margin
-                    // grows the hit area toward 44px without fattening the
-                    // frozen band visually.
-                    <button
-                      onClick={() => { setWrecFilter(f => (f === tag ? null : tag)); setAddMoreError(null); }}
-                      style={{
-                        background: "transparent", border: "none",
-                        padding: "14px 2px", margin: "-14px 0",
-                        fontFamily: "'Noto Sans Mono', monospace",
-                        fontSize: 11,
-                        color: active ? "var(--primary)" : "var(--text)",
-                        textDecoration: active ? "underline" : "none",
-                        textUnderlineOffset: 3,
-                        cursor: "pointer",
-                        WebkitTapHighlightColor: "transparent",
-                      }}
-                    >
-                      {label} {n}
-                    </button>
-                  )}
-                </span>
+                <button
+                  key={tag}
+                  onClick={dim ? undefined : () => { setWrecFilter(f => (f === tag ? null : tag)); setAddMoreError(null); }}
+                  style={{
+                    minHeight: 44,
+                    display: "flex", flexDirection: "column",
+                    alignItems: "center", justifyContent: "center", gap: 1,
+                    background: "transparent", border: "none", padding: 0,
+                    borderBottom: `2px solid ${active ? "var(--primary)" : "transparent"}`,
+                    cursor: dim ? "default" : "pointer",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span style={{
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 13,
+                    color: dim ? "var(--muted)" : active ? "var(--primary)" : "var(--text)",
+                  }}>
+                    {n}
+                  </span>
+                  <span style={{
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 8,
+                    letterSpacing: "0.1em",
+                    color: "var(--muted)",
+                  }}>
+                    {label}
+                  </span>
+                </button>
               );
             })}
           </div>
@@ -846,6 +867,43 @@ export default function ReviewScreen({
               <span className="material-symbols-rounded" style={{ fontSize: 18 }}>home</span>
             </button>
           </div>
+        </div>
+      )}
+
+      {/* Commander card overlay — tap the header name to re-read the card,
+          tap anywhere to dismiss. Unaltered card image (Scryfall terms). */}
+      {showCommander && (
+        <div
+          onClick={() => setShowCommander(false)}
+          role="dialog"
+          aria-modal="true"
+          aria-label={`${commander?.name} card`}
+          style={{
+            position: "fixed", inset: 0, zIndex: 250,
+            background: "rgba(0,0,0,0.82)",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            cursor: "pointer",
+          }}
+        >
+          {commanderFull ? (
+            <img
+              src={getCardImage(commanderFull, "normal")}
+              alt={commander?.name}
+              draggable={false}
+              style={{
+                width: "min(88vw, 400px)",
+                borderRadius: "4.75% / 3.5%",
+              }}
+            />
+          ) : (
+            <div style={{
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 12,
+              color: commanderFull === undefined ? "var(--danger)" : "var(--muted)",
+            }}>
+              {commanderFull === undefined ? "couldn't load the card" : "loading…"}
+            </div>
+          )}
         </div>
       )}
 
