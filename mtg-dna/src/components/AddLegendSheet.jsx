@@ -79,8 +79,10 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
   const dimColor    = mode === "light" ? theme.muted : theme.dim;
   const borderColor = mode === "light" ? theme.border : theme.muted;
 
+  // Reset the whole sheet each time it opens; abort any in-flight search on close.
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");
       setResults([]);
       setTab("search");
@@ -96,6 +98,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
   }, [open]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!query.trim()) { setResults([]); return; }
     const timer = setTimeout(async () => {
       abortRef.current?.abort();

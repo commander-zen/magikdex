@@ -351,7 +351,7 @@ export async function fetchFirstPage(query, options = {}) {
     res = await fetch(url, { headers: { "User-Agent": UA }, signal });
   } catch (err) {
     if (err.name === "AbortError") throw err;
-    throw new Error("Network error.");
+    throw new Error("Network error.", { cause: err });
   }
   if (res.status === 404) return [];
   if (res.status === 429) throw new Error("Rate limited — try again in a moment.");
@@ -365,7 +365,7 @@ export async function fetchFirstPage(query, options = {}) {
 export const LOKI_CLONE_QUERY = 'legal:commander ci<=u t:creature o:"copy of" -o:"token"';
 
 // ── First-page swipe fetch — returns immediately so SwipeScreen can start ─────
-export async function fetchFirstPageForSwipe(query, commanderCard = null, options = {}) {
+export async function fetchFirstPageForSwipe(query, options = {}) {
   const { signal, order = "name", dir = "auto" } = options;
   const baseQuery = query + " -type:sticker -type:attraction";
   let url = `https://api.scryfall.com/cards/search?q=${encodeURIComponent(baseQuery)}&order=${order}&unique=cards`;
@@ -375,7 +375,7 @@ export async function fetchFirstPageForSwipe(query, commanderCard = null, option
     res = await fetch(url, { headers: { "User-Agent": UA }, signal });
   } catch (err) {
     if (err.name === "AbortError") throw err;
-    throw new Error("Network error.");
+    throw new Error("Network error.", { cause: err });
   }
   if (res.status === 404) throw new Error("No cards found for that query.");
   if (res.status === 400 || res.status === 422) {
@@ -403,7 +403,7 @@ export async function fetchContinuationPage(pageUrl, options = {}) {
 }
 
 // ── Swipe screen fetch — up to 175 cards, paginated ──────────────────────────
-export async function fetchForSwipe(query, commanderCard = null, options = {}) {
+export async function fetchForSwipe(query, options = {}) {
   const { signal } = options;
   const CAP = 175;
   const results = [];
@@ -416,7 +416,7 @@ export async function fetchForSwipe(query, commanderCard = null, options = {}) {
       res = await fetch(url, { headers: { "User-Agent": UA }, signal });
     } catch (err) {
       if (err.name === "AbortError") throw err;
-      throw new Error("Network error.");
+      throw new Error("Network error.", { cause: err });
     }
     if (res.status === 404) throw new Error("No cards found for that query.");
     if (res.status === 400 || res.status === 422) {
@@ -452,7 +452,7 @@ export async function fetchAllCards(query, onProgress, options = {}) {
       res = await fetch(url, { headers: { "User-Agent": UA }, signal });
     } catch (err) {
       if (err.name === "AbortError") throw err;
-      throw new Error("Network error fetching cards.");
+      throw new Error("Network error fetching cards.", { cause: err });
     }
     if (res.status === 429) { await sleep(BACKOFF_429); continue; }
     if (!res.ok) { if (res.status === 404) break; throw new Error(`Scryfall error: ${res.status}`); }

@@ -8,7 +8,9 @@ export function useGameChangers() {
   const [error, setError]                   = useState(null);
 
   useEffect(() => {
+    // Cache hit — hydrate from the module-level set without a network round-trip.
     if (cached !== null) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setGameChangerIds(cached);
       setLoading(false);
       return;

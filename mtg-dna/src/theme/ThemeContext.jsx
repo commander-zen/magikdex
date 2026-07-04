@@ -39,6 +39,9 @@ export function ThemeProvider({ children }) {
   );
 }
 
+// Co-located with the provider for ergonomics; the fast-refresh rule wants
+// hooks in a separate module, but splitting this one isn't worth the churn.
+// eslint-disable-next-line react-refresh/only-export-components
 export function useTheme() {
   return useContext(ThemeContext);
 }

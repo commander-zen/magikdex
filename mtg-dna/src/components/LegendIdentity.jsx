@@ -28,6 +28,8 @@ export default function LegendIdentity({ legend, onBrew }) {
   // falls to the live API on a true miss.
   useEffect(() => {
     let cancelled = false;
+    // Clear the stale card immediately so the pane never shows the prior legend.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setOracleCard(null);
     getCardData(legend.name)
       .then(card => { if (!cancelled && card) setOracleCard(card); })

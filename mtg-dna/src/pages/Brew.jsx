@@ -271,7 +271,6 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   const { theme } = useTheme();
   // shell | modes | search | swipe | review
   const [brewView, setBrewView] = useState("shell");
-  const [brewMode, setBrewMode] = useState(null);
 
   const [query, setQuery]           = useState("");
   // The user's in-stack narrowing terms (legend sessions only) — a client-side
@@ -390,7 +389,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // color identity (fetched now if the row hasn't been backfilled yet).
   useEffect(() => {
     if (!session || brewView !== "shell") return;
-    setBrewMode("legend");
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setSessionLabel(session.legend.name);
     // A new session starts un-narrowed; resume restores any saved filter below.
     setStackNarrow("");
@@ -478,6 +477,8 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       }
     })();
     return () => { cancelled = true; };
+  // Runs once per new session; brewView/resumeOrSeedSwipeQueue are read fresh, not tracked.
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [session]);
 
   // One door for the no-query default stack: the legend-relevant RPC first
@@ -497,7 +498,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       if (stack.length) return order === "edhrec" ? stack : sortStack(stack, order, dir);
     }
     const q = withColorIdentity(excludeLands ? "-t:land" : "", colorIdentity);
-    const { cards } = await fetchFirstPageForSwipe(q, null, { order, dir });
+    const { cards } = await fetchFirstPageForSwipe(q, { order, dir });
     return cards;
   }
 
@@ -613,7 +614,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       } else if (isDefaultSeedQuery(rawQuery)) {
         cards = await fetchDefaultStack(colorIdentity, order, dir, rawQuery === "-t:land");
       } else {
-        ({ cards } = await fetchFirstPageForSwipe(withColorIdentity(rawQuery, colorIdentity), null, { order, dir }));
+        ({ cards } = await fetchFirstPageForSwipe(withColorIdentity(rawQuery, colorIdentity), { order, dir }));
       }
       // Re-apply the saved in-stack narrow on top of the rebuilt base stack.
       baseStackRef.current = cards;
@@ -879,7 +880,6 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   }, [resetSignal]);
 
   function resetBrew() {
-    setBrewMode(null);
     setQuery("");
     setStackNarrow("");
     baseStackRef.current = [];
@@ -904,7 +904,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       // legend's color identity server-side — the user's input is never
       // trusted alone, matching the auto-seed path above.
       const finalQuery = session ? withColorIdentity(q, legendColorIdentity) : q;
-      const { cards } = await fetchFirstPageForSwipe(finalQuery, null, { order, dir });
+      const { cards } = await fetchFirstPageForSwipe(finalQuery, { order, dir });
       // Decided cards (this session or earlier) never re-queue, no matter how
       // the queue was re-seeded — skipped/browsed cards are unaffected.
       const filtered = cards.filter(c => !decidedNamesRef.current.has(c.name));

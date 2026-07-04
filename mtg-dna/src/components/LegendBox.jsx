@@ -193,6 +193,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
   // Reload on mount and whenever the parent bumps reloadSignal — a brew
   // session ending refreshes deck totals across the box and the detail pane.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     loadLegends();
   }, [reloadSignal]);
 
@@ -206,6 +207,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
   // includes it. Clamp the current page if legends shrank since last visit.
   const boxCount = Math.max(1, Math.ceil((legends.length + 1) / PAGE_SIZE));
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (box > boxCount - 1) setBox(boxCount - 1);
   }, [box, boxCount]);
   useEffect(() => {

@@ -211,7 +211,6 @@ function buildQuery({
 export default function SearchForm({ onSearch, onQueryChange, loading, error }) {
   const [rawQuery,         setRawQuery]         = useState("");
   const [advOpen,          setAdvOpen]          = useState(false);
-  const [searchFocused,    setSearchFocused]    = useState(false);
   const [selectedColors,   setSelectedColors]   = useState([]);
   const [colorMode,        setColorMode]        = useState("at");
   const [typeText,         setTypeText]         = useState("");
@@ -288,8 +287,6 @@ export default function SearchForm({ onSearch, onQueryChange, loading, error }) 
 
       {/* Search input + filters toggle — unified row */}
       <div
-        onFocus={() => setSearchFocused(true)}
-        onBlur={() => setSearchFocused(false)}
         style={{
           display: "flex", alignItems: "center",
           background: "var(--color-surface)",

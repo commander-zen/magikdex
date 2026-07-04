@@ -23,7 +23,7 @@ const SORT_OPTIONS = [
 
 function haptic(pattern = 10) {
   if (!getSettings().haptics) return;
-  try { navigator.vibrate(pattern); } catch {}
+  try { navigator.vibrate(pattern); } catch { /* haptics unsupported */ }
 }
 
 // Pixel width of a carousel slot — mirrors the cardWidth CSS (min(96vw, 440px))
@@ -37,7 +37,6 @@ export default function SwipeScreen({
   onGoToPile, onExit, onGoToSearch, onSearchMore, commanderCard,
   initialIndex, onIndexChange,
   swipeOrder = "name", swipeDir = "desc", onSortChange,
-  onGoToBrews,
   onCardCommit, reconnecting,
   onDoubleTag,
 }) {
@@ -72,7 +71,6 @@ export default function SwipeScreen({
   const [animBrowse,   setAnimBrowse]   = useState(null);
   const [sortMenuOpen, setSortMenuOpen] = useState(false);
   const [imgError,     setImgError]     = useState(false);
-  const [cardExpanded, setCardExpanded] = useState(false);
   const [flipped,      setFlipped]      = useState(false);
 
   const didMountRef       = useRef(false);
@@ -102,9 +100,10 @@ export default function SwipeScreen({
     }
   }, []);
 
+  // Reset per-card visual state whenever a new card becomes current.
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setImgError(false);
-    setCardExpanded(false);
     setFlipped(false);
     clearTimeout(longPressTimerRef.current);
   }, [idx]);
@@ -302,7 +301,6 @@ export default function SwipeScreen({
     // No axis locked — treat as a tap
     setOffset(0);
     setOffsetY(0);
-    if (Math.abs(dx) < AXIS_LOCK_PX && Math.abs(dy) < AXIS_LOCK_PX) setCardExpanded(v => !v);
   }
 
   // ── Derived visuals ──────────────────────────────────────────────────────────
@@ -324,15 +322,6 @@ export default function SwipeScreen({
     ? "transform 280ms ease-in, opacity 280ms ease-in"
     : stripTransition;
 
-  function isCommanderEligible(c) {
-    const type = c?.type_line ?? "";
-    const oracle = c?.oracle_text ?? "";
-    return (
-      (type.includes("Legendary") && type.includes("Creature")) ||
-      (type.includes("Legendary") && type.includes("Vehicle")) ||
-      oracle.includes("can be your commander")
-    );
-  }
   // Scryfall's game_changer flag when present, hook's oracle-id set as fallback
   const { gameChangerIds } = useGameChangers();
   const isGameChanger = card?.game_changer === true ||

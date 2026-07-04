@@ -14,8 +14,10 @@ export default function CommanderSearchSheet({
   const abortRef = useRef(null);
   const inputRef = useRef(null);
 
+  // Reset the sheet each time it opens; abort any in-flight search on close.
   useEffect(() => {
     if (open) {
+      // eslint-disable-next-line react-hooks/set-state-in-effect
       setQuery("");
       setResults([]);
       setDupError("");
@@ -26,6 +28,7 @@ export default function CommanderSearchSheet({
   }, [open]);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!query.trim()) { setResults([]); return; }
     const timer = setTimeout(async () => {
       abortRef.current?.abort();

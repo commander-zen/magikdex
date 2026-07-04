@@ -25,6 +25,7 @@ function Win98ProgressBar({ active }) {
   const [pos, setPos] = useState(0);
 
   useEffect(() => {
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     if (!active) { setPos(0); return; }
     const id = setInterval(() => setPos(p => (p + 1) % (PROGRESS_SEGMENTS + 1)), 150);
     return () => clearInterval(id);

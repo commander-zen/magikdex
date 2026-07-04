@@ -5,7 +5,7 @@ import CommanderModal from "../CommanderModal.jsx";
 import CommanderSearchSheet from "../CommanderSearchSheet.jsx";
 import WrecCategoryButtons from "../WrecCategoryButtons.jsx";
 const NAV_HEIGHT = 60;
-import { WREC_CHIP, WREC_CATEGORIES, WREC_TARGETS } from "../../constants/wrec.js";
+import { WREC_CHIP } from "../../constants/wrec.js";
 import { useGameChangers } from "../../hooks/useGameChangers.js";
 import { getSettings } from "../../lib/settings.js";
 
@@ -77,16 +77,6 @@ function dedupeByOracleId(cards) {
 }
 
 // ── WREC score ────────────────────────────────────────────────────────────────
-function computeWrecScore(wrecBar) {
-  if (wrecBar.length === 0) return 0;
-  const scores = wrecBar.map(({ count, target }) => {
-    if (target <= 0) return 1;
-    const ratio = count / target;
-    return ratio <= 1 ? ratio : Math.max(0, 2 - ratio);
-  });
-  return scores.reduce((a, b) => a + b, 0) / scores.length;
-}
-
 // ── Icons ─────────────────────────────────────────────────────────────────────
 function ImageIcon({ color }) {
   return (
@@ -168,7 +158,7 @@ function SwipeableRow({ onSwipeLeft, onSwipeRight, leftAction, rightAction, chil
         capturingRef.current    = true;
         dragOccurredRef.current = true;
         setDragging(true);
-        try { e.currentTarget.setPointerCapture(e.pointerId); } catch {}
+        try { e.currentTarget.setPointerCapture(e.pointerId); } catch { /* capture unsupported */ }
       }
       return;
     }
@@ -184,11 +174,11 @@ function SwipeableRow({ onSwipeLeft, onSwipeRight, leftAction, rightAction, chil
     setDragging(false);
 
     if (finalDx > 60 && onSwipeRight) {
-      try { if (getSettings().haptics) navigator.vibrate(25); } catch {}
+      try { if (getSettings().haptics) navigator.vibrate(25); } catch { /* haptics unsupported */ }
       setFlying("right");
       setTimeout(() => onSwipeRight(), 200);
     } else if (finalDx < -60 && onSwipeLeft) {
-      try { if (getSettings().haptics) navigator.vibrate(25); } catch {}
+      try { if (getSettings().haptics) navigator.vibrate(25); } catch { /* haptics unsupported */ }
       setFlying("left");
       setTimeout(() => onSwipeLeft(), 200);
     } else {
@@ -305,7 +295,6 @@ export default function PileScreen({
   decks = [],
   activeDeckId = null,
   onSave,
-  onDoubleTag,
   onAssignTag,
   wrecTags = {},
 }) {
@@ -322,12 +311,12 @@ export default function PileScreen({
   const [wrecSheetOpen,  setWrecSheetOpen]  = useState(false);
 
   const { gameChangerIds } = useGameChangers();
-  const gcCount = pile.filter(c => gameChangerIds.has(c.oracle_id ?? "")).length;
-  const bracket = gcCount === 0 ? 2 : gcCount <= 3 ? 3 : 4;
 
   const scrollPos = useRef({ deck: 0, maybe: 0 });
   useEffect(() => {
     scrollPos.current[activeTab] = window.scrollY;
+    // Sync the tab when the parent hands us a new initialTab.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
     setActiveTab(initialTab ?? "deck");
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [initialTab]);
@@ -355,25 +344,6 @@ export default function PileScreen({
 
   const bottomPad = `calc(max(18px, env(safe-area-inset-bottom)) + ${FAB_CLEARANCE}px + 40px)`;
   const fabBottom  = `calc(max(10px, env(safe-area-inset-bottom)) + ${NAV_HEIGHT}px + 8px)`;
-
-  // ── WREC — derived fresh every render ─────────────────────────────────────
-  const basicIds = new Set(
-    pile.filter(c => c.type_line?.toLowerCase().includes("basic")).map(c => c.oracle_id).filter(Boolean)
-  );
-  const wrecBar = WREC_CATEGORIES.map(cat => {
-    let count;
-    if (cat === "Mana Base") {
-      count = new Set([...(wrecTags["Mana Base"] ?? []), ...basicIds]).size;
-    } else {
-      count = (wrecTags[cat] ?? []).length;
-    }
-    const abbrevs = { Ramp: "R", "Card Advantage": "CA", Disruption: "D", "Mass Disruption": "MD", "Mana Base": "MB", Plan: "P" };
-    return { cat, abbrev: abbrevs[cat] ?? cat[0], count, target: WREC_TARGETS[cat] };
-  });
-
-  const wrecScore      = computeWrecScore(wrecBar);
-  const wrecScoreStr   = wrecScore.toFixed(3);
-  const wrecScoreColor = wrecScore >= 0.9 ? "var(--success)" : wrecScore >= 0.7 ? "var(--active)" : "var(--danger)";
 
   // ── Review entry ───────────────────────────────────────────────────────────
   function enterReview(mode) {
@@ -1024,37 +994,6 @@ export default function PileScreen({
             {activeCardsRawLen}
           </span>
 
-          {/* BRACKET display — commented out
-          {activeTab === "deck" && pile.length > 0 && (() => {
-            const bracketColor =
-              bracket === 4 ? { color: "#ef4444", border: "rgba(239,68,68,0.45)",  bg: "rgba(239,68,68,0.10)"  } :
-              bracket === 3 ? { color: "#f59e0b", border: "rgba(245,158,11,0.45)", bg: "rgba(245,158,11,0.10)" } :
-                              { color: "var(--muted)", border: "rgba(255,255,255,0.12)", bg: "rgba(255,255,255,0.04)" };
-            return (
-              <div style={{ flexShrink: 0, display: "flex", flexDirection: "column", alignItems: "flex-end", gap: 1 }}>
-                <span style={{
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 9, letterSpacing: 0.5,
-                  padding: "2px 6px", borderRadius: 4,
-                  border: `1px solid ${bracketColor.border}`,
-                  background: bracketColor.bg,
-                  color: bracketColor.color,
-                  whiteSpace: "nowrap",
-                }}>
-                  BRACKET {bracket}
-                </span>
-                <span style={{
-                  fontSize: 8, color: "var(--muted)",
-                  fontFamily: "'Noto Sans', sans-serif",
-                  whiteSpace: "nowrap",
-                }}>
-                  Estimated · excl. combos
-                </span>
-              </div>
-            );
-          })()}
-          */}
-
           <button
             onClick={() => {
               if (activeTab === "deck") setDeckViewMode(v => v === "list" ? "grid" : "list");
@@ -1109,84 +1048,6 @@ export default function PileScreen({
             </button>
           )}
         </div>
-
-        {/* ── WREC section — commented out
-        {activeTab === "deck" && pile.length > 0 && (
-          <div style={{
-            borderTop: "0.5px solid rgba(255,255,255,0.06)",
-            padding: "10px 14px 12px",
-          }}>
-            <div style={{ textAlign: "center", marginBottom: 8 }}>
-              <div style={{
-                fontFamily: "'Noto Sans', sans-serif",
-                fontSize: 28, lineHeight: 1,
-                letterSpacing: "0.05em",
-                color: wrecScoreColor,
-                fontWeight: 700,
-              }}>
-                {wrecScoreStr}
-              </div>
-              <button
-                onClick={() => setWrecSheetOpen(true)}
-                style={{
-                  background: "var(--color-chrome)",
-                  color: "var(--color-text-chrome)",
-                  fontFamily: "var(--font-system)",
-                  fontSize: "var(--font-size-sm)",
-                  borderStyle: "solid",
-                  borderWidth: "2px",
-                  borderTopColor: "var(--bevel-light)",
-                  borderLeftColor: "var(--bevel-light)",
-                  borderBottomColor: "var(--bevel-dark)",
-                  borderRightColor: "var(--bevel-dark)",
-                  padding: "var(--space-1) var(--space-3)",
-                  cursor: "pointer",
-                  borderRadius: 0,
-                  letterSpacing: "0.15em",
-                }}
-              >
-                WREC SCORE
-              </button>
-            </div>
-            <div style={{ display: "flex", gap: 3 }}>
-              {wrecBar.map(({ cat, abbrev, count, target }) => {
-                const segColor = count >= target ? "var(--success)"
-                  : count >= target - 2 ? "var(--active)"
-                  : "var(--danger)";
-                return (
-                  <div key={cat} style={{
-                    flex: 1,
-                    background: count >= target ? "rgba(52,211,153,0.12)"
-                      : count >= target - 2 ? "rgba(245,158,11,0.12)"
-                      : "rgba(255,77,109,0.12)",
-                    borderRadius: 6,
-                    padding: "5px 3px",
-                    textAlign: "center",
-                    border: `1px solid ${
-                      count >= target ? "rgba(52,211,153,0.25)"
-                      : count >= target - 2 ? "rgba(245,158,11,0.25)"
-                      : "rgba(255,77,109,0.25)"
-                    }`,
-                  }}>
-                    <div style={{
-                      fontFamily: "'Noto Sans', sans-serif",
-                      fontSize: 9, letterSpacing: 1,
-                      color: segColor, marginBottom: 2, fontWeight: 600,
-                    }}>{abbrev}</div>
-                    <div style={{
-                      fontFamily: "'Noto Sans Mono', monospace",
-                      fontSize: 10, color: segColor,
-                      lineHeight: 1,
-                    }}>
-                      {count}<span style={{ fontSize: 8, opacity: 0.5 }}>/{target}</span>
-                    </div>
-                  </div>
-                );
-              })}
-            </div>
-          </div>
-        )}
-        */}
 
         {/* SET COMMANDER banner */}
         {!hasCommander && pile.length > 0 && activeTab === "deck" && onCommanderCardChange && (

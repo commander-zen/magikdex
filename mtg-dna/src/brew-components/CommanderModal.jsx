@@ -4,6 +4,8 @@ import { getCardImage } from "../lib/scryfall.js";
 export default function CommanderModal({ card, onClose }) {
   const [faceIdx, setFaceIdx] = useState(0);
 
+  // Reset to the front face whenever a different card opens.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setFaceIdx(0); }, [card]);
 
   if (!card) return null;

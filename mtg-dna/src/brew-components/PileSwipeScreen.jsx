@@ -26,6 +26,8 @@ export default function PileSwipeScreen({ cards: cardsProp, startIndex = 0, onKe
 
   const dragStartRef = useRef(null);
 
+  // Reset to the front face whenever a new card scrolls into view.
+  // eslint-disable-next-line react-hooks/set-state-in-effect
   useEffect(() => { setFaceIdx(0); }, [idx]);
 
   const card     = snapshot[idx] ?? null;
@@ -36,7 +38,6 @@ export default function PileSwipeScreen({ cards: cardsProp, startIndex = 0, onKe
   const keepLabel = "KEEP";
   const passLabel = mode === "deck" ? "MAYBE" : "CUT";
   const passColor = mode === "deck" ? "var(--active)" : "var(--danger)";
-  const passBg    = mode === "deck" ? "rgba(245,158,11,0.1)" : "rgba(255,77,109,0.1)";
 
   function doResolve(keep) {
     if (!card || animOut || done) return;
