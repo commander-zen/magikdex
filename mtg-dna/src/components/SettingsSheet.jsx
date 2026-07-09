@@ -411,7 +411,7 @@ export default function SettingsSheet({ open, onClose }) {
             color: dimColor,
             opacity: 0.6,
           }}>
-            magicdex · v3
+            magikdex · v3
           </div>
         </div>
       </div>

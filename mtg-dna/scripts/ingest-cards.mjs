@@ -30,7 +30,7 @@ const { chain } = require("stream-chain");
 const { parser } = require("stream-json");
 const { streamArray } = require("stream-json/streamers/stream-array.js");
 
-const UA = "magicdex/1.0 (bulk ingest; deck-stack.vercel.app)";
+const UA = "magikdex/1.0 (bulk ingest; deck-stack.vercel.app)";
 const BULK_MANIFEST = "https://api.scryfall.com/bulk-data";
 const BATCH_SIZE = 500;
 

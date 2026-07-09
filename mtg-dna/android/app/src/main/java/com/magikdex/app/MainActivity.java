@@ -1,4 +1,4 @@
-package com.magicdex.app;
+package com.magikdex.app;
 
 import com.getcapacitor.BridgeActivity;
 

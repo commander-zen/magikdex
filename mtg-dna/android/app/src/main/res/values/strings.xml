@@ -1,7 +1,7 @@
 <?xml version='1.0' encoding='utf-8'?>
 <resources>
-    <string name="app_name">magicdex</string>
-    <string name="title_activity_main">magicdex</string>
-    <string name="package_name">com.magicdex.app</string>
-    <string name="custom_url_scheme">com.magicdex.app</string>
+    <string name="app_name">magikdex</string>
+    <string name="title_activity_main">magikdex</string>
+    <string name="package_name">com.magikdex.app</string>
+    <string name="custom_url_scheme">com.magikdex.app</string>
 </resources>

@@ -1,6 +1,6 @@
 {
-  "name": "magicdex",
-  "short_name": "magicdex",
+  "name": "magikdex",
+  "short_name": "magikdex",
   "description": "A dex for your Commander legends — search, swipe, brew.",
   "start_url": "/",
   "scope": "/",

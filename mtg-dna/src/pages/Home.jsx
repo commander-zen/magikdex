@@ -78,7 +78,7 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
           color: titleColor,
           lineHeight: 1,
         }}>
-          mag&#x0131;cdex
+          mag&#x0131;kdex
         </div>
         <button
           onClick={() => setSettingsOpen(true)}

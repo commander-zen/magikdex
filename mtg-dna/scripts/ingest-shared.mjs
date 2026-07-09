@@ -8,7 +8,7 @@
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
-export const UA = "magicdex/1.0 (tag ingest; deck-stack.vercel.app)";
+export const UA = "magikdex/1.0 (tag ingest; deck-stack.vercel.app)";
 
 // ── Env (same contract as ingest-cards.mjs: process.env wins, ../.env fills
 // gaps, SUPABASE_SERVICE_KEY is required for DB writes and never committed) ──

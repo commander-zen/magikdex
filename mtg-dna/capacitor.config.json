@@ -1,6 +1,6 @@
 {
-  "appId": "com.magicdex.app",
-  "appName": "magicdex",
+  "appId": "com.magikdex.app",
+  "appName": "magikdex",
   "webDir": "dist",
   "android": {
     "backgroundColor": "#1a1410"
