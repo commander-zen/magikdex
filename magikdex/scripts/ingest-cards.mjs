@@ -94,6 +94,20 @@ function mapCard(c) {
   };
 }
 
+// ── Non-deckable filter ───────────────────────────────────────────────────────
+// The oracle_cards bulk includes objects that are NOT real deckable cards:
+// tokens, double-faced-token backs, emblems, and Art Series prints. These must
+// never enter the pool (a Llanowar Elves TOKEN sharing a name with the real
+// card was the bug this closes). Layout values verified against
+// scryfall.com/docs/api/layouts; set_type 'token' catches token-set members
+// whose layout might not. The `cards` table doesn't store set_type, so the
+// live-table purge (migration 016) keys on layout alone — this in-code filter,
+// which sees the full object, is the belt-and-braces that stops re-ingestion.
+const NON_DECKABLE_LAYOUTS = new Set(["token", "double_faced_token", "emblem", "art_series"]);
+function isNonDeckable(c) {
+  return c?.set_type === "token" || NON_DECKABLE_LAYOUTS.has(c?.layout);
+}
+
 // ── Run ──────────────────────────────────────────────────────────────────────
 async function main() {
   console.log("Fetching Scryfall bulk-data manifest…");
@@ -133,7 +147,7 @@ async function main() {
   // for-await drives backpressure: the stream pauses while a batch upserts.
   for await (const { value } of pipeline) {
     processed += 1;
-    if (!value?.oracle_id || seen.has(value.oracle_id)) { skipped += 1; continue; }
+    if (!value?.oracle_id || seen.has(value.oracle_id) || isNonDeckable(value)) { skipped += 1; continue; }
     seen.add(value.oracle_id);
     batch.push(mapCard(value));
     if (batch.length >= BATCH_SIZE) await flush();
