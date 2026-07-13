@@ -214,6 +214,7 @@ export default function ReviewScreen({
   onDeckSearch,
   stackCount = 0,
   deckKey = null,
+  onHand,
 }) {
   const [commanderName, setCommanderName] = useState("");
   const [buildName, setBuildName] = useState("");
@@ -1174,6 +1175,29 @@ export default function ReviewScreen({
               <span className="material-symbols-rounded" style={{ fontSize: 18 }}>style</span>
               brew
             </button>
+            {/* Change 4 — hand mode entry. Middle of the bottom nav (prime thumb
+                zone), between brew and home. Only when the deck has cards to
+                flip through. */}
+            {onHand && totalCards > 0 && (
+              <button
+                onClick={onHand}
+                aria-label="Hand — flip through your deck"
+                style={{
+                  minHeight: 44,
+                  display: "flex", alignItems: "center", gap: 6,
+                  background: "transparent", border: "none",
+                  color: "var(--text)",
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 12, letterSpacing: "0.08em",
+                  padding: "0 10px",
+                  cursor: "pointer",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: 18 }}>back_hand</span>
+                hand
+              </button>
+            )}
             <button
               onClick={onHome}
               aria-label="Home"

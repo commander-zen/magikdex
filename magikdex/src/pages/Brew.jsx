@@ -295,6 +295,10 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   const [sessionLabel, setSessionLabel] = useState(null);
   const [swipeCards, setSwipeCards] = useState([]);
   const [swipeIndex, setSwipeIndex] = useState(0);
+  // Hand mode (Change 4): a resolved snapshot of the current decklist to flip
+  // through. Kept separate from swipeCards so it never touches the brew stack or
+  // its persisted resume seed — hand mode is transient.
+  const [handCards, setHandCards] = useState([]);
   const [swipeOrder, setSwipeOrder] = useState("name");
   const [swipeDir, setSwipeDir]     = useState("asc");
   const [pile, setPile]             = useState([]);
@@ -820,6 +824,48 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     }
   }
 
+  // ── Hand mode (Change 4) ────────────────────────────────────────────────────
+  // Flip through the deck as its own swipe stack. Enter builds a resolved
+  // snapshot of the current decklist (unique cards, full data for art), then
+  // hands it to the same SwipeScreen in handMode. Cut/maybe write through the
+  // SAME deck paths the review screen uses, so the decklist and every counter
+  // update live — no parallel state.
+  async function enterHandMode() {
+    const names = [...new Set(decklist.map(c => c.name))];
+    if (!names.length) return;
+    setLoading(true);
+    try {
+      const { data } = await getCardDataBatch(names);
+      // Keep the decklist's own order; drop names the cache couldn't resolve.
+      const cards = names.map(n => data[n]).filter(Boolean);
+      if (!cards.length) return;
+      setHandCards(cards);
+      setBrewView("hand");
+    } finally {
+      setLoading(false);
+    }
+  }
+
+  // ↑ cut — remove ALL copies of a card from the decklist (one deck_cards
+  // delta). Returns the quantity removed so UNDO can restore exactly that many.
+  function handCut(card) {
+    const copies = decklist.filter(c => c.name === card.name);
+    if (!copies.length) return 0;
+    setDecklist(prev => prev.filter(c => c.name !== card.name));
+    commitCard(card, "decklist", -copies.length);
+    return copies.length;
+  }
+  function handUncut(card, quantity) {
+    const qty = quantity ?? 1;
+    const entries = Array.from({ length: qty }, () => ({ name: card.name, instanceId: crypto.randomUUID() }));
+    setDecklist(prev => [...prev, ...entries]);
+    commitCard(card, "decklist", qty);
+  }
+  // ↓ maybe — move ALL copies decklist→maybe; UNDO moves them back. Reuses the
+  // existing all-copies mover (section UPDATE, WREC-tag-safe), not the delta path.
+  function handMaybe(card)   { handleMoveCard(card.name, "decklist"); }
+  function handUnmaybe(card) { handleMoveCard(card.name, "maybe"); }
+
   // Load every deck card's WREC tags when review opens (and on resume), keyed
   // for O(1) lookup by the review rows. `heal` backfills auto-suggestions for
   // untagged cards (see healAutoTags), then re-loads once without healing.
@@ -1141,6 +1187,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     : brewView === "modes"  ? "shell"
     : brewView === "search" ? (session ? "swipe" : "modes")
     : brewView === "swipe"  ? (session ? null : (isLokiSession ? "modes" : "search"))
+    : brewView === "hand"   ? "review"
     : brewView === "review" ? (reviewOrigin === "legend" ? null : "swipe")
     : "swipe";
 
@@ -1250,7 +1297,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
         WebkitOverflowScrolling: "touch",
         ...BREW_VARS,
       }}>
-        {brewView !== "swipe" && !(brewView === "review" && session) && (
+        {brewView !== "swipe" && brewView !== "hand" && !(brewView === "review" && session) && (
           <button
             onClick={goBack}
             aria-label="Back"
@@ -1329,6 +1376,34 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
           />
         )}
 
+        {brewView === "hand" && (
+          <SwipeScreen
+            cards={handCards}
+            pile={pile}
+            onPileChange={setPile}
+            maybeboard={maybeboard}
+            onMaybeboardChange={setMaybeboard}
+            decklist={decklist}
+            onDecklistChange={setDecklist}
+            onGoToPile={() => setBrewView("review")}
+            onExit={() => setBrewView("review")}
+            onSearchMore={() => setBrewView("review")}
+            commanderCard={session
+              ? { name: session.legend.name, art: session.legend.image_uri }
+              : sessionLabel ? { name: sessionLabel } : null}
+            initialIndex={0}
+            swipeOrder={swipeOrder}
+            swipeDir={swipeDir}
+            reconnecting={reconnecting}
+            stackOrigin={{ type: "hand", query: session?.legend?.name ?? sessionLabel ?? "deck" }}
+            handMode
+            onHandCut={handCut}
+            onHandMaybe={handMaybe}
+            onHandUncut={handUncut}
+            onHandUnmaybe={handUnmaybe}
+          />
+        )}
+
         {brewView === "review" && (
           <ReviewScreen
             decklist={decklist}
@@ -1349,6 +1424,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             onDeckSearch={session ? runGlobalSearch : undefined}
             stackCount={swipeCards.length}
             deckKey={session?.legend?.id ?? null}
+            onHand={session ? enterHandMode : undefined}
           />
         )}
 

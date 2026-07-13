@@ -41,6 +41,7 @@ export default function SwipeScreen({
   onDoubleTag,
   stackOrigin,
   stackNarrow = "", totalStackCount = 0, onClearFilter, onSearchAll,
+  handMode = false, onHandCut, onHandMaybe, onHandUncut, onHandUnmaybe,
 }) {
   // Cards already sorted into a pile/decklist/maybeboard leave the carousel
   // entirely — decided cards never reappear when browsing back.
@@ -53,6 +54,21 @@ export default function SwipeScreen({
   }, [pile, decklist, maybeboard]);
 
   const effectiveCards = useMemo(() => {
+    // Hand mode: the stack IS the deck. Show each unique decklist card once; a
+    // card leaves the stack the moment it's cut or maybe-boarded (decklist state
+    // updates and drops it). This is the inverse of brew's decided-set dedup —
+    // there decided cards are hidden; here the deck itself is what you flip.
+    if (handMode) {
+      const inDeck = new Set(decklist.map(c => c.name));
+      const seen = new Set();
+      const result = [];
+      for (const c of cards) {
+        if (!inDeck.has(c.name) || seen.has(c.name)) continue;
+        seen.add(c.name);
+        result.push(c);
+      }
+      return result;
+    }
     const seen = new Set(decidedIds);
     const result = [];
     for (const c of cards) {
@@ -62,7 +78,7 @@ export default function SwipeScreen({
       result.push(c);
     }
     return result;
-  }, [cards, decidedIds]);
+  }, [handMode, cards, decklist, decidedIds]);
 
   const [idx,          setIdx]          = useState(initialIndex ?? 0);
   const [history,      setHistory]      = useState([]);
@@ -163,9 +179,40 @@ export default function SwipeScreen({
     }, 300);
   }
 
+  // Hand mode (Change 4): same "up = resolve out of the stack, down = maybe"
+  // grammar as brew, but the stack is your DECK — so ↑ cuts the card OUT of the
+  // deck and ↓ moves it to the maybeboard. Brew owns the deck writes (all copies
+  // at once); the existing history/UNDO reverses either (4a). handCut takes the
+  // quantity back from Brew so UNDO can restore the right number of copies.
+  function handCut() {
+    if (!card || animOut || animBrowse || done) return;
+    const acted = card;
+    setAnimOut("up");
+    haptic(14);
+    setTimeout(() => {
+      const quantity = onHandCut?.(acted) ?? 1;
+      setHistory(h => [...h, { card: acted, hand: "cut", quantity }]);
+      setIdx(i => Math.max(0, Math.min(i, effectiveCards.length - 2)));
+      setOffset(0); setOffsetY(0); setAnimOut(null);
+    }, 285);
+  }
+  function handMaybe() {
+    if (!card || animOut || animBrowse || done) return;
+    const acted = card;
+    setAnimOut("down");
+    haptic(8);
+    setTimeout(() => {
+      onHandMaybe?.(acted);
+      setHistory(h => [...h, { card: acted, hand: "maybe" }]);
+      setIdx(i => Math.max(0, Math.min(i, effectiveCards.length - 2)));
+      setOffset(0); setOffsetY(0); setAnimOut(null);
+    }, 260);
+  }
+
   // Flick down — maybe board
   function doMaybe() {
     if (!card || animOut || animBrowse || done) return;
+    if (handMode) return handMaybe();
     setAnimOut("down");
     haptic(8);
     setTimeout(() => {
@@ -183,6 +230,7 @@ export default function SwipeScreen({
   // Flick up — straight to the decklist (mainboard)
   function doDecklist() {
     if (!card || animOut || animBrowse || done) return;
+    if (handMode) return handCut();
     setAnimOut("up");
     haptic(14);
     setTimeout(() => {
@@ -199,7 +247,11 @@ export default function SwipeScreen({
     if (history.length === 0 || animOut || animBrowse) return;
     const last = history[history.length - 1];
     setHistory(h => h.slice(0, -1));
-    if (last.kept) {
+    if (last.hand === "cut") {
+      onHandUncut?.(last.card, last.quantity);   // restore cut copies to the deck
+    } else if (last.hand === "maybe") {
+      onHandUnmaybe?.(last.card);                 // move maybe copies back to the deck
+    } else if (last.kept) {
       onPileChange(pile.filter(c => c.instanceId !== last.card.instanceId));
       onCardCommit?.(last.card, "pile", -1);
     } else if (last.maybe) {
@@ -593,13 +645,17 @@ export default function SwipeScreen({
             }}>
               {reconnecting
                 ? "reconnecting…"
-                : done
-                  ? `${pile.length} kept`
-                  : stackNarrow
-                    ? `${effectiveCards.length} of ${totalStackCount} in stack`
-                    : stackOrigin?.type === "search"
-                      ? `search: ${stackOrigin.query} · ${effectiveCards.length - idx} in stack`
-                      : `${effectiveCards.length - idx} in stack`}
+                : handMode
+                  ? (done
+                      ? "deck flipped"
+                      : `hand: ${stackOrigin?.query ?? ""} · ${effectiveCards.length - idx} in deck`)
+                  : done
+                    ? `${pile.length} kept`
+                    : stackNarrow
+                      ? `${effectiveCards.length} of ${totalStackCount} in stack`
+                      : stackOrigin?.type === "search"
+                        ? `search: ${stackOrigin.query} · ${effectiveCards.length - idx} in stack`
+                        : `${effectiveCards.length - idx} in stack`}
             </span>
           </span>
         </button>
@@ -618,6 +674,7 @@ export default function SwipeScreen({
             }}
           >UNDO</button>
         )}
+        {!handMode && (
         <button
           onClick={e => { e.stopPropagation(); setSortMenuOpen(o => !o); }}
           style={{
@@ -636,6 +693,7 @@ export default function SwipeScreen({
               NAME/CMC, where the user actually toggles direction. */}
           {swipeOrder !== "edhrec" && ` ${swipeDir === "asc" ? "↑" : "↓"}`}
         </button>
+        )}
         <button
           onClick={onGoToPile}
           aria-label="Done — open deck list"
@@ -778,7 +836,7 @@ export default function SwipeScreen({
         </div>
       )}
 
-      {done && !stackNarrow && (
+      {done && !stackNarrow && !handMode && (
         <div style={{
           position: "absolute", inset: 0,
           display: "flex", flexDirection: "column",
@@ -817,6 +875,38 @@ export default function SwipeScreen({
         </div>
       )}
 
+      {/* Hand-mode done — reached the end of the deck (or cut it all). No
+          "search more"; the only move is back to the deck list. */}
+      {done && handMode && (
+        <div style={{
+          position: "absolute", inset: 0,
+          display: "flex", flexDirection: "column",
+          alignItems: "center", justifyContent: "center",
+          gap: 16, padding: "0 32px", textAlign: "center",
+        }}>
+          <div style={{
+            fontFamily: "var(--font-system)",
+            fontSize: 26, letterSpacing: 3, color: "var(--color-text-primary)",
+          }}>THAT'S THE DECK</div>
+          <div style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 12, color: "var(--color-text-secondary)" }}>
+            you've flipped through every card
+          </div>
+          <button
+            onClick={onGoToPile}
+            style={{
+              marginTop: 8, minHeight: 44, padding: "0 24px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              border: "1px solid var(--primary)",
+              background: "transparent",
+              color: "var(--primary)",
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 13, letterSpacing: "0.1em",
+              borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
+            }}
+          >back to deck →</button>
+        </div>
+      )}
+
       {/* ── Bottom controls — Ben's device-pass placement: SEARCH bottom-left,
             HOME bottom-right, gesture hint between. Home exits the session
             (always reachable, even in the done state). ── */}
@@ -833,7 +923,7 @@ export default function SwipeScreen({
             stack you're holding, it doesn't search all cards — the old glass
             implied a global search that couldn't deliver, which was the dead end
             this whole change set removes. */}
-        {!done ? (
+        {!done && !handMode ? (
           <button
             onClick={onGoToSearch}
             aria-label="Filter"
@@ -867,7 +957,7 @@ export default function SwipeScreen({
           overflow: "hidden", textOverflow: "ellipsis",
           pointerEvents: "none",
         }}>
-          {!done && "← browse →  ↑ mainboard  ↓ maybe"}
+          {!done && (handMode ? "← flip →  ↑ cut  ↓ maybe" : "← browse →  ↑ mainboard  ↓ maybe")}
         </div>
 
         {/* HOME — bottom-right, ≥44px, exits the session to the Box */}
