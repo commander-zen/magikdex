@@ -1,0 +1,11 @@
+{
+  "version": "0.0.1",
+  "configurations": [
+    {
+      "name": "magikdex-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "magikdex", "run", "dev", "--", "--host"],
+      "port": 5173
+    }
+  ]
+}
