@@ -889,17 +889,17 @@ export default function SwipeScreen({
         </div>
       )}
 
-      {/* Gesture reminder (UAT 8/9) — lives above the card now, in the header
-          band's right side (the query chip owns the left; it hides while the
-          chip's editor is open). Fades for good after 5 swipe gestures this
-          session — trained hands don't need it. */}
+      {/* Gesture reminder (UAT 8/9; batch 2 item 16 centers it) — lives above
+          the card, horizontally centered (it hides while the query chip's
+          editor is open). Fades for good after 5 swipe gestures this session
+          — trained hands don't need it. */}
       {!done && !editingQuery && (
         <div style={{
           position: "absolute",
           top: "calc(env(safe-area-inset-top) + 48px)",
-          right: 8, zIndex: 3,
+          left: 0, right: 0, zIndex: 3,
           minHeight: 44,
-          display: "flex", alignItems: "center",
+          display: "flex", alignItems: "center", justifyContent: "center",
           fontFamily: "'Noto Sans Mono', monospace",
           fontSize: 11,
           color: "var(--muted)",
@@ -907,7 +907,7 @@ export default function SwipeScreen({
           opacity: swipeCount >= 5 ? 0 : 1,
           transition: "opacity 600ms ease",
         }}>
-          {handMode ? "← browse →  ↑ cut  ↓ maybe" : "← browse →  ↑ mainboard  ↓ maybe"}
+          {handMode ? "← browse →  ↑ cut  ↓ maybe" : "← browse →  ↑ deck  ↓ maybe"}
         </div>
       )}
 
