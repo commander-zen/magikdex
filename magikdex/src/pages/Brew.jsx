@@ -1367,7 +1367,6 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             reconnecting={reconnecting}
             stackOrigin={stackOrigin}
             stackNarrow={session ? stackNarrow : ""}
-            totalStackCount={totalStackCount}
             onClearFilter={session ? clearStackNarrow : undefined}
             onSearchAll={session ? runGlobalSearch : undefined}
             onEditQuery={session ? runGlobalSearch : undefined}
@@ -1391,7 +1390,6 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             swipeOrder={swipeOrder}
             swipeDir={swipeDir}
             reconnecting={reconnecting}
-            stackOrigin={{ type: "hand", query: session?.legend?.name ?? sessionLabel ?? "deck" }}
             handMode
             onHandCut={handCut}
             onHandMaybe={handMaybe}

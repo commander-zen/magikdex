@@ -40,7 +40,7 @@ export default function SwipeScreen({
   onCardCommit, reconnecting,
   onDoubleTag,
   stackOrigin,
-  stackNarrow = "", totalStackCount = 0, onClearFilter, onSearchAll,
+  stackNarrow = "", onClearFilter, onSearchAll,
   onEditQuery,
   handMode = false, onHandCut, onHandMaybe, onHandUncut, onHandUnmaybe,
 }) {
@@ -105,6 +105,15 @@ export default function SwipeScreen({
 
   const card = effectiveCards[idx] ?? null;
   const done = effectiveCards.length === 0 || idx >= effectiveCards.length;
+
+  // One quiet line under the commander name (UAT 10): the legend name never
+  // repeats itself and the stack counts are gone — "review" names the flip
+  // mode, reconnection still surfaces, brew swiping needs no status at all.
+  const subline = reconnecting
+    ? "reconnecting…"
+    : handMode
+      ? (done ? "deck flipped" : "review")
+      : "";
 
   // Inject game-changer glow keyframe once into document head
   useEffect(() => {
@@ -678,26 +687,18 @@ export default function SwipeScreen({
             }}>
               {commanderName ?? ""}
             </span>
-            <span style={{
-              display: "block",
-              fontFamily: "'Noto Sans Mono', monospace",
-              fontSize: 10, letterSpacing: "0.1em",
-              color: "rgba(255,255,255,0.3)",
-              textTransform: "uppercase",
-              overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-            }}>
-              {reconnecting
-                ? "reconnecting…"
-                : handMode
-                  ? (done
-                      ? "deck flipped"
-                      : `review: ${stackOrigin?.query ?? ""} · ${effectiveCards.length - idx} in deck`)
-                  : done
-                    ? `${pile.length} kept`
-                    : stackNarrow
-                      ? `${effectiveCards.length} of ${totalStackCount} in stack`
-                      : `${effectiveCards.length - idx} in stack`}
-            </span>
+            {subline && (
+              <span style={{
+                display: "block",
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 10, letterSpacing: "0.1em",
+                color: "rgba(255,255,255,0.3)",
+                textTransform: "uppercase",
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {subline}
+              </span>
+            )}
           </span>
         </button>
 
