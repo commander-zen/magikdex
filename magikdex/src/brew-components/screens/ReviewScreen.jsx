@@ -106,28 +106,47 @@ function colorBucket(card) {
   return WUBRG_LABEL[ci[0]] ?? "Colorless";
 }
 
-// Vault spec §2 — ONE view key drives both grouping and order: type / mv /
-// color group by that key with a–z inside each group; a–z is a flat list with
-// no headers at all. The old two-axis group·sort control is gone (a sort that
-// disagreed with its grouping never carried its weight on a phone).
-const VIEW_OPTIONS = [
+// UAT batch 2, item 14 — Moxfield's two-axis organize model: GROUP BY and
+// SORT BY are independent. Scoped to the data the decklist actually carries
+// (type_line / cmc / color_identity) — EDHREC-rank sort is deliberately
+// omitted because the cards cache the deck rows read (CARD_CACHE_COLS) has no
+// edhrec_rank column, so it couldn't be honored here.
+const GROUP_OPTIONS = [
   { value: "type",  label: "type" },
-  { value: "cmc",   label: "mv" },
+  { value: "cmc",   label: "mana value" },
   { value: "color", label: "color" },
-  { value: "az",    label: "a–z" },
+  { value: "none",  label: "none" },
+];
+const SORT_OPTIONS = [
+  { value: "name", label: "name" },
+  { value: "cmc",  label: "mana value" },
 ];
 
-// Ordered groups for a section: [{ key, label, items }]. view === "az" is a
-// single unlabelled group (flat a–z list). Bucket order is fixed per mode
-// (type/colour by canonical order; cmc numerically); items are a–z within.
-function buildDeckGroups(items, view, cardOf) {
-  const byName = (a, b) => a.name.localeCompare(b.name);
-  if (view === "az") {
-    return [{ key: "all", label: null, items: [...items].sort(byName) }];
+// Comparator for the SORT BY axis. cmc sorts numerically (unresolved cards
+// tail at 99), tie-broken by name; name sorts a–z.
+function sortComparator(sortBy, cardOf) {
+  if (sortBy === "cmc") {
+    return (a, b) => {
+      const ca = typeof cardOf(a.name)?.cmc === "number" ? cardOf(a.name).cmc : 99;
+      const cb = typeof cardOf(b.name)?.cmc === "number" ? cardOf(b.name).cmc : 99;
+      return ca - cb || a.name.localeCompare(b.name);
+    };
   }
-  const bucketOf = view === "type"  ? n => typeBucket(cardOf(n))
-    : view === "color" ? n => colorBucket(cardOf(n))
-    :                    n => cmcBucket(cardOf(n));
+  return (a, b) => a.name.localeCompare(b.name);
+}
+
+// Ordered groups for a section: [{ key, label, items }]. groupBy === "none" is
+// a single unlabelled group. Bucket ORDER is fixed per axis (type/colour by
+// canonical order; cmc numerically); items WITHIN each group follow the
+// independent SORT BY axis.
+function buildDeckGroups(items, groupBy, sortBy, cardOf) {
+  const cmp = sortComparator(sortBy, cardOf);
+  if (groupBy === "none") {
+    return [{ key: "all", label: null, items: [...items].sort(cmp) }];
+  }
+  const bucketOf = groupBy === "type"  ? n => typeBucket(cardOf(n))
+    : groupBy === "color" ? n => colorBucket(cardOf(n))
+    :                       n => cmcBucket(cardOf(n));
   const map = new Map();
   for (const it of items) {
     const b = bucketOf(it.name);
@@ -135,27 +154,31 @@ function buildDeckGroups(items, view, cardOf) {
     map.get(b).push(it);
   }
   let keys;
-  if (view === "type")       keys = TYPE_ORDER.filter(k => map.has(k));
-  else if (view === "color") keys = COLOR_ORDER.filter(k => map.has(k));
-  else                       keys = [...map.keys()].sort((a, b) => cmcRank(a) - cmcRank(b));
+  if (groupBy === "type")       keys = TYPE_ORDER.filter(k => map.has(k));
+  else if (groupBy === "color") keys = COLOR_ORDER.filter(k => map.has(k));
+  else                          keys = [...map.keys()].sort((a, b) => cmcRank(a) - cmcRank(b));
   return keys.map(k => ({
     key: k,
-    label: view === "type" ? TYPE_LABEL[k] : k.toUpperCase(),
-    items: [...map.get(k)].sort(byName),
+    label: groupBy === "type" ? TYPE_LABEL[k] : k.toUpperCase(),
+    items: [...map.get(k)].sort(cmp),
   }));
 }
 
 // View preference persists per deck (keyed by legend id, the stable per-deck
-// id — one deck per legend). Best-effort localStorage.
+// id — one deck per legend). Best-effort localStorage. Returns { groupBy,
+// sortBy }, migrating the two older stored shapes forward.
 const VIEW_PREF_PREFIX = "magikdex-decklist-view:";
 function loadViewPref(deckKey) {
   if (!deckKey) return null;
   try {
     const p = JSON.parse(localStorage.getItem(VIEW_PREF_PREFIX + deckKey) ?? "null");
     if (!p) return null;
-    if (p.view) return p.view;
-    // Pre-spec shape {groupBy, sort}: grouping now IS the view; "none" → a–z.
-    if (p.groupBy) return p.groupBy === "none" ? "az" : p.groupBy;
+    // Current shape.
+    if (p.groupBy && p.sortBy) return { groupBy: p.groupBy, sortBy: p.sortBy };
+    // Single-key shape {view}: grouping was the view, sort was always a–z.
+    if (p.view) return { groupBy: p.view === "az" ? "none" : p.view, sortBy: "name" };
+    // Oldest shape {groupBy, sort}.
+    if (p.groupBy) return { groupBy: p.groupBy, sortBy: p.sort === "cmc" ? "cmc" : "name" };
     return null;
   } catch { return null; }
 }
@@ -199,11 +222,14 @@ export default function ReviewScreen({
   // full band inline (not a new screen). Picking a category applies the filter
   // and re-collapses so the narrowed list is immediately visible.
   const [wrecOpen, setWrecOpen] = useState(false);
-  // View control (Vault spec §2). ONE key — default group-by-type (Moxfield-
-  // familiar). Lazily seeded from the per-deck saved pref, then persisted on
-  // change. Orthogonal to the WREC readout — this organizes the list, the
-  // readout reads composition.
-  const [view, setView] = useState(() => loadViewPref(deckKey) ?? "type");
+  // View control (UAT batch 2, item 14) — Moxfield's two independent axes:
+  // GROUP BY (default type, Moxfield-familiar) and SORT BY (default name).
+  // Lazily seeded from the per-deck saved pref, then persisted on change.
+  // Orthogonal to the WREC readout — this organizes the list, the readout
+  // reads composition.
+  const savedView = loadViewPref(deckKey);
+  const [groupBy, setGroupBy] = useState(() => savedView?.groupBy ?? "type");
+  const [sortBy, setSortBy]   = useState(() => savedView?.sortBy ?? "name");
   // Change 14 — the view options are collapsed by default (progressive
   // disclosure); the summary chip shows current state and expands on tap.
   const [controlsOpen, setControlsOpen] = useState(false);
@@ -255,9 +281,9 @@ export default function ReviewScreen({
   }
   useEffect(() => {
     if (!deckKey) return;
-    try { localStorage.setItem(VIEW_PREF_PREFIX + deckKey, JSON.stringify({ view })); }
+    try { localStorage.setItem(VIEW_PREF_PREFIX + deckKey, JSON.stringify({ groupBy, sortBy })); }
     catch { /* view pref is best-effort */ }
-  }, [deckKey, view]);
+  }, [deckKey, groupBy, sortBy]);
   // "add more" (gap-filling stack) — pending/error state is local so the
   // button can report "no cards" inline without a global error channel.
   const [addingMore, setAddingMore] = useState(false);
@@ -425,7 +451,7 @@ export default function ReviewScreen({
     const total = items.reduce((n, c) => n + c.quantity, 0);
     // Change 6 — split the section into ordered groups per the view control.
     // The row body below is unchanged; it just iterates a group's items now.
-    const groups = buildDeckGroups(items, view, (n) => cardData[n]);
+    const groups = buildDeckGroups(items, groupBy, sortBy, (n) => cardData[n]);
     return (
       <div key={sectionKey}>
         {/* Change v4 — the view (group/sort) control rides INLINE on the section
@@ -748,14 +774,17 @@ export default function ReviewScreen({
     );
   }
 
-  // Vault spec §2 — the view control, compact. The collapsed chip rides inline
+  // The view control (UAT batch 2, item 14). The collapsed chip rides inline
   // on the DECKLIST header (see renderSection accessory); tapping it reveals
-  // the four view options as a panel just under that header. Split out here so
-  // both pieces stay one definition regardless of where they mount.
+  // the two Moxfield axes (GROUP BY / SORT BY) as a panel just under that
+  // header. Split out here so both pieces stay one definition regardless of
+  // where they mount. The chip summarizes both axes ("type · name").
+  const groupLabel = GROUP_OPTIONS.find(o => o.value === groupBy)?.label ?? groupBy;
+  const sortLabel  = SORT_OPTIONS.find(o => o.value === sortBy)?.label ?? sortBy;
   const viewChip = (
     <button
       onClick={() => setControlsOpen(o => !o)}
-      aria-label="View options"
+      aria-label="Group and sort options"
       style={{
         minHeight: 44, padding: "0 8px", flexShrink: 0,
         display: "flex", alignItems: "center", gap: 5,
@@ -767,24 +796,26 @@ export default function ReviewScreen({
       }}
     >
       <span className="material-symbols-rounded" style={{ fontSize: 16, color: "var(--muted)" }}>tune</span>
-      {VIEW_OPTIONS.find(o => o.value === view)?.label ?? view}
+      {groupLabel} · {sortLabel}
       <span className="material-symbols-rounded" style={{ fontSize: 16, color: "var(--muted)" }}>
         {controlsOpen ? "expand_less" : "expand_more"}
       </span>
     </button>
   );
-  const viewPanel = (
-    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 10 }}>
+  // One axis row (label + segmented options) — reused for GROUP BY and SORT BY.
+  const axisRow = (axisLabel, options, value, setValue) => (
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
       <span style={{
         fontFamily: "'Noto Sans Mono', monospace",
-        fontSize: 10, letterSpacing: "0.1em", color: "var(--muted)", marginRight: 2,
-      }}>VIEW</span>
-      {VIEW_OPTIONS.map(o => {
-        const active = view === o.value;
+        fontSize: 10, letterSpacing: "0.1em", color: "var(--muted)",
+        width: 52, flexShrink: 0,
+      }}>{axisLabel}</span>
+      {options.map(o => {
+        const active = value === o.value;
         return (
           <button
             key={o.value}
-            onClick={() => setView(o.value)}
+            onClick={() => setValue(o.value)}
             style={{
               minHeight: 44, padding: "0 10px",
               display: "flex", alignItems: "center", justifyContent: "center",
@@ -798,6 +829,12 @@ export default function ReviewScreen({
           >{o.label}</button>
         );
       })}
+    </div>
+  );
+  const viewPanel = (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8, marginBottom: 10 }}>
+      {axisRow("GROUP", GROUP_OPTIONS, groupBy, setGroupBy)}
+      {axisRow("SORT", SORT_OPTIONS, sortBy, setSortBy)}
     </div>
   );
 
@@ -1303,7 +1340,7 @@ export default function ReviewScreen({
                 onClick={() => onHand(
                   // Flip through the deck in the SAME order it's displayed here
                   // (Change 9) — flatten the current groups in display order.
-                  buildDeckGroups(groups.decklist, view, (n) => cardData[n])
+                  buildDeckGroups(groups.decklist, groupBy, sortBy, (n) => cardData[n])
                     .flatMap(g => g.items.map(it => it.name))
                 )}
                 aria-label="Review — flip through your deck"
