@@ -6,10 +6,7 @@ import WrecBand, { WREC_CHIPS, LABEL_BY_TAG } from "../../components/WrecBand.js
 const ROW_DELETE_AT = 88;
 
 // The only ref here is the swipe-gesture start tracker (swipeStart), read solely
-// inside pointer event handlers — the correct place for refs. react-hooks/refs
-// can't see that through the handler closures and flags the JSX call sites, so
-// it's disabled for this file (no other ref usage to mask).
-/* eslint-disable react-hooks/refs */
+// inside pointer event handlers — the correct place for refs.
 
 // Spine screens pad for the notch (top, clearing the back chevron) and the
 // home indicator (bottom) now that no tab bar absorbs the bottom.
@@ -454,7 +451,7 @@ export default function ReviewScreen({
     outline: "none",
   };
 
-  function renderSection(label, allItems, sectionKey) {
+  function renderSection(label, allItems, sectionKey, accessory = null, panel = null) {
     // An active WREC filter narrows each section to that category's cards;
     // the header count follows the filtered view so it reads as an answer
     // ("DECKLIST · 4" = four ramp cards) rather than the unfiltered total.
@@ -468,17 +465,27 @@ export default function ReviewScreen({
     const groups = buildDeckGroups(items, groupBy, sort, (n) => cardData[n]);
     return (
       <div key={sectionKey}>
+        {/* Change v4 — the view (group/sort) control rides INLINE on the section
+            header instead of its own line, killing one of the pre-list bands.
+            accessory = the compact chip (decklist only); panel = its expanded
+            options, rendered just below the header when open. */}
         <div style={{
-          fontSize: 11,
-          letterSpacing: "0.14em",
-          color: "var(--muted)",
+          display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
           borderBottom: "1px solid var(--bevel-dark)",
           paddingBottom: 6,
           marginBottom: 6,
         }}>
-          {label} · {total}
-          {wrecFilter && ` · ${LABEL_BY_TAG[wrecFilter]}`}
+          <span style={{
+            fontSize: 11,
+            letterSpacing: "0.14em",
+            color: "var(--muted)",
+          }}>
+            {label} · {total}
+            {wrecFilter && ` · ${LABEL_BY_TAG[wrecFilter]}`}
+          </span>
+          {accessory}
         </div>
+        {panel}
         {items.length === 0 ? (
           <div style={{ fontSize: 12, color: "var(--muted)", padding: "4px 0" }}>—</div>
         ) : (
@@ -698,6 +705,85 @@ export default function ReviewScreen({
       </div>
     );
   }
+
+  // Change v4 — the view (group/sort) control, compact. The collapsed chip rides
+  // inline on the DECKLIST header (see renderSection accessory); tapping it
+  // reveals the full GROUP/SORT options as a panel just under that header. Split
+  // out here so both pieces stay one definition regardless of where they mount.
+  const viewChip = (
+    <button
+      onClick={() => setControlsOpen(o => !o)}
+      aria-label="Group and sort options"
+      style={{
+        minHeight: 44, padding: "0 8px", flexShrink: 0,
+        display: "flex", alignItems: "center", gap: 5,
+        background: "transparent", border: "none",
+        color: "var(--text)",
+        fontFamily: "'Noto Sans Mono', monospace",
+        fontSize: 11, letterSpacing: "0.04em",
+        borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
+      }}
+    >
+      <span className="material-symbols-rounded" style={{ fontSize: 16, color: "var(--muted)" }}>tune</span>
+      {GROUP_OPTIONS.find(o => o.value === groupBy)?.label ?? groupBy}
+      <span style={{ color: "var(--muted)" }}>·</span>
+      {DECK_SORT_OPTIONS.find(o => o.value === sort)?.label ?? sort}
+      <span className="material-symbols-rounded" style={{ fontSize: 16, color: "var(--muted)" }}>
+        {controlsOpen ? "expand_less" : "expand_more"}
+      </span>
+    </button>
+  );
+  const viewPanel = (
+    <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6, marginBottom: 10 }}>
+      <span style={{
+        fontFamily: "'Noto Sans Mono', monospace",
+        fontSize: 10, letterSpacing: "0.1em", color: "var(--muted)", marginRight: 2,
+      }}>GROUP</span>
+      {GROUP_OPTIONS.map(o => {
+        const active = groupBy === o.value;
+        return (
+          <button
+            key={o.value}
+            onClick={() => setGroupBy(o.value)}
+            style={{
+              minHeight: 44, padding: "0 10px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "transparent",
+              border: `1px solid ${active ? "var(--primary)" : "var(--bevel-dark)"}`,
+              color: active ? "var(--primary)" : "var(--muted)",
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 11, letterSpacing: "0.06em",
+              borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
+            }}
+          >{o.label}</button>
+        );
+      })}
+      <span style={{
+        fontFamily: "'Noto Sans Mono', monospace",
+        fontSize: 10, letterSpacing: "0.1em", color: "var(--muted)",
+        marginLeft: 6, marginRight: 2,
+      }}>SORT</span>
+      {DECK_SORT_OPTIONS.map(o => {
+        const active = sort === o.value;
+        return (
+          <button
+            key={o.value}
+            onClick={() => setSort(o.value)}
+            style={{
+              minHeight: 44, padding: "0 10px",
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "transparent",
+              border: `1px solid ${active ? "var(--primary)" : "var(--bevel-dark)"}`,
+              color: active ? "var(--primary)" : "var(--muted)",
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 11, letterSpacing: "0.06em",
+              borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
+            }}
+          >{o.label}</button>
+        );
+      })}
+    </div>
+  );
 
   // Bottom thumb-zone nav, live sessions only — the deck list is the landing
   // surface: HOME (exit to the Box) left, BREW (deal into the swipe) right.
@@ -941,88 +1027,6 @@ export default function ReviewScreen({
           </div>
         )}
 
-        {/* Change 6 — sort/group controls. Compact mono chips, deliberately
-            separate from the WREC composition band (which reads role coverage,
-            orthogonal to how the list is organized). Only meaningful once the
-            deck holds cards. */}
-        {live && totalCards > 0 && (
-          <div style={{ display: "flex", flexDirection: "column", alignItems: "flex-start", gap: 8 }}>
-            {/* Collapsed summary — current state; tap to reveal/hide the options. */}
-            <button
-              onClick={() => setControlsOpen(o => !o)}
-              style={{
-                minHeight: 44, padding: "0 12px",
-                display: "flex", alignItems: "center", gap: 6,
-                background: "transparent",
-                border: "1px solid var(--bevel-dark)",
-                color: "var(--text)",
-                fontFamily: "'Noto Sans Mono', monospace",
-                fontSize: 11, letterSpacing: "0.06em",
-                borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              <span style={{ color: "var(--muted)" }}>view</span>
-              {GROUP_OPTIONS.find(o => o.value === groupBy)?.label ?? groupBy}
-              <span style={{ color: "var(--muted)" }}>·</span>
-              {DECK_SORT_OPTIONS.find(o => o.value === sort)?.label ?? sort}
-              <span className="material-symbols-rounded" style={{ fontSize: 16, color: "var(--muted)" }}>
-                {controlsOpen ? "expand_less" : "expand_more"}
-              </span>
-            </button>
-          {controlsOpen && (
-          <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
-            <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
-              fontSize: 10, letterSpacing: "0.1em", color: "var(--muted)", marginRight: 2,
-            }}>GROUP</span>
-            {GROUP_OPTIONS.map(o => {
-              const active = groupBy === o.value;
-              return (
-                <button
-                  key={o.value}
-                  onClick={() => setGroupBy(o.value)}
-                  style={{
-                    minHeight: 44, padding: "0 10px",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: "transparent",
-                    border: `1px solid ${active ? "var(--primary)" : "var(--bevel-dark)"}`,
-                    color: active ? "var(--primary)" : "var(--muted)",
-                    fontFamily: "'Noto Sans Mono', monospace",
-                    fontSize: 11, letterSpacing: "0.06em",
-                    borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
-                  }}
-                >{o.label}</button>
-              );
-            })}
-            <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
-              fontSize: 10, letterSpacing: "0.1em", color: "var(--muted)",
-              marginLeft: 6, marginRight: 2,
-            }}>SORT</span>
-            {DECK_SORT_OPTIONS.map(o => {
-              const active = sort === o.value;
-              return (
-                <button
-                  key={o.value}
-                  onClick={() => setSort(o.value)}
-                  style={{
-                    minHeight: 44, padding: "0 10px",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: "transparent",
-                    border: `1px solid ${active ? "var(--primary)" : "var(--bevel-dark)"}`,
-                    color: active ? "var(--primary)" : "var(--muted)",
-                    fontFamily: "'Noto Sans Mono', monospace",
-                    fontSize: 11, letterSpacing: "0.06em",
-                    borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
-                  }}
-                >{o.label}</button>
-              );
-            })}
-          </div>
-          )}
-          </div>
-        )}
-
         {/* Change 2 — first-run empty state teaches instead of showing a lone
             "—" (which read as broken). Only when the whole deck is empty in a
             live session; a filtered-empty section still uses the "—" in
@@ -1070,8 +1074,12 @@ export default function ReviewScreen({
           </div>
         ) : (
           <>
-            {/* DECKLIST always; MAYBEBOARD only when it holds cards. No pile. */}
-            {renderSection("DECKLIST", groups.decklist, "decklist")}
+            {/* DECKLIST always; MAYBEBOARD only when it holds cards. No pile.
+                The view control rides on the DECKLIST header (accessory + panel);
+                only meaningful once the deck holds cards. */}
+            {renderSection("DECKLIST", groups.decklist, "decklist",
+              totalCards > 0 ? viewChip : null,
+              totalCards > 0 && controlsOpen ? viewPanel : null)}
             {maybeboard.length > 0 && renderSection("MAYBEBOARD", groups.maybe, "maybe")}
           </>
         )}
