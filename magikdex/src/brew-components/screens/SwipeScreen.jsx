@@ -3,6 +3,7 @@ import { getCardImage, getCardData } from "../../lib/scryfall.js";
 import { getSettings } from "../../lib/settings.js";
 import { useDoubleTap } from "../../hooks/useDoubleTap.js";
 import { useGameChangers } from "../../hooks/useGameChangers.js";
+import { WREC_CHIPS, WrecIcon, WREC_CHIP_COLORS, LABEL_BY_TAG } from "../../components/WrecBand.jsx";
 
 const isBasicLand = c => Boolean(c?.type_line?.includes("Basic Land"));
 const isAnyNumber = c => Boolean(c?.oracle_text?.includes("A deck can have any number of cards named"));
@@ -43,6 +44,7 @@ export default function SwipeScreen({
   stackNarrow = "", onClearFilter, onSearchAll,
   onEditQuery,
   handMode = false, onHandCut, onHandMaybe, onHandUncut, onHandUnmaybe,
+  cardTags, onToggleTag,
 }) {
   // Cards already sorted into a pile/decklist/maybeboard leave the carousel
   // entirely — decided cards never reappear when browsing back.
@@ -478,10 +480,20 @@ export default function SwipeScreen({
     if (hasBackFace) setFlipped(f => !f);
   });
 
+  // Current card's WREC tags (device UAT — tag while flipping the deck in
+  // review). Keyed decklist:<name>, since hand mode flips the mainboard.
+  const tagKey        = card ? `decklist:${card.name}` : null;
+  const showTagChips  = handMode && Boolean(onToggleTag) && !done && Boolean(card);
+  const cardTagList   = tagKey ? (cardTags?.[tagKey]?.tags ?? []) : [];
+  const cardAutoTags  = tagKey ? (cardTags?.[tagKey]?.autoTags ?? []) : [];
+
   // Reserve space for the header block (back button + tally + stack info)
-  // and the bottom gesture legend — the card track centers in what's left.
+  // and the bottom controls — the card track centers in what's left. Hand
+  // mode reserves extra room for the WREC tag chip row above the back/done bar.
   const topReserve      = "calc(env(safe-area-inset-top) + 92px)";
-  const bottomReserve   = "calc(env(safe-area-inset-bottom) + 60px)";
+  const bottomReserve   = showTagChips
+    ? "calc(env(safe-area-inset-bottom) + 116px)"
+    : "calc(env(safe-area-inset-bottom) + 60px)";
   const availableHeight = `calc(100vh - ${topReserve} - ${bottomReserve})`;
 
   // The card fills the available vertical space (height-capped), width
@@ -1029,6 +1041,52 @@ export default function SwipeScreen({
               borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
             }}
           >back to deck →</button>
+        </div>
+      )}
+
+      {/* WREC tag chips (device UAT) — tag the current card WHILE flipping the
+          deck in review, the same icon vocabulary as the list/band. Applied =
+          filled category color (solid = user, dashed = auto-suggested);
+          unapplied = dim. Hand mode only — brew-swipe cards aren't in the deck
+          yet, so they have no row to tag. Sits above the back/done bar. */}
+      {showTagChips && (
+        <div style={{
+          position: "absolute",
+          left: 0, right: 0,
+          bottom: "calc(env(safe-area-inset-bottom) + 58px)",
+          zIndex: 5,
+          display: "flex", justifyContent: "center", gap: 6,
+          padding: "0 8px",
+          pointerEvents: "none",
+        }}>
+          {WREC_CHIPS.map(({ tag, label }) => {
+            const active = cardTagList.includes(tag);
+            const auto = active && cardAutoTags.includes(tag);
+            const c = WREC_CHIP_COLORS[tag];
+            return (
+              <button
+                key={tag}
+                onClick={() => onToggleTag(card.name, "decklist", tag)}
+                aria-label={`${active ? "Remove" : "Add"} ${LABEL_BY_TAG[tag] ?? tag}`}
+                style={{
+                  flex: "1 1 0", minWidth: 0, maxWidth: 92, minHeight: 44,
+                  display: "flex", flexDirection: "column",
+                  alignItems: "center", justifyContent: "center", gap: 2,
+                  pointerEvents: "auto",
+                  border: `1px ${auto ? "dashed" : "solid"} ${active ? (c?.stroke ?? "var(--primary)") : "rgba(255,255,255,0.18)"}`,
+                  background: active ? (c?.bg ?? "transparent") : "rgba(0,0,0,0.45)",
+                  opacity: active ? 1 : 0.6,
+                  color: active ? (c?.stroke ?? "var(--primary)") : "rgba(255,255,255,0.55)",
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 8, letterSpacing: "0.06em",
+                  cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                <WrecIcon tag={tag} size={16} />
+                {label}
+              </button>
+            );
+          })}
         </div>
       )}
 

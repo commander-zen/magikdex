@@ -1429,6 +1429,8 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             swipeDir={swipeDir}
             reconnecting={reconnecting}
             handMode
+            cardTags={cardTags}
+            onToggleTag={handleToggleTag}
             onHandCut={handCut}
             onHandMaybe={handMaybe}
             onHandUncut={handUncut}
