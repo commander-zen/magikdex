@@ -1,9 +1,14 @@
 import { supabase } from "./supabase.js";
 
-// A deck's total = sum of deck_cards quantities + 1 for the commander
-// (the commander itself is never written to deck_cards).
+// A deck's total = the MAINBOARD's card quantities + 1 for the commander
+// (the commander itself is never written to deck_cards). UAT 2026-07-14 — the
+// deck count is always just the main board: the maybeboard (and any pile rows)
+// are excluded. Rows whose query didn't select `section` still count, so older
+// callers keep their prior behavior.
 export function deckTotal(deck) {
-  const cardSum = (deck.deck_cards ?? []).reduce((sum, dc) => sum + (dc.quantity ?? 0), 0);
+  const cardSum = (deck.deck_cards ?? [])
+    .filter(dc => dc.section !== "maybe" && dc.section !== "pile")
+    .reduce((sum, dc) => sum + (dc.quantity ?? 0), 0);
   return cardSum + 1;
 }
 
@@ -90,7 +95,7 @@ export async function deleteLegend(legendId, deckId) {
 export async function fetchLegendDeck(legendId) {
   const { data, error } = await supabase
     .from("legends")
-    .select("decks(id, status, build_name, deck_cards(quantity))")
+    .select("decks(id, status, build_name, deck_cards(quantity, section))")
     .eq("id", legendId)
     .single();
   if (error) return null;

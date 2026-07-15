@@ -94,7 +94,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
   async function loadLegends() {
     const { data, error } = await supabase
       .from("legends")
-      .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks(id, status, deck_cards(quantity))")
+      .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks(id, status, deck_cards(quantity, section))")
       .order("name");
     if (!error) setLegends(applyBoxOrder(data ?? []));
     setLoading(false);

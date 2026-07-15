@@ -47,7 +47,7 @@ export default function LegendIdentity({ legend }) {
     let cancelled = false;
     supabase
       .from("legends")
-      .select("decks(id, status, build_name, deck_cards(quantity))")
+      .select("decks(id, status, build_name, deck_cards(quantity, section))")
       .eq("id", legend.id)
       .single()
       .then(({ data, error }) => {
