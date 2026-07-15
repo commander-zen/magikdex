@@ -469,37 +469,57 @@ export default function ReviewScreen({
               An active filter is still named beside it. Maybeboard (and the
               non-live save flow) keep the plain text label. */}
           {live && sectionKey === "decklist" ? (
-            <button
-              onClick={() => setWrecOpen(o => !o)}
-              aria-label="WREC composition — show category counts"
-              aria-expanded={wrecOpen}
-              style={{
-                minHeight: 44, minWidth: 0,
-                display: "flex", alignItems: "center", gap: 4,
-                background: "transparent", border: "none", padding: 0,
-                // UAT batch 2, item 9 — section headers carry real H1 weight
-                // (Zilla display serif), not paragraph-sized mono.
-                fontFamily: "'Zilla Slab', serif",
-                fontWeight: 700,
-                fontSize: 17, letterSpacing: "0.08em",
-                color: "var(--primary)",
-                cursor: "pointer", WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              WREC
-              <span className="material-symbols-rounded" style={{ fontSize: 18, color: "var(--muted)" }}>
-                {wrecOpen ? "expand_less" : "expand_more"}
-              </span>
-              {wrecFilter && (
-                <span style={{
-                  fontSize: 11, letterSpacing: "0.14em",
-                  color: "var(--muted)",
-                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
-                }}>
-                  · {LABEL_BY_TAG[wrecFilter]}
+            <span style={{ display: "flex", alignItems: "center", gap: 2, minWidth: 0 }}>
+              <button
+                onClick={() => setWrecOpen(o => !o)}
+                aria-label="WREC composition — show category counts"
+                aria-expanded={wrecOpen}
+                style={{
+                  minHeight: 44, minWidth: 0,
+                  display: "flex", alignItems: "center", gap: 4,
+                  background: "transparent", border: "none", padding: 0,
+                  // UAT batch 2, item 9 — section headers carry real H1 weight
+                  // (Zilla display serif), not paragraph-sized mono.
+                  fontFamily: "'Zilla Slab', serif",
+                  fontWeight: 700,
+                  fontSize: 17, letterSpacing: "0.08em",
+                  color: "var(--primary)",
+                  cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                WREC
+                <span className="material-symbols-rounded" style={{ fontSize: 18, color: "var(--muted)" }}>
+                  {wrecOpen ? "expand_less" : "expand_more"}
                 </span>
-              )}
-            </button>
+                {wrecFilter && (
+                  <span style={{
+                    fontSize: 11, letterSpacing: "0.14em",
+                    color: "var(--muted)",
+                    overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
+                    · {LABEL_BY_TAG[wrecFilter]}
+                  </span>
+                )}
+              </button>
+              {/* UAT batch 3, items 5-6 — a (?) that explains WREC by linking
+                  out to the Command Zone deck-building guide. Opens in a new
+                  tab; stops the tap from toggling the disclosure. */}
+              <a
+                href="https://youtu.be/OSNV6224cHg"
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={(e) => e.stopPropagation()}
+                aria-label="What is WREC? — opens the Command Zone deck-building guide"
+                style={{
+                  width: 44, height: 44, flexShrink: 0,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  color: "var(--muted)", textDecoration: "none",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: 18 }}>help</span>
+              </a>
+            </span>
           ) : (
             <span style={{
               // Same H1 weight as the WREC trigger (item 9) — one section rank.
