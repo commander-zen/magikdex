@@ -322,6 +322,10 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // optionally attaching to that legend's in-progress deck.
   const [attachDeckId, setAttachDeckId]       = useState(null);
   const [existingCardRows, setExistingCardRows] = useState([]);
+  // The deck list's "add cards" search text. Device UAT — it lives HERE, not in
+  // ReviewScreen: that screen unmounts on every view change, so a typed Scryfall
+  // query was lost the moment you backed out, forcing a retype.
+  const [deckSearchDraft, setDeckSearchDraft] = useState("");
   const [legendColorIdentity, setLegendColorIdentity] = useState(null);
 
   // WREC tags per deck card, keyed `${section}:${card_name}` →
@@ -1000,6 +1004,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   function resetBrew() {
     setQuery("");
     setStackNarrow("");
+    setDeckSearchDraft("");
     baseStackRef.current = [];
     setSessionLabel(null);
     setSwipeCards([]);
@@ -1459,6 +1464,8 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             stackCount={swipeCards.length}
             deckKey={session?.legend?.id ?? null}
             onHand={session ? enterHandMode : undefined}
+            searchDraft={deckSearchDraft}
+            onSearchDraftChange={setDeckSearchDraft}
           />
         )}
 

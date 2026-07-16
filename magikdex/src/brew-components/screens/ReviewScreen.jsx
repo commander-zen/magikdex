@@ -197,6 +197,7 @@ export default function ReviewScreen({
   stackCount = 0,
   deckKey = null,
   onHand,
+  searchDraft = "", onSearchDraftChange,
 }) {
   const [commanderName, setCommanderName] = useState("");
   const [buildName, setBuildName] = useState("");
@@ -304,7 +305,11 @@ export default function ReviewScreen({
   // parent, which builds a search-derived swipe stack and switches to the swipe
   // view (unmounting this screen); only a rejected query (too short / everything
   // already in-deck / bad syntax) returns control here to show the one-line why.
-  const [cardSearch, setCardSearch] = useState("");
+  // Device UAT — the typed syntax lives in the PARENT's session state, not here:
+  // this screen unmounts whenever you back out (or a search deals a stack), and
+  // local state took the query with it, forcing a full retype.
+  const cardSearch = searchDraft;
+  const setCardSearch = (v) => onSearchDraftChange?.(v);
   const [searchBusy, setSearchBusy] = useState(false);
   const [searchMsg, setSearchMsg] = useState(null);
   // Change 10 — the search bar is TWO doors in one row: while it's empty and
