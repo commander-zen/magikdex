@@ -14,6 +14,8 @@
 // onTapTag to make the cells filter (deck view); omit it for a read-only
 // readout (Box). A 0 renders dimmed — the dump-stat tell — and stays tappable.
 
+import { CATEGORY_META } from "../lib/wrec.js";
+
 // The current WREC tag set (values mirror the wrec_tag enum, migration 006),
 // abbreviated to fit mobile. Canonical home for the taxonomy; ReviewScreen
 // imports these rather than keeping its own copy.
@@ -100,12 +102,16 @@ export default function WrecBand({ counts, accent, muted, text, activeTag = null
             <span style={{ opacity: dim ? 0.4 : 1, lineHeight: 0 }}>
               <WrecIcon tag={tag} size={15} />
             </span>
+            {/* Device UAT — the count alone gave nothing to measure against, so
+                each cell reads count/target (Rachel's template). Deliberately
+                plain: no on/over/under tint — the band is busy enough open. */}
             <span style={{
               fontFamily: "'Noto Sans Mono', monospace",
               fontSize: 13,
               color: dim ? muted : active ? accent : text,
             }}>
               {n}
+              <span style={{ color: muted }}>/{CATEGORY_META[tag]?.target ?? 0}</span>
             </span>
             <span style={{
               fontFamily: "'Noto Sans Mono', monospace",
