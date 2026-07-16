@@ -349,6 +349,22 @@ export default function ReviewScreen({
     }
   }
 
+  // Device UAT — the mana base was the one thing magikdex couldn't answer (Ben
+  // left for EDHREC mid-build). This deals the NONBASIC lands for the deck's
+  // colour identity — shocks/fetches/bonds, the ones you want but can't name —
+  // EDHREC-ordered, minus what's already in the deck. Basics are excluded on
+  // purpose: you know their names, and their rows carry a quantity stepper.
+  async function handleLandsSearch() {
+    if (searchBusy) return;
+    setSearchBusy(true);
+    setSearchMsg(null);
+    const res = await onDeckSearch("t:land -t:basic");
+    if (res && !res.ok) {
+      setSearchMsg(res.message);
+      setSearchBusy(false);
+    }
+  }
+
   async function openCommander() {
     setShowCommander(true);
     if (commanderFull || !commander?.name) return;
@@ -607,18 +623,46 @@ export default function ReviewScreen({
             <div key={g.key}>
               {g.label && (
                 <div style={{
-                  // UAT batch 2, item 9 — group headers are a real H2 rank
-                  // under the section header, not near-invisible 10px mono.
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 13, letterSpacing: "0.12em",
-                  color: "var(--text2)",
-                  padding: "14px 0 3px",
+                  display: "flex", alignItems: "center", justifyContent: "space-between",
+                  gap: 8, padding: "14px 0 3px",
                 }}>
-                  {g.label} · {groupTotal}
-                  {g.key === "Land" && mdfcLandTotal > 0 && (
-                    <span style={{ color: "var(--muted)" }}>
-                      {` · ${groupTotal + mdfcLandTotal} including mdfc`}
-                    </span>
+                  <span style={{
+                    // UAT batch 2, item 9 — group headers are a real H2 rank
+                    // under the section header, not near-invisible 10px mono.
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 13, letterSpacing: "0.12em",
+                    color: "var(--text2)",
+                    minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                  }}>
+                    {g.label} · {groupTotal}
+                    {g.key === "Land" && mdfcLandTotal > 0 && (
+                      <span style={{ color: "var(--muted)" }}>
+                        {` · ${groupTotal + mdfcLandTotal} including mdfc`}
+                      </span>
+                    )}
+                  </span>
+                  {/* The lands door (device UAT) — right where you notice you're
+                      short. Deals the nonbasic lands for this colour identity. */}
+                  {g.key === "Land" && live && sectionKey === "decklist" && onDeckSearch && (
+                    <button
+                      onClick={handleLandsSearch}
+                      disabled={searchBusy}
+                      aria-label="Find lands for this deck"
+                      style={{
+                        minHeight: 44, flexShrink: 0,
+                        display: "flex", alignItems: "center", gap: 4,
+                        background: "transparent", border: "none", padding: "0 4px",
+                        color: "var(--primary)",
+                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontSize: 11, letterSpacing: "0.06em",
+                        opacity: searchBusy ? 0.5 : 1,
+                        cursor: searchBusy ? "default" : "pointer",
+                        WebkitTapHighlightColor: "transparent",
+                      }}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: 16 }}>add</span>
+                      lands
+                    </button>
                   )}
                 </div>
               )}
