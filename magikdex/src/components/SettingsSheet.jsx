@@ -152,17 +152,26 @@ export default function SettingsSheet({ open, onClose }) {
         transition: "transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)",
         pointerEvents: open ? "auto" : "none",
       }}>
+        {/* The sheet is anchored to the bottom and grows UPWARD, so without a
+            height cap enough content pushes the header (and its ×) off the top
+            of the screen while the sheet covers the whole backdrop — locking
+            you in with no way out. Cap it and scroll the body instead; the
+            header stays pinned so the × is always reachable, and the gap above
+            keeps the backdrop tappable. Same shape as AddLegendSheet. */}
         <div style={{
           width: "100%", maxWidth: 600,
+          maxHeight: "85dvh",
           background: theme.base,
           borderTop: `1px solid ${borderColor}`,
-          padding: "20px 20px calc(env(safe-area-inset-bottom) + 24px)",
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
         }}>
           {/* Header — one obvious dismiss (the close ×); the backdrop tap
-              also closes. */}
+              also closes. Pinned: never scrolls out of reach. */}
           <div style={{
+            flexShrink: 0,
             display: "flex", alignItems: "center", justifyContent: "space-between",
-            marginBottom: 12,
+            padding: "20px 20px 12px",
           }}>
             <span style={{
               fontFamily: "'Noto Sans', sans-serif",
@@ -190,6 +199,12 @@ export default function SettingsSheet({ open, onClose }) {
             </button>
           </div>
 
+          {/* Scrolling body — everything below the pinned header. */}
+          <div style={{
+            flex: 1, minHeight: 0, overflowY: "auto",
+            padding: "0 20px calc(env(safe-area-inset-bottom) + 24px)",
+          }}>
+
           {/* ── Brew defaults — starting state of every fresh swipe seed ── */}
           <div style={{
             fontFamily: "'Noto Sans', sans-serif",
@@ -198,7 +213,7 @@ export default function SettingsSheet({ open, onClose }) {
             letterSpacing: "0.18em",
             textTransform: "uppercase",
             color: dimColor,
-            margin: "20px 0 8px",
+            margin: "0 0 8px",
           }}>
             brew defaults
           </div>
@@ -467,6 +482,8 @@ export default function SettingsSheet({ open, onClose }) {
           }}>
             magikdex · v3
           </div>
+
+          </div>{/* /scrolling body */}
         </div>
       </div>
     </>,
