@@ -225,6 +225,7 @@ export default function ReviewScreen({
   onHand,
   searchDraft = "", onSearchDraftChange,
   onAddCopy,
+  anchorCard = null,
 }) {
   const [commanderName, setCommanderName] = useState("");
   const [buildName, setBuildName] = useState("");
@@ -232,6 +233,10 @@ export default function ReviewScreen({
   // over always-on chips so five 44px targets fit mobile width cleanly and
   // untagged cards stay chip-free (no "uncategorized" noise).
   const [expandedKey, setExpandedKey] = useState(null);
+  // Device UAT — the row elements, so closing the review carousel can scroll
+  // back to the card you were looking at instead of dumping you at the top.
+  const rowElsRef = useRef({});
+  const anchoredRef = useRef(null);
   // Per-card gameplay data (type/mana/oracle), keyed by name. deck_cards only
   // stores name+quantity, so anything richer is fetched on demand — tagging a
   // card with no visible context is guesswork. undefined = not yet resolved,
@@ -469,6 +474,19 @@ export default function ReviewScreen({
     // groups is derived from decklist; cardData is intentionally omitted (the
     // setter guards against clobbering already-resolved entries).
   }, [decklist]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Scroll to the card the review carousel was closed on (device UAT). Waits
+  // for that card's data to resolve first — grouping depends on it, so scrolling
+  // earlier would aim at a row that's about to move. Fires once per anchor.
+  useEffect(() => {
+    if (!anchorCard || anchoredRef.current === anchorCard) return;
+    if (cardData[anchorCard] === undefined) return;
+    const el = rowElsRef.current[anchorCard];
+    if (!el) return;
+    anchoredRef.current = anchorCard;
+    el.scrollIntoView({ block: "center" });
+  }, [anchorCard, cardData]);
+
   const totalCards = decklist.length;
   const canSave = Boolean(commanderName.trim()) && totalCards > 0 && !saving;
 
@@ -696,9 +714,9 @@ export default function ReviewScreen({
             const autoTags = cardTags?.[key]?.autoTags ?? [];
             const card = cardData[name];               // undefined | null | object
             return (
-              <div key={name}>
+              <div key={name} ref={el => { if (el) rowElsRef.current[name] = el; }}>
                 {/* Change 14 — swipe-left to delete (a red delete zone reveals
-                    behind); a clean tap still opens the WREC chip selector. */}
+                    behind); a clean tap opens the review carousel at this card. */}
                 <div style={{ position: "relative", overflow: "hidden" }}>
                   {live && swipeKey === key && (
                     <div style={{

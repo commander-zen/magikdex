@@ -325,6 +325,10 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // ReviewScreen: that screen unmounts on every view change, so a typed Scryfall
   // query was lost the moment you backed out, forcing a retype.
   const [deckSearchDraft, setDeckSearchDraft] = useState("");
+  // Device UAT — closing the review carousel used to dump you at the top of the
+  // deck list. This carries the card you were looking at back to the list so it
+  // can scroll to it instead of rubber-banding.
+  const [anchorCard, setAnchorCard] = useState(null);
   const [legendColorIdentity, setLegendColorIdentity] = useState(null);
 
   // WREC tags per deck card, keyed `${section}:${card_name}` →
@@ -1392,7 +1396,12 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             onPileChange={setPile}
             decklist={decklist}
             onDecklistChange={setDecklist}
-            onGoToPile={() => setBrewView("review")}
+            // Closing the flip pass (↓) carries the card you were on back to
+            // the list, so it lands there instead of at the top (device UAT).
+            onGoToPile={() => {
+              setAnchorCard(handCards[handIndex]?.name ?? null);
+              setBrewView("review");
+            }}
             commanderCard={session
               ? { name: session.legend.name, art: session.legend.image_uri }
               : sessionLabel ? { name: sessionLabel } : null}
@@ -1431,6 +1440,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             searchDraft={deckSearchDraft}
             onSearchDraftChange={setDeckSearchDraft}
             onAddCopy={session ? handleAddCopy : undefined}
+            anchorCard={anchorCard}
           />
         )}
 
