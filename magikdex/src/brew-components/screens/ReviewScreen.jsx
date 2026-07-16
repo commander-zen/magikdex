@@ -75,10 +75,27 @@ const TYPE_LABEL = {
   Instant: "INSTANTS", Sorcery: "SORCERIES", Artifact: "ARTIFACTS",
   Enchantment: "ENCHANTMENTS", Land: "LANDS", Other: "OTHER",
 };
+// Device UAT — group by the FRONT face, Moxfield-style. A printed type line
+// joins faces with "//" ("Instant // Land" for an MDFC like Malakir Rebirth),
+// and matching the whole string filed those under Lands. Moxfield files them by
+// their front face and instead annotates the lands header with how many are
+// playable as lands (see isMdfcLand / "including mdfc" below).
+function frontTypeLine(card) {
+  return (card?.type_line ?? "").split("//")[0];
+}
 function typeBucket(card) {
-  const t = card?.type_line ?? "";
+  const t = frontTypeLine(card);
   for (const [re, bucket] of TYPE_RULES) if (re.test(t)) return bucket;
   return "Other";
+}
+
+// A card whose BACK face is a land while its front isn't — it files under its
+// front face's group but still counts toward the mana base ("38 including mdfc").
+function isMdfcLand(card) {
+  const t = card?.type_line ?? "";
+  if (!t.includes("//")) return false;
+  const [front, ...back] = t.split("//");
+  return !/\bLand\b/.test(front) && /\bLand\b/.test(back.join("//"));
 }
 
 // CMC / mana-value bucketing — 0..6 then a 7+ tail; unresolved cards last.
@@ -476,6 +493,11 @@ export default function ReviewScreen({
     // Change 6 — split the section into ordered groups per the view control.
     // The row body below is unchanged; it just iterates a group's items now.
     const groups = buildDeckGroups(items, groupBy, sortBy, (n) => cardData[n]);
+    // Device UAT — MDFCs with a land back file under their FRONT face's group,
+    // so the LANDS header carries Moxfield's "N including mdfc" tally: the real
+    // mana-base number you'd measure against ~38.
+    const mdfcLandTotal = items.reduce(
+      (n, c) => n + (isMdfcLand(cardData[c.name]) ? c.quantity : 0), 0);
     return (
       <div key={sectionKey}>
         {/* Change v4 — the view (group/sort) control rides INLINE on the section
@@ -579,7 +601,9 @@ export default function ReviewScreen({
         {items.length === 0 ? (
           <div style={{ fontSize: 12, color: "var(--muted)", padding: "4px 0" }}>—</div>
         ) : (
-          groups.map(g => (
+          groups.map(g => {
+            const groupTotal = g.items.reduce((n, c) => n + c.quantity, 0);
+            return (
             <div key={g.key}>
               {g.label && (
                 <div style={{
@@ -590,7 +614,12 @@ export default function ReviewScreen({
                   color: "var(--text2)",
                   padding: "14px 0 3px",
                 }}>
-                  {g.label} · {g.items.reduce((n, c) => n + c.quantity, 0)}
+                  {g.label} · {groupTotal}
+                  {g.key === "Land" && mdfcLandTotal > 0 && (
+                    <span style={{ color: "var(--muted)" }}>
+                      {` · ${groupTotal + mdfcLandTotal} including mdfc`}
+                    </span>
+                  )}
                 </div>
               )}
               {g.items.map(({ name, quantity }) => {
@@ -819,7 +848,8 @@ export default function ReviewScreen({
             );
           })}
             </div>
-          ))
+            );
+          })
         )}
       </div>
     );
