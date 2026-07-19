@@ -1009,8 +1009,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       const tagPairs = inserted
         .map(row => ({ deckCardId: row.id, tags: catByName.get(row.card_name) ?? [] }))
         .filter(p => p.tags.length);
-      try { await bulkApplyAutoTags(tagPairs); } catch { /* heal re-applies later */ }
-      markHealed(inserted.map(r => r.id));
+      try { await bulkApplyAutoTags(tagPairs); } catch { /* heal fills any miss below */ }
 
       // Reflect in state: one entry per copy (basics expand to N).
       const newCopies = [];
@@ -1021,6 +1020,12 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       }
       setDecklist(prev => [...prev, ...newCopies]);
       setBrewView("review");
+      // Refresh the tag map so the WREC band reflects the new cards. The build
+      // button lives inside review, so the view is already "review" and the
+      // load-tags effect won't re-fire on its own. heal=true (the default) also
+      // catches any card the bulk pass didn't tag — we deliberately did NOT mark
+      // these curated, so heal still covers them.
+      await loadDeckTags(attachDeckId);
     } catch {
       /* best-effort — every write is additive, so a partial build is harmless */
     } finally {
