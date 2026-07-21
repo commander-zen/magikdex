@@ -1154,31 +1154,6 @@ export default function ReviewScreen({
           </div>
         )}
 
-        {/* "Finish the 99" for a partial deck — top off toward 99 in one tap.
-            Only while live, non-empty, and under 99; the empty state has its own
-            "build my 99" below, and a full deck needs no prompt. */}
-        {live && totalCards > 0 && totalCards < 99 && onFinishDeck && (
-          <button
-            onClick={onFinishDeck}
-            disabled={building}
-            style={{
-              width: "100%", minHeight: 44, margin: "0 0 4px",
-              display: "flex", alignItems: "center", justifyContent: "center",
-              background: "transparent",
-              border: "1px solid var(--primary)",
-              color: "var(--primary)",
-              fontFamily: "'Noto Sans Mono', monospace",
-              fontSize: 12, letterSpacing: "0.08em",
-              borderRadius: 0,
-              cursor: building ? "default" : "pointer",
-              opacity: building ? 0.6 : 1,
-              WebkitTapHighlightColor: "transparent",
-            }}
-          >
-            {building ? "building…" : `finish the 99 · ${99 - totalCards} to go`}
-          </button>
-        )}
-
         {/* Change 2 — first-run empty state teaches instead of showing a lone
             "—" (which read as broken). Only when the whole deck is empty in a
             live session; a filtered-empty section still uses the "—" in
@@ -1255,6 +1230,31 @@ export default function ReviewScreen({
             {renderSection("DECKLIST", groups.decklist, "decklist",
               totalCards > 0 ? viewChip : null,
               totalCards > 0 && controlsOpen ? viewPanel : null)}
+            {/* "Finish the 99" lives at the BOTTOM of the list, below the last
+                card — off the search bar, which people fat-fingered instead of
+                typing a Scryfall query. Only while under 99; a full deck needs
+                no prompt (empty decks get "build my 99" in the empty state). */}
+            {live && totalCards > 0 && totalCards < 99 && onFinishDeck && (
+              <button
+                onClick={onFinishDeck}
+                disabled={building}
+                style={{
+                  width: "100%", minHeight: 44, marginTop: 16,
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                  background: "transparent",
+                  border: "1px solid var(--primary)",
+                  color: "var(--primary)",
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 12, letterSpacing: "0.08em",
+                  borderRadius: 0,
+                  cursor: building ? "default" : "pointer",
+                  opacity: building ? 0.6 : 1,
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {building ? "building…" : `finish the 99 · ${99 - totalCards} to go`}
+              </button>
+            )}
           </>
         )}
 
