@@ -35,6 +35,9 @@ function markHealed(ids) {
   } catch { /* storage blocked — the mark just isn't remembered */ }
 }
 
+// The basic land for each colour. A colourless deck gets Wastes.
+const BASIC_FOR_COLOR = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest" };
+
 // Brew sub-screens are always dark — card art is designed against dark.
 // Jackson Storm "steel storm" recolor (UAT batch 2, item 3): near-black
 // grounds, one electric-steel accent replacing the old gold/amber, a dimmer
@@ -506,6 +509,31 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       if (cancelled) return;
       setLegendColorIdentity(colorIdentity);
 
+      // A brand-new deck starts with one basic per colour in the legend's
+      // identity (Ben's call, device UAT). Two reasons: the mana base gets a
+      // floor instead of starting at zero, and — because both lands doors hang
+      // off the LANDS section header, which only renders once the deck holds a
+      // land — it's what makes those doors reachable at all on a fresh deck.
+      // Guarded on a genuinely EMPTY deck, so an imported list is never touched.
+      if (deckId && existingRows.length === 0) {
+        const basics = colorIdentity.length
+          ? colorIdentity.map(c => BASIC_FOR_COLOR[c]).filter(Boolean)
+          : ["Wastes"]; // colourless commander — Wastes is its only basic
+        if (basics.length) {
+          const { error: basicsError } = await supabase.from("deck_cards").insert(
+            basics.map(name => ({ deck_id: deckId, card_name: name, section: "decklist", quantity: 1 })),
+          );
+          if (!basicsError && !cancelled) {
+            existingRows = basics.map(name => ({ card_name: name, quantity: 1, section: "decklist" }));
+            setExistingCardRows(existingRows);
+            setDecklist(expandRows(existingRows, "decklist"));
+            // Keep the backup-nudge baseline honest — these seeded cards aren't
+            // the user's own growth, so only flicks past them should count.
+            initialDeckSizeRef.current = basics.length;
+          }
+        }
+      }
+
       // Resume the exact session left behind (same seed/search + queue
       // position) if one is persisted and unexpired; loadBrewSession returns
       // null (and clears the key) past the 30-day TTL, dropping us onto a fresh
@@ -829,6 +857,27 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // Device UAT — add another copy of a card you can legally run multiples of
   // (basics, "any number" cards). There was no way to add basics at all: they
   // only arrived by flicking the same card repeatedly in the swipe stack.
+  // Device UAT — basics had NO way in. The lands door deals NONBASICS only (by
+  // design: you know the basics' names), and the per-row quantity stepper only
+  // exists once a row is already in the deck — so with zero basics there was no
+  // row, no stepper, and no entry point at all. Searching for "Island" instead
+  // dealt it as a swipe stack, which read as the deck list "bouncing" you out.
+  // This seeds one of each basic in the legend's colour identity; the steppers
+  // take it from there. Already-present basics are left alone.
+  function addBasics() {
+    const ci = legendColorIdentity ?? [];
+    const names = ci.length
+      ? ci.map(c => BASIC_FOR_COLOR[c]).filter(Boolean)
+      : ["Wastes"]; // colourless commander — Wastes is its only basic
+    const have = new Set(decklist.map(c => c.name));
+    const entries = names
+      .filter(n => !have.has(n))
+      .map(name => ({ name, instanceId: crypto.randomUUID() }));
+    if (!entries.length) return;
+    setDecklist(prev => [...prev, ...entries]);
+    for (const entry of entries) commitCard(entry, "decklist", 1);
+  }
+
   function handleAddCopy(name, section) {
     const [list, setList] = section === "decklist" ? [decklist, setDecklist]
       : [pile, setPile];
@@ -1485,6 +1534,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             searchDraft={deckSearchDraft}
             onSearchDraftChange={setDeckSearchDraft}
             onAddCopy={session ? handleAddCopy : undefined}
+            onAddBasics={session ? addBasics : undefined}
             anchorCard={anchorCard}
           />
         )}

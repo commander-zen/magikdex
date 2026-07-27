@@ -3,13 +3,18 @@
 // Measures how close a deck is to Rachel's recommended template.
 // 1.000 is perfect — going over OR under is bad.
 
+// `exportTag` used to live here too, carrying SPACED labels ("card advantage").
+// Its only consumer was the removed duplicate exporter, and the format was
+// wrong besides: the importer splits tags on whitespace, so a spaced tag can't
+// round-trip. The live export emits these object KEYS instead, which is exactly
+// what parseMoxfieldText reads back. Don't reintroduce a second spelling.
 export const CATEGORY_META = {
-  "ramp":            { label: "Ramp",           emoji: "🌱", target: 10, exportTag: "ramp"            },
-  "card-advantage":  { label: "Card Advantage",  emoji: "📖", target: 12, exportTag: "card advantage"  },
-  "disruption":      { label: "Disruption",      emoji: "✂️", target: 12, exportTag: "disruption"      },
-  "mass-disruption": { label: "Mass Disruption", emoji: "💥", target: 6,  exportTag: "mass disruption" },
-  "mana-base":       { label: "Mana Base",       emoji: "🗺️", target: 38, exportTag: "mana base"       },
-  "plan":            { label: "Plan",            emoji: "📋", target: 30, exportTag: "plan"            },
+  "ramp":            { label: "Ramp",           emoji: "🌱", target: 10 },
+  "card-advantage":  { label: "Card Advantage",  emoji: "📖", target: 12 },
+  "disruption":      { label: "Disruption",      emoji: "✂️", target: 12 },
+  "mass-disruption": { label: "Mass Disruption", emoji: "💥", target: 6  },
+  "mana-base":       { label: "Mana Base",       emoji: "🗺️", target: 38 },
+  "plan":            { label: "Plan",            emoji: "📋", target: 30 },
 };
 
 export const CATEGORY_ORDER = [
@@ -69,14 +74,10 @@ export function ratioIndicator(ratio) {
   return "▼ UNDER";
 }
 
-// Build the tagged export list (Moxfield format)
-export function buildExport(commander, pile) {
-  const lines = [];
-  if (commander) lines.push(`1 ${commander.name} #commander`);
-  for (const card of pile) {
-    const cat = card._deckCategory ?? "plan";
-    const tag = CATEGORY_META[cat]?.exportTag ?? "plan";
-    lines.push(`1 ${card.name} #${tag}`);
-  }
-  return lines.join("\n");
-}
+// The export lives in ReviewScreen's buildMoxfieldExport, which emits the
+// hyphenated WREC keys (#card-advantage) that parseMoxfieldText reads back.
+// A second exporter here used CATEGORY_META.exportTag's SPACED labels
+// (#card advantage) — those don't survive the round trip, since the importer
+// splits tags on whitespace. It had no callers; removed rather than left as a
+// trap. If an exporter ever belongs in this file again, it must emit the same
+// hyphenated keys the importer accepts (WREC_TAGS in lib/deckTags.js).
