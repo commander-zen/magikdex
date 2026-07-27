@@ -1,0 +1,103 @@
+# Weekly encrypted backup of the magikdex user data.
+#
+# WHY: Supabase's free tier has no automated backups and no point-in-time
+# recovery. Code lives in git and the card/EDHREC tables can be re-ingested from
+# scripts/, but USER DATA (legends, decks, deck cards, WREC tags) is
+# irreplaceable — if it's lost or corrupted there is no restore. This job is the
+# safety net.
+#
+# WHY THE DUMP IS ENCRYPTED: this repository is PUBLIC, and workflow artifacts on
+# a public repo can be downloaded by ANYONE. A plain dump would publish every
+# user's decks and email addresses. So the dump is symmetrically encrypted with
+# BACKUP_PASSPHRASE before it is ever written to an artifact.
+#
+# WHY NO pull_request TRIGGER: on a public repo, secrets must never be exposed to
+# untrusted code. This workflow runs ONLY on a schedule or when Ben starts it by
+# hand, so no outside pull request can ever run it or read the secrets.
+#
+# ── SETUP (one time, in the repo's Settings → Secrets and variables → Actions) ──
+#   SUPABASE_DB_URL    Supabase → Project Settings → Database → Connection string
+#                      (URI). Use the direct/session connection, and paste the
+#                      real password into it.
+#   BACKUP_PASSPHRASE  Any long random passphrase you invent. STORE IT SOMEWHERE
+#                      SAFE AND SEPARATE (a password manager) — without it the
+#                      backups cannot be decrypted, which makes them worthless.
+#
+# ── TO RESTORE ──
+#   1. Download the artifact from the workflow run.
+#   2. gpg --decrypt --output backup.sql backup.sql.gpg     (enter passphrase)
+#   3. psql "$SUPABASE_DB_URL" -f backup.sql
+#      Inspect the file first — restoring overwrites live data.
+#
+# NOTE: this covers the `public` schema (the app's own data). Supabase's `auth`
+# schema (the account records themselves) is managed by Supabase and is not
+# included here.
+
+name: Weekly database backup
+
+on:
+  schedule:
+    # Sundays at 08:00 UTC. GitHub may delay scheduled runs under load.
+    - cron: "0 8 * * 0"
+  workflow_dispatch: # lets Ben run a backup on demand from the Actions tab
+
+permissions:
+  contents: read
+
+jobs:
+  backup:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Install a matching Postgres client
+        # The runner's bundled pg_dump can be older than Supabase's server, which
+        # makes pg_dump refuse to run. Pull the client from the official Postgres
+        # apt repo so the major version lines up.
+        run: |
+          curl -fsSL https://www.postgresql.org/media/keys/ACCC4CF8.asc | sudo gpg --dearmor -o /usr/share/keyrings/pgdg.gpg
+          sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client-17
+
+      - name: Dump the user data
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          if [ -z "$SUPABASE_DB_URL" ]; then
+            echo "::error::SUPABASE_DB_URL secret is not set — see the setup notes at the top of this file."
+            exit 1
+          fi
+          # Everything in `public` EXCEPT the large regenerable caches, which can
+          # be rebuilt any time with the scripts/ingest-*.mjs scripts. Excluding
+          # by name (rather than listing the tables to keep) means a table added
+          # later is backed up automatically instead of being silently missed.
+          pg_dump "$SUPABASE_DB_URL" \
+            --schema=public \
+            --no-owner --no-privileges \
+            --exclude-table-data=public.cards \
+            --exclude-table-data=public.card_tags \
+            --exclude-table-data=public.legend_synergy \
+            --exclude-table-data=public.legend_themes \
+            --file=backup.sql
+          echo "Dump size: $(du -h backup.sql | cut -f1)"
+
+      - name: Encrypt the dump
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          if [ -z "$BACKUP_PASSPHRASE" ]; then
+            echo "::error::BACKUP_PASSPHRASE secret is not set — refusing to upload an unencrypted dump to a public repo."
+            exit 1
+          fi
+          gpg --batch --yes --symmetric --cipher-algo AES256 \
+            --passphrase "$BACKUP_PASSPHRASE" \
+            --output backup.sql.gpg backup.sql
+          # Remove the plaintext so it can't be picked up by a later step.
+          rm -f backup.sql
+
+      - name: Upload the encrypted backup
+        uses: actions/upload-artifact@v4
+        with:
+          name: magikdex-backup-${{ github.run_id }}
+          path: backup.sql.gpg
+          retention-days: 90
+          if-no-files-found: error
