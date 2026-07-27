@@ -66,6 +66,18 @@ jobs:
             echo "::error::SUPABASE_DB_URL secret is not set — see the setup notes at the top of this file."
             exit 1
           fi
+          # A value that doesn't start with the URI scheme makes libpq silently
+          # fall back to a LOCAL connection (Unix socket) instead of erroring —
+          # so a bad paste (stray quotes, whitespace, or just the password) fails
+          # with a confusing "socket ... failed" error instead of a clear one.
+          # Catch it here with a real message.
+          case "$SUPABASE_DB_URL" in
+            postgres://*|postgresql://*) ;;
+            *)
+              echo "::error::SUPABASE_DB_URL doesn't start with postgres:// or postgresql:// — pg_dump would silently try a LOCAL connection instead of Supabase. Check the secret for extra quote marks, a leading/trailing space, or having only the password pasted in. Re-copy the full string from Supabase → Project Settings → Database with your real password in place of [YOUR-PASSWORD]."
+              exit 1
+              ;;
+          esac
           # Everything in `public` EXCEPT the large regenerable caches, which can
           # be rebuilt any time with the scripts/ingest-*.mjs scripts. Excluding
           # by name (rather than listing the tables to keep) means a table added
