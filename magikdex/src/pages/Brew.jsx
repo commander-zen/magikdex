@@ -9,7 +9,7 @@ import ReviewScreen from "../brew-components/screens/ReviewScreen.jsx";
 import { fetchFirstPageForSwipe, fetchCardIdentity, getCardImage, fetchBrewStack, fetchTagStack, getCardDataBatch } from "../lib/scryfall.js";
 import { getBrewDefaults } from "../lib/brewDefaults.js";
 import { tagCard, untagCard, fetchDeckCardsWithTags, autoWrecTags, applyAutoTags, WREC_TO_OTAGS } from "../lib/deckTags.js";
-import { fetchLegendDeck, deleteLegend, upsertLegend } from "../lib/legendDeck.js";
+import { fetchLegendDeck, deleteLegend, upsertLegend, fetchDeckPartner, combinedColorIdentity } from "../lib/legendDeck.js";
 import { supabase } from "../lib/supabase.js";
 
 // deck_card ids the user has curated (or that auto-tagging has already been
@@ -506,6 +506,16 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
           await supabase.from("legends").update({ color_identity: colorIdentity }).eq("id", session.legend.id);
         }
       }
+      // Partner decks have TWO commanders, and legality is judged against both
+      // — so the identity every stack, search and seed is built from must be
+      // the UNION. Reading only the primary hides legal cards and offers
+      // illegal ones. Returns null (and this is a no-op) for the single-
+      // commander case and for any deck predating migration 019.
+      const partnerLegend = await fetchDeckPartner(deckId);
+      if (partnerLegend) {
+        colorIdentity = combinedColorIdentity(colorIdentity, partnerLegend.color_identity);
+      }
+
       if (cancelled) return;
       setLegendColorIdentity(colorIdentity);
 
