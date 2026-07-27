@@ -509,6 +509,31 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       if (cancelled) return;
       setLegendColorIdentity(colorIdentity);
 
+      // A brand-new deck starts with one basic per colour in the legend's
+      // identity (Ben's call, device UAT). Two reasons: the mana base gets a
+      // floor instead of starting at zero, and — because both lands doors hang
+      // off the LANDS section header, which only renders once the deck holds a
+      // land — it's what makes those doors reachable at all on a fresh deck.
+      // Guarded on a genuinely EMPTY deck, so an imported list is never touched.
+      if (deckId && existingRows.length === 0) {
+        const basics = colorIdentity.length
+          ? colorIdentity.map(c => BASIC_FOR_COLOR[c]).filter(Boolean)
+          : ["Wastes"]; // colourless commander — Wastes is its only basic
+        if (basics.length) {
+          const { error: basicsError } = await supabase.from("deck_cards").insert(
+            basics.map(name => ({ deck_id: deckId, card_name: name, section: "decklist", quantity: 1 })),
+          );
+          if (!basicsError && !cancelled) {
+            existingRows = basics.map(name => ({ card_name: name, quantity: 1, section: "decklist" }));
+            setExistingCardRows(existingRows);
+            setDecklist(expandRows(existingRows, "decklist"));
+            // Keep the backup-nudge baseline honest — these seeded cards aren't
+            // the user's own growth, so only flicks past them should count.
+            initialDeckSizeRef.current = basics.length;
+          }
+        }
+      }
+
       // Resume the exact session left behind (same seed/search + queue
       // position) if one is persisted and unexpired; loadBrewSession returns
       // null (and clears the key) past the 30-day TTL, dropping us onto a fresh
