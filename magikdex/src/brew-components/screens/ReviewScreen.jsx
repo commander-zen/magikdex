@@ -227,7 +227,6 @@ export default function ReviewScreen({
   onHand,
   searchDraft = "", onSearchDraftChange,
   onAddCopy,
-  onFinishDeck, building = false,
   anchorCard = null,
 }) {
   const [commanderName, setCommanderName] = useState("");
@@ -1178,40 +1177,17 @@ export default function ReviewScreen({
               fontSize: 12, lineHeight: 1.5,
               color: "var(--muted)",
             }}>
-              build a full 99 in one tap, or swipe them in yourself
+              swipe to keep or cut, or add exact cards above
             </div>
-            {onFinishDeck && (
-              <button
-                onClick={onFinishDeck}
-                disabled={building}
-                style={{
-                  minHeight: 44, marginTop: 4,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  padding: "0 24px",
-                  background: building ? "transparent" : "var(--primary)",
-                  border: "1px solid var(--primary)",
-                  color: building ? "var(--primary)" : "var(--bg)",
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 13, letterSpacing: "0.1em",
-                  borderRadius: 0,
-                  cursor: building ? "default" : "pointer",
-                  opacity: building ? 0.7 : 1,
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                {building ? "building…" : "build my 99"}
-              </button>
-            )}
             <button
               onClick={onBrew}
-              disabled={building}
               style={{
-                minHeight: 44,
+                minHeight: 44, marginTop: 4,
                 display: "flex", alignItems: "center", justifyContent: "center",
                 padding: "0 24px",
                 background: "transparent",
-                border: "1px solid var(--muted)",
-                color: "var(--muted)",
+                border: "1px solid var(--primary)",
+                color: "var(--primary)",
                 fontFamily: "'Noto Sans Mono', monospace",
                 fontSize: 13, letterSpacing: "0.1em",
                 borderRadius: 0,
@@ -1230,31 +1206,6 @@ export default function ReviewScreen({
             {renderSection("DECKLIST", groups.decklist, "decklist",
               totalCards > 0 ? viewChip : null,
               totalCards > 0 && controlsOpen ? viewPanel : null)}
-            {/* "Finish the 99" lives at the BOTTOM of the list, below the last
-                card — off the search bar, which people fat-fingered instead of
-                typing a Scryfall query. Only while under 99; a full deck needs
-                no prompt (empty decks get "build my 99" in the empty state). */}
-            {live && totalCards > 0 && totalCards < 99 && onFinishDeck && (
-              <button
-                onClick={onFinishDeck}
-                disabled={building}
-                style={{
-                  width: "100%", minHeight: 44, marginTop: 16,
-                  display: "flex", alignItems: "center", justifyContent: "center",
-                  background: "transparent",
-                  border: "1px solid var(--primary)",
-                  color: "var(--primary)",
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 12, letterSpacing: "0.08em",
-                  borderRadius: 0,
-                  cursor: building ? "default" : "pointer",
-                  opacity: building ? 0.6 : 1,
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                {building ? "building…" : `finish the 99 · ${99 - totalCards} to go`}
-              </button>
-            )}
           </>
         )}
 
