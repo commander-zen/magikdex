@@ -36,7 +36,12 @@ function groupByName(cards) {
 // deck_card_tags), keyed `${section}:${name}` — only the decklist section
 // counts as "the deck" (maybeboard/pile are excluded).
 function buildMoxfieldExport(cardTags, commanderName) {
-  const lines = commanderName ? [`1 ${commanderName}`] : [];
+  // Lead with a "Commander" section header and a blank line after it. Moxfield
+  // reads that header, and so does our own importer (parseMoxfieldText), which
+  // resets the section on the blank line. Without it, re-importing this text
+  // falls back to guessing the commander as the first eligible legendary — and
+  // that misfires on any deck whose 99 carries other legends.
+  const lines = commanderName ? ["Commander", `1 ${commanderName}`, ""] : [];
   for (const key in cardTags) {
     if (!key.startsWith("decklist:")) continue;
     const name = key.slice("decklist:".length);
