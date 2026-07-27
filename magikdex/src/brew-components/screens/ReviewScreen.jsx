@@ -219,6 +219,10 @@ export default function ReviewScreen({
   commander,
   cardTags,
   onHome, onBrew,
+  // Deals a FRESH synergy stack. Distinct from onBrew (which just returns to the
+  // swipe as-is) — sharing that handler is what made "quick brew" hand back a
+  // stale search or an exhausted stack. Falls back to onBrew if not supplied.
+  onQuickBrew,
   onDeleteDeck,
   onAddMore,
   onDeckSearch,
@@ -1089,9 +1093,9 @@ export default function ReviewScreen({
                   padding: "0 12px", borderRadius: 0, outline: "none",
                 }}
               />
-              {showQuickBrew && onBrew ? (
+              {showQuickBrew && (onQuickBrew || onBrew) ? (
                 <button
-                  onClick={onBrew}
+                  onClick={onQuickBrew || onBrew}
                   aria-label="Quick brew — deal the discovery stack"
                   style={{
                     flexShrink: 0, minHeight: 44,

@@ -1068,7 +1068,11 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     try {
       const finalQuery = withColorIdentity(input, legendColorIdentity);
       const { cards } = await fetchFirstPageForSwipe(finalQuery, { order: swipeOrder, dir: swipeDir });
-      baseStackRef.current = cards;
+      // Build BEFORE touching baseStackRef: a search that comes back dry used to
+      // overwrite the base stack with the empty result and then bail, so the
+      // stack every later rebuild reads from (sort change, narrow, clear-filter)
+      // was permanently empty — the swipe went dead until the session restarted.
+      // A failed search must leave the current stack exactly as it was.
       const filtered = buildSwipeCards(cards, "", swipeOrder, swipeDir);
       if (!filtered.length) {
         // An empty legal-card search should be impossible by design, so a dry
@@ -1078,6 +1082,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
           : "no cards match that search";
         return { ok: false, kind: "empty", message };
       }
+      baseStackRef.current = cards;
       setStackNarrow("");
       setQuery(input);
       setSwipeCards(filtered);
@@ -1245,6 +1250,17 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // how the deck list was reached.
   function goToSwipe() {
     setBrewView("swipe");
+  }
+
+  // QUICK BREW is a different intent from the bottom-nav brew button, and used
+  // to share its handler: goToSwipe only flips the view, so "quick brew" handed
+  // back whatever was already loaded — a previous search's results, or a stack
+  // already swiped to the end ("all cards seen") — instead of the synergy stack
+  // its own label promises. Deal a fresh seed instead. Nothing is lost: the seed
+  // excludes cards already in the deck AND everything decided this session, so
+  // this is "deal me what's left," not a reset.
+  async function quickBrew() {
+    await seedSwipeQueue(legendColorIdentity ?? [], existingCardRows);
   }
   function goHome() {
     resetBrew();
@@ -1459,6 +1475,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             onToggleTag={handleToggleTag}
             onHome={session ? goHome : undefined}
             onBrew={session ? goToSwipe : undefined}
+            onQuickBrew={session ? quickBrew : undefined}
             onDeleteDeck={session ? handleDeleteDeck : undefined}
             onAddMore={session ? handleAddMore : undefined}
             onDeckSearch={session ? runGlobalSearch : undefined}
