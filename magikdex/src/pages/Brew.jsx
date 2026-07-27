@@ -35,6 +35,9 @@ function markHealed(ids) {
   } catch { /* storage blocked — the mark just isn't remembered */ }
 }
 
+// The basic land for each colour. A colourless deck gets Wastes.
+const BASIC_FOR_COLOR = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest" };
+
 // Brew sub-screens are always dark — card art is designed against dark.
 // Jackson Storm "steel storm" recolor (UAT batch 2, item 3): near-black
 // grounds, one electric-steel accent replacing the old gold/amber, a dimmer
@@ -829,6 +832,27 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // Device UAT — add another copy of a card you can legally run multiples of
   // (basics, "any number" cards). There was no way to add basics at all: they
   // only arrived by flicking the same card repeatedly in the swipe stack.
+  // Device UAT — basics had NO way in. The lands door deals NONBASICS only (by
+  // design: you know the basics' names), and the per-row quantity stepper only
+  // exists once a row is already in the deck — so with zero basics there was no
+  // row, no stepper, and no entry point at all. Searching for "Island" instead
+  // dealt it as a swipe stack, which read as the deck list "bouncing" you out.
+  // This seeds one of each basic in the legend's colour identity; the steppers
+  // take it from there. Already-present basics are left alone.
+  function addBasics() {
+    const ci = legendColorIdentity ?? [];
+    const names = ci.length
+      ? ci.map(c => BASIC_FOR_COLOR[c]).filter(Boolean)
+      : ["Wastes"]; // colourless commander — Wastes is its only basic
+    const have = new Set(decklist.map(c => c.name));
+    const entries = names
+      .filter(n => !have.has(n))
+      .map(name => ({ name, instanceId: crypto.randomUUID() }));
+    if (!entries.length) return;
+    setDecklist(prev => [...prev, ...entries]);
+    for (const entry of entries) commitCard(entry, "decklist", 1);
+  }
+
   function handleAddCopy(name, section) {
     const [list, setList] = section === "decklist" ? [decklist, setDecklist]
       : [pile, setPile];
@@ -1485,6 +1509,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             searchDraft={deckSearchDraft}
             onSearchDraftChange={setDeckSearchDraft}
             onAddCopy={session ? handleAddCopy : undefined}
+            onAddBasics={session ? addBasics : undefined}
             anchorCard={anchorCard}
           />
         )}

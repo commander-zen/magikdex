@@ -231,6 +231,10 @@ export default function ReviewScreen({
   onHand,
   searchDraft = "", onSearchDraftChange,
   onAddCopy,
+  // Seeds one of each basic for the deck's colour identity. The lands door
+  // deals nonbasics only, and a row's quantity stepper can't appear until the
+  // row exists — so without this, a deck with no basics had no way to get any.
+  onAddBasics,
   anchorCard = null,
 }) {
   const [commanderName, setCommanderName] = useState("");
@@ -709,6 +713,29 @@ export default function ReviewScreen({
                     >
                       <span className="material-symbols-rounded" style={{ fontSize: 16 }}>add</span>
                       lands
+                    </button>
+                  )}
+                  {/* The basics door. Separate from "+ lands" because it's a
+                      different act: that one deals nonbasics to swipe through,
+                      this one drops the deck's basics straight in so their
+                      quantity steppers become reachable. */}
+                  {g.key === "Land" && live && sectionKey === "decklist" && onAddBasics && (
+                    <button
+                      onClick={onAddBasics}
+                      aria-label="Add one of each basic land for this deck"
+                      style={{
+                        minHeight: 44, flexShrink: 0,
+                        display: "flex", alignItems: "center", gap: 4,
+                        background: "transparent", border: "none", padding: "0 4px",
+                        color: "var(--primary)",
+                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontSize: 11, letterSpacing: "0.06em",
+                        cursor: "pointer",
+                        WebkitTapHighlightColor: "transparent",
+                      }}
+                    >
+                      <span className="material-symbols-rounded" style={{ fontSize: 16 }}>add</span>
+                      basics
                     </button>
                   )}
                 </div>
