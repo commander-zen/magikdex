@@ -61,41 +61,6 @@ export async function applyAutoTags(deckCardId, tags) {
   if (error) throw error;
 }
 
-// Insert many decklist cards in ONE query — the "Finish the 99" builder adds
-// dozens at once, and per-card commitCard round-trips would crawl. Caller
-// guarantees these are all NEW (name, section) rows (it skips anything already
-// in the deck), so a plain insert is enough. Returns the inserted rows
-// [{ id, card_name }] so the caller can attach auto-tags.
-export async function bulkInsertDeckCards(deckId, entries) {
-  const rows = (entries ?? [])
-    .filter(e => e?.card_name)
-    .map(e => ({ deck_id: deckId, card_name: e.card_name, section: "decklist", quantity: e.quantity ?? 1 }));
-  if (rows.length === 0) return [];
-  const { data, error } = await supabase
-    .from("deck_cards")
-    .insert(rows)
-    .select("id, card_name");
-  if (error) throw error;
-  return data ?? [];
-}
-
-// Auto-tag many freshly-inserted deck cards in ONE upsert (source 'auto',
-// ignoreDuplicates so a manual tag is never overwritten). pairs:
-// [{ deckCardId, tags: string[] }].
-export async function bulkApplyAutoTags(pairs) {
-  const rows = [];
-  for (const p of pairs ?? []) {
-    for (const tag of p.tags ?? []) {
-      rows.push({ deck_card_id: p.deckCardId, tag, source: "auto" });
-    }
-  }
-  if (rows.length === 0) return;
-  const { error } = await supabase
-    .from("deck_card_tags")
-    .upsert(rows, { onConflict: "deck_card_id,tag", ignoreDuplicates: true });
-  if (error) throw error;
-}
-
 // A tag is a write — flick-is-a-write extends to tagging, no save step.
 // Idempotent via the (deck_card_id, tag) unique constraint.
 export async function tagCard(deckCardId, tag) {
