@@ -356,6 +356,16 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // can scroll to it instead of rubber-banding.
   const [anchorCard, setAnchorCard] = useState(null);
   const [legendColorIdentity, setLegendColorIdentity] = useState(null);
+  // The deck's SECOND commander (partner mechanics), or null. Its colours are
+  // already folded into legendColorIdentity above — this holds the legend row
+  // itself so the deck header can name it.
+  const [partner, setPartner] = useState(null);
+  // The PRIMARY commander's identity, kept unmixed. legendColorIdentity holds
+  // the union, so recombining after a partner change needs the original — and
+  // session.legend.color_identity can't serve: it's null on legends whose
+  // identity was backfilled during this session's init, which would silently
+  // blank the identity the moment a partner was removed.
+  const primaryIdentityRef = useRef([]);
 
   // WREC tags per deck card, keyed `${section}:${card_name}` →
   // { id: deck_card_id, tags: string[], quantity }. Loaded when review opens;
@@ -511,12 +521,14 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       // the UNION. Reading only the primary hides legal cards and offers
       // illegal ones. Returns null (and this is a no-op) for the single-
       // commander case and for any deck predating migration 019.
+      primaryIdentityRef.current = colorIdentity ?? [];
       const partnerLegend = await fetchDeckPartner(deckId);
       if (partnerLegend) {
         colorIdentity = combinedColorIdentity(colorIdentity, partnerLegend.color_identity);
       }
 
       if (cancelled) return;
+      setPartner(partnerLegend);
       setLegendColorIdentity(colorIdentity);
 
       // A brand-new deck starts with one basic per colour in the legend's
@@ -867,6 +879,45 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // Device UAT — add another copy of a card you can legally run multiples of
   // (basics, "any number" cards). There was no way to add basics at all: they
   // only arrived by flicking the same card repeatedly in the swipe stack.
+  // Set (or with card === null, clear) the deck's second commander.
+  //
+  // The partner is stored as a legends row like any other commander, so
+  // upsertLegend both creates it on first use and hands back an existing one.
+  // Colour identity is re-derived here rather than waiting for a reload,
+  // because every stack, search and land door reads it — a partner that
+  // widened the identity has to take effect on the NEXT action, not the next
+  // session. Basics already seeded stay put; adding a partner never removes
+  // cards, it only opens up more of them.
+  async function handleSetPartner(card) {
+    if (!attachDeckId) return;
+    let partnerLegend = null;
+    try {
+      if (card) {
+        // upsertLegend THROWS on failure (and the picker awaits this), so the
+        // whole write is guarded — a failed partner must leave the deck exactly
+        // as it was, never half-applied or crashing the deck view.
+        const legend = await upsertLegend({
+          name: card.name,
+          scryfall_id: card.id ?? null,
+          image_uri: getCardImage(card, "art_crop"),
+          color_identity: card.color_identity ?? [],
+        });
+        partnerLegend = { ...legend, color_identity: card.color_identity ?? legend.color_identity ?? [] };
+      }
+      const { error } = await supabase
+        .from("decks")
+        .update({ partner_legend_id: partnerLegend?.id ?? null })
+        .eq("id", attachDeckId);
+      if (error) return;
+    } catch {
+      return; // deck untouched
+    }
+    setPartner(partnerLegend);
+    setLegendColorIdentity(
+      combinedColorIdentity(primaryIdentityRef.current, partnerLegend?.color_identity),
+    );
+  }
+
   // Device UAT — basics had NO way in. The lands door deals NONBASICS only (by
   // design: you know the basics' names), and the per-row quantity stepper only
   // exists once a row is already in the deck — so with zero basics there was no
@@ -1545,6 +1596,8 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             onSearchDraftChange={setDeckSearchDraft}
             onAddCopy={session ? handleAddCopy : undefined}
             onAddBasics={session ? addBasics : undefined}
+            partner={partner}
+            onSetPartner={session ? handleSetPartner : undefined}
             anchorCard={anchorCard}
           />
         )}

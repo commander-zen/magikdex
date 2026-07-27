@@ -1,6 +1,8 @@
 import { useState, useEffect, useRef } from "react";
 import { getCardData, getCardDataBatch, getCardImage } from "../../lib/scryfall.js";
 import WrecBand, { WREC_CHIPS, LABEL_BY_TAG, WrecIcon, WREC_CHIP_COLORS } from "../../components/WrecBand.jsx";
+import PartnerPickerSheet from "../PartnerPickerSheet.jsx";
+import { partnerVariant } from "../../lib/partners.js";
 
 // Change 14 — how far left a decklist row must be dragged to commit a delete.
 const ROW_DELETE_AT = 88;
@@ -240,6 +242,9 @@ export default function ReviewScreen({
   // deals nonbasics only, and a row's quantity stepper can't appear until the
   // row exists — so without this, a deck with no basics had no way to get any.
   onAddBasics,
+  // The deck's second commander (or null), and the setter that writes it.
+  partner = null,
+  onSetPartner,
   anchorCard = null,
 }) {
   const [commanderName, setCommanderName] = useState("");
@@ -347,6 +352,11 @@ export default function ReviewScreen({
   // text (same overlay grammar as the swipe screen's commander bar; the
   // header carries no art — Ben: name only). undefined = lookup failed.
   const [showCommander, setShowCommander] = useState(false);
+  // Partner picker. commanderCard is fetched up-front (not lazily like
+  // commanderFull) because whether to OFFER a partner at all depends on the
+  // commander's oracle text — the affordance can't wait for a tap.
+  const [partnerOpen, setPartnerOpen] = useState(false);
+  const [commanderCard, setCommanderCard] = useState(null);
   const [commanderFull, setCommanderFull] = useState(null);
   // Change 1 — the "add cards" search bar. Submitting hands the query to the
   // parent, which builds a search-derived swipe stack and switches to the swipe
@@ -394,6 +404,22 @@ export default function ReviewScreen({
       setSearchBusy(false);
     }
   }
+
+  // Resolve the commander's card once so partnerVariant() can read its oracle
+  // text. Only when a live session can actually act on the result.
+  useEffect(() => {
+    if (!live || !onSetPartner || !commander?.name) return;
+    let cancelled = false;
+    (async () => {
+      const card = await getCardData(commander.name);
+      if (!cancelled) setCommanderCard(card ?? null);
+    })();
+    return () => { cancelled = true; };
+  }, [live, onSetPartner, commander?.name]);
+
+  // Only commanders that actually have a partner mechanic get the affordance —
+  // offering it on a normal legend would promise something illegal.
+  const canPartner = Boolean(commanderCard && partnerVariant(commanderCard));
 
   async function openCommander() {
     setShowCommander(true);
@@ -1044,6 +1070,9 @@ export default function ReviewScreen({
                   whiteSpace: "nowrap",
                 }}>
                   {commander.name}
+                  {partner && (
+                    <span style={{ color: "var(--secondary)" }}> + {partner.name}</span>
+                  )}
                 </span>
                 {/* UAT batch 3, item 4 — the deck's total card count, near the
                     commander header (was missing from the list view). Commander
@@ -1053,10 +1082,33 @@ export default function ReviewScreen({
                   fontSize: 11, letterSpacing: "0.08em",
                   color: "var(--muted)",
                 }}>
-                  {decklist.length + 1} cards
+                  {/* A partner is a commander too, so it counts toward 100 —
+                      a partner deck is 98 + 2, not 99 + 1. */}
+                  {decklist.length + (partner ? 2 : 1)} cards
                 </span>
               </span>
             </button>
+            {/* Partner door — only for commanders that can actually partner. */}
+            {canPartner && onSetPartner && (
+              <button
+                onClick={() => setPartnerOpen(true)}
+                aria-label={partner ? "Change partner commander" : "Add a partner commander"}
+                style={{
+                  flexShrink: 0, minHeight: 44,
+                  display: "flex", alignItems: "center", gap: 2,
+                  background: "transparent", border: "none", padding: "0 4px",
+                  color: "var(--primary)",
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 11, letterSpacing: "0.06em",
+                  cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: 16 }}>
+                  {partner ? "swap_horiz" : "add"}
+                </span>
+                partner
+              </button>
+            )}
             {/* Export — Moxfield bulk-edit text, WREC tags as #hashtags. Copy
                 is guaranteed; the share sheet (where supported) is a bonus. */}
             <button
@@ -1491,6 +1543,16 @@ export default function ReviewScreen({
 
       {/* Commander card overlay — tap the header name to re-read the card,
           tap anywhere to dismiss. Unaltered card image (Scryfall terms). */}
+      {canPartner && onSetPartner && (
+        <PartnerPickerSheet
+          open={partnerOpen}
+          commanderCard={commanderCard}
+          current={partner}
+          onSelect={async card => { await onSetPartner(card); setPartnerOpen(false); }}
+          onClose={() => setPartnerOpen(false)}
+        />
+      )}
+
       {showCommander && (
         <div
           onClick={() => setShowCommander(false)}
