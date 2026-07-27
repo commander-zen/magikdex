@@ -97,7 +97,7 @@ export default function SwipeScreen({
   const [imgError,     setImgError]     = useState(false);
   const [flipped,      setFlipped]      = useState(false);
   // UAT 8/9 — how many swipe gestures (browse or decide) this session; the
-  // gesture reminder fades for good at 5, when the hands have learned it.
+  // gesture reminder fades for good at 8, when the hands have learned it.
   const [swipeCount,   setSwipeCount]   = useState(0);
 
   const didMountRef       = useRef(false);
@@ -881,8 +881,12 @@ export default function SwipeScreen({
 
       {/* Gesture reminder (UAT 8/9; batch 2 item 16 centers it) — lives above
           the card, horizontally centered (it hides while the search panel is
-          open). Fades for good after 5 swipe gestures this session — trained
-          hands don't need it. */}
+          open). Fades for good once the hands have learned it.
+          Device UAT: this is now the ONLY place the gesture model is taught —
+          new decks seed with basics, so the first-run empty state (which
+          carried the "swipe to keep or cut" copy) no longer appears. So it
+          reads brighter/larger than the old dim 11px, and hangs around for a
+          few more gestures before fading. */}
       {!done && !searchOpen && (
         <div style={{
           position: "absolute",
@@ -891,10 +895,11 @@ export default function SwipeScreen({
           minHeight: 44,
           display: "flex", alignItems: "center", justifyContent: "center",
           fontFamily: "'Noto Sans Mono', monospace",
-          fontSize: 11,
-          color: "var(--muted)",
+          fontSize: 13,
+          letterSpacing: "0.04em",
+          color: "var(--secondary)",
           pointerEvents: "none",
-          opacity: swipeCount >= 5 ? 0 : 1,
+          opacity: swipeCount >= 8 ? 0 : 1,
           transition: "opacity 600ms ease",
         }}>
           {handMode ? "← browse →  ↑ cut  ↓ close" : "← browse →  ↑ deck  ↓ close"}
