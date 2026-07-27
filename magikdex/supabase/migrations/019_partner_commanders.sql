@@ -2,7 +2,12 @@
 -- Run manually in the Supabase SQL editor (this project's schema lives in the
 -- dashboard; there is no CLI migration history).
 --
--- NOT YET APPLIED.
+-- APPLIED 2026-07-27. Verified against the live schema afterwards: the PostgREST
+-- embed `legends!decks_partner_legend_id_fkey` resolves (HTTP 200, no
+-- relationship error), confirming Postgres auto-named the FK constraint the way
+-- fetchDeckPartner() in lib/legendDeck.js expects. That name matters — if it
+-- differed, the partner lookup would fail silently and partners would simply
+-- never load.
 --
 -- Commander's partner mechanics let a deck have two commanders. magikdex has
 -- assumed exactly one since 002_legends, which makes partner decks silently
