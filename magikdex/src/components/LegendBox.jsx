@@ -50,6 +50,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
   const { theme } = useTheme();
   const [legends, setLegends] = useState([]);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState(null);
   const [identityFailed, setIdentityFailed] = useState(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [box, setBox] = useState(() => {
@@ -96,7 +97,11 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
       .from("legends")
       .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks(id, status, deck_cards(quantity, section))")
       .order("name");
-    if (!error) setLegends(applyBoxOrder(data ?? []));
+    // A failed read used to leave `legends` at [] silently, which renders as
+    // BOX EMPTY — identical to a genuinely empty box. That made a broken query
+    // and a new account indistinguishable on screen. Surface it instead.
+    if (error) setLoadError(error.message);
+    else { setLoadError(null); setLegends(applyBoxOrder(data ?? [])); }
     setLoading(false);
   }
 
@@ -461,6 +466,23 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
           </button>
         )}
       </div>
+
+      {/* A read that failed is NOT an empty box — say so, so the difference is
+          visible on the device instead of only in the network tab. */}
+      {loadError && (
+        <div style={{
+          flexShrink: 0,
+          margin: "0 10px",
+          padding: "6px 8px",
+          border: `1px solid ${theme.red}`,
+          fontFamily: "'Noto Sans Mono', monospace",
+          fontSize: 10,
+          lineHeight: 1.4,
+          color: theme.red,
+        }}>
+          couldn&apos;t load your box — {loadError}
+        </div>
+      )}
 
       {/* Fixed 4×2 slot grid — fills the tray, no scroll */}
       <div style={{
