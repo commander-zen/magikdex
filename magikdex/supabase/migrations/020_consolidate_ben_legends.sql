@@ -1,0 +1,50 @@
+-- 020_consolidate_ben_legends.sql — DATA migration, APPLIED 2026-07-28
+-- Recorded for history. Executed via the service key, not the SQL editor, but
+-- written here because it rewrote ownership and that must be auditable.
+--
+-- WHY: magikdex signs every visitor in anonymously (013). Anonymous identities
+-- live in browser storage, so a cleared browser, a new device, or an evicted
+-- PWA mints a NEW user — and the previous user's rows become unreachable
+-- forever, because RLS scopes on user_id and nobody can sign in as that id
+-- again. Over three weeks Ben's own decks scattered across 17 anonymous
+-- accounts; only 10 sat under his real (email-backed) account 8588ea2c.
+--
+-- Confirmed single-owner before running: "Fire Lord Azula" existed under FOUR
+-- separate accounts, "Zhulodok" under three, and af6327ad was created 55
+-- seconds before 8588ea2c (the anonymous session immediately preceding signup).
+-- The app had not been shared with anyone at this point. One person, many
+-- sessions.
+--
+-- 14 legends + their 14 decks were reassigned. decks carries its OWN user_id
+-- (013) with its own RLS policy, so moving a legend without its deck would have
+-- produced a visible legend whose deck 404s — both tables were updated together
+-- and verified afterwards (zero mismatches).
+--
+-- NOT MOVED, and nothing was deleted:
+--   Fire Lord Azula   3 stub copies (10/10/0 cards) left behind; the 135-card
+--                     copy won the (user_id, name) unique slot.
+--   Zhulodok          7467981c holds 105 cards vs Ben's own 99. Two substantial
+--                     decks, so the choice is Ben's — left untouched pending
+--                     his call.
+--   Kess / Rograkh    af6327ad's copies are empty and Ben already owns both
+--                     names; nothing of value to move.
+--
+-- The blocker on merging duplicates is legends_user_name_unique (user_id, name)
+-- from 013: one account cannot hold two legends of the same name, so a merge is
+-- a genuine content decision, never a mechanical one.
+--
+-- Ownership snapshot taken immediately before the write (all 31 legends and
+-- their decks) — ownership-backup-20260728-160643.json. To reverse, restore
+-- legend_user_id / decks[].user_id from that file.
+--
+-- Equivalent SQL, for the record (:ben = 8588ea2c-8966-4cb4-be35-083e667907bd):
+--
+--   update decks   set user_id = :ben where legend_id in (:moved_legend_ids);
+--   update legends set user_id = :ben where id        in (:moved_legend_ids);
+--
+-- Verify: expect 24, and an empty second result.
+--   select count(*) from legends where user_id = :ben;
+--   select l.name from legends l join decks d on d.legend_id = l.id
+--   where l.user_id = :ben and d.user_id <> l.user_id;
+
+-- No schema change. This file is a record, not a runnable migration.

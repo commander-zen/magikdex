@@ -1,5 +1,17 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-07-28 — EMPTY BOX: ACTUAL root cause was migration 019
+
+🔴 **CORRECTION to the section below.** The auth/`reloadSignal` bug was real and worth fixing, but it was **not** why the Box was empty. **Migration 019 was.** Adding `decks.partner_legend_id → legends(id)` gave `legends` a **second** relationship to `decks`, so PostgREST could no longer infer which one a bare `decks(...)` embed meant and returned **PGRST201 instead of rows — for every user, signed in or not, service key included.** Three queries broke the moment 019 was applied (2026-07-27), which is exactly when the Box went empty: `LegendBox` (box load), `LegendIdentity` (counts), and `fetchLegendDeck` (the shared resolver every surface depends on).
+- ✅ **Fixed (`3d3ea91`, on `main`)** — all three now name the FK: `decks!decks_legend_id_fkey(...)`. We always want the deck a legend COMMANDS, never decks it merely partners into.
+- Verified against live prod: bare embed → PGRST201, named embed → rows; Box then rendered and counted **1/100** in-browser. Shape is safe: the FK is to-one so the embed is an object not an array, and `resolveLegendDeck` already normalizes both — the note at `legendDeck.js:19` anticipated this exact flip.
+- ⚠️ **The transferable lesson: adding a second FK between two tables silently breaks every existing bare embed between them.** Any future migration adding an FK to a table already embedded elsewhere must audit `.select()` strings first. `partner:legends!decks_partner_legend_id_fkey(...)` survived precisely because it named its FK.
+
+✅ **Ownership consolidated — Ben now owns 24 legends (was 10).** 14 legends + their 14 decks reassigned from 13 stranded anonymous accounts. Recorded in `020_consolidate_ben_legends.sql`; pre-write ownership snapshot at `ownership-backup-20260728-160643.json` (scratchpad). Verified: zero legend/deck owner mismatches. Confirmed single-owner first — "Fire Lord Azula" under 4 accounts, "Zhulodok" under 3, and `af6327ad` created **55 seconds before** `8588ea2c` (the anon session right before signup); app not yet shared with anyone.
+
+### ❓ Open decision — Zhulodok
+`7467981c` holds a **105-card** Zhulodok; Ben's own account holds a **99-card** one. `legends_user_name_unique (user_id, name)` means one account can't hold both, so this is a content call, not a mechanical one. **Nothing deleted, nothing moved — awaiting Ben.** Same reason 3 stub "Fire Lord Azula" copies (10/10/0 cards) were left in place after the 135-card copy took the slot.
+
 ## 2026-07-28 — EMPTY BOX ON PROD: root-caused and fixed
 
 ✅ **Ben's data was never lost.** Verified with the service key against live prod: **31 legends still in the DB**. `legends.user_id` is a plain uuid column with **no FK to `auth.users`**, so deleting an auth user does NOT cascade — the earlier "purge orphaned users" advice could not have destroyed anything. (I gave that advice without checking the cascade first; it was safe here, but it was unverified when I said it.)
