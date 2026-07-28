@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "./theme/ThemeContext";
 import Home from "./pages/Home";
 import Brew from "./pages/Brew";
@@ -42,7 +42,8 @@ export default function App() {
   // Restore a persisted session synchronously so the first paint is already the
   // session (no Home flash) when returning from the background.
   const [brewSession, setBrewSession] = useState(loadActiveSession);
-  // Bumped when a brew session ends so the Box surface re-reads deck totals.
+  // Bumped when a brew session ends so the Box surface re-reads deck totals,
+  // and whenever the signed-in account changes (see the auth listener below).
   const [reloadSignal, setReloadSignal] = useState(0);
   // Invisible sign-in: every visitor gets an anonymous Supabase account on
   // first load (no UI, no personal info — it exists only so RLS can scope
@@ -62,6 +63,26 @@ export default function App() {
       if (!cancelled) setAuthReady(true);
     })();
     return () => { cancelled = true; };
+  }, []);
+
+  // Signing in swaps WHICH account's rows RLS will return, but every surface
+  // that already queried is still holding the previous account's results — so
+  // signing back in used to say "your box is here" over a Box that stayed
+  // empty until a manual reload. Bump reloadSignal on a real account change so
+  // the Box re-reads as the new user.
+  //
+  // Keyed on the user id, not the event: TOKEN_REFRESHED fires on a timer for
+  // the SAME user and must not trigger a refetch. The first event only seeds
+  // the ref — there is nothing stale to refresh at mount.
+  const lastUserIdRef = useRef(undefined);
+  useEffect(() => {
+    const { data: sub } = supabase.auth.onAuthStateChange((_event, session) => {
+      const id = session?.user?.id ?? null;
+      const prev = lastUserIdRef.current;
+      lastUserIdRef.current = id;
+      if (prev !== undefined && prev !== id) setReloadSignal(s => s + 1);
+    });
+    return () => sub.subscription.unsubscribe();
   }, []);
 
   function handleLaunchBrew(legend, deck, opts) {
