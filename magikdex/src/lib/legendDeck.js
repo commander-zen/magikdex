@@ -99,7 +99,10 @@ export async function deleteLegend(legendId, deckId) {
 export async function fetchLegendDeck(legendId) {
   const { data, error } = await supabase
     .from("legends")
-    .select("decks(id, status, build_name, deck_cards(quantity, section))")
+    // Names the FK deliberately: migration 019's partner_legend_id gave legends
+    // a SECOND path to decks, so a bare `decks(...)` is ambiguous and errors.
+    // This resolver wants the deck the legend commands, not ones it partners in.
+    .select("decks!decks_legend_id_fkey(id, status, build_name, deck_cards(quantity, section))")
     .eq("id", legendId)
     .single();
   if (error) return null;
