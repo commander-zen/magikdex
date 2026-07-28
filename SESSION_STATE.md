@@ -7,7 +7,19 @@
 - Verified post-purge: app renders BOX EMPTY with **no console errors and no error banner** — i.e. the query genuinely returned zero rather than failing, which is exactly the distinction added earlier today.
 - ⚠️ This supersedes the consolidation in `020` — those 14 legends are gone too. 020 stays in the record because the *ownership* findings still matter.
 
-### 🎯 NEXT UP — frictionless-but-recoverable onboarding (Ben's ask)
+### ✅ BUILT — frictionless-but-recoverable onboarding ([OHANA-195](https://linear.app/bnm-ohana/issue/OHANA-195)) — `8010448`, **ON `dev`, NOT PROMOTED**
+All four gaps closed. New module `src/lib/backupState.js` owns thresholds + the ladder.
+1. **Dismiss is a SNOOZE, not a tombstone** — escalating steps 10/40/75, only the fired rung is silenced. Fixes the old hole where waving it off at 10 cards meant a 99-card deck was never asked again.
+2. **Per-browser, not per-legend** — one anonymous account is one browser; the credential covers the whole box.
+3. **Export triggers one ask** — `ReviewScreen.onExported` → Brew. One-shot, outside the ladder.
+4. **Ambient "not backed up" marker on the Box** — `Home.jsx`, shown only when unlinked AND ≥1 legend. Not red on purpose. One tap opens Settings.
+
+**Deliberately NOT done:** deleting anonymous decks on exit. Rows persist; a returning user on the same browser must find their deck. Honest framing is "lives only in this browser" — browsers do the enforcing.
+
+**Verified in-browser** across every ladder transition (old bug re-asks, bounded stop, resumed 90-card deck asks once at the top rung not walking up, export one-shot, link-clears-all) + marker rendering. Lint + build clean.
+⚠️ **Remaining: device pass on the in-brew nudge sheet** (wired + building, never exercised on a device), then promote `dev` → `main`.
+
+### 🎯 ORIGINAL SCOPE — frictionless-but-recoverable onboarding (Ben's ask)
 Ben: *"ensure that user information is stored but they dont have to sign up as soon as they hit my page… if they swipe and like it, then yeah sign up and save your deck… frictionless and fun AND usable."*
 **The model is already correct** — anonymous sign-in means data is server-side from swipe #1; only the *credential* is missing. `Brew.jsx` already nudges at >10 kept cards, growth-only, unlinked-accounts-only. **Four gaps to close:**
 1. **Dismiss is permanent per legend** (`localStorage magicdex-backup-nudge:<legendId>`) — dismiss once at 10 cards and a 99-card deck never asks again. Biggest hole. Make it a *snooze* with escalating thresholds (~40, ~75), still capped.
