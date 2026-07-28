@@ -1,0 +1,46 @@
+-- 021_purge_all_deck_data.sql — FULL DECK-DATA PURGE, APPLIED 2026-07-28
+-- Recorded for history. Executed via the service key, not the SQL editor.
+--
+-- Ben's call, immediately after 020 consolidated 14 stranded legends back to
+-- his account: "so i dont care about any of those decks actually but i'm glad
+-- they found this bug. wipe away those decks i'm fine with that data purge."
+-- Confirmed as the full-reset option (not just the 7 orphans) before running.
+-- Consistent with his standing position since 2026-07-03 — the real decks live
+-- in Moxfield; everything here was test data. Clean slate before the beta.
+--
+-- Deleted, child → parent:
+--   deck_card_tags    745 rows
+--   deck_cards        876 rows
+--   decks              25 rows
+--   legends            31 rows
+--
+-- ORDER MATTERS. deck_card_tags cascades off deck_cards (006) but was deleted
+-- explicitly so the counts are honest. deck_cards → decks has NO cascade, so
+-- cards must go first. decks must precede legends because BOTH legend_id and
+-- 019's partner_legend_id reference legends(id).
+--
+-- UNTOUCHED — the shared card knowledge base is not user data and is expensive
+-- to rebuild: cards, card_tags, legend_synergy, legend_themes.
+--
+-- Auth users were NOT deleted. There is no FK from legends.user_id to
+-- auth.users, so removing a user has never cascaded to decks anyway — the 85
+-- accounts are now simply empty.
+--
+-- REVERSIBLE: full pre-delete snapshot of all four tables (including every
+-- deck_card row and tag) at full-purge-backup-20260728-161534.json. Restore by
+-- re-inserting parent → child, the reverse of the delete order above.
+--
+-- Equivalent SQL, for the record:
+--   delete from deck_card_tags where id is not null;
+--   delete from deck_cards     where id is not null;
+--   delete from decks          where id is not null;
+--   delete from legends        where id is not null;
+--
+-- Verify: all four expected to be 0.
+--   select
+--     (select count(*) from legends)   as legends,
+--     (select count(*) from decks)     as decks,
+--     (select count(*) from deck_cards) as deck_cards,
+--     (select count(*) from deck_card_tags) as tags;
+
+-- No schema change. This file is a record, not a runnable migration.

@@ -1,5 +1,21 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-07-28 — ALL DECK DATA PURGED (Ben's call). Clean slate for beta.
+
+✅ **Database is empty of user data.** `deck_card_tags` 745, `deck_cards` 876, `decks` 25, `legends` 31 → all 0. Ben confirmed the full-reset option over the narrower ones: *"wipe away those decks i'm fine with that data purge."* Consistent with his standing position — real decks live in Moxfield, this was test data. Recorded in `021_purge_all_deck_data.sql`. **Reversible** — full snapshot of all four tables at `full-purge-backup-20260728-161534.json` (scratchpad); restore parent→child.
+- **Untouched:** the shared card knowledge base (`cards`, `card_tags`, `legend_synergy`, `legend_themes`) — not user data, expensive to rebuild. Auth users also untouched (85 accounts, now all empty).
+- Verified post-purge: app renders BOX EMPTY with **no console errors and no error banner** — i.e. the query genuinely returned zero rather than failing, which is exactly the distinction added earlier today.
+- ⚠️ This supersedes the consolidation in `020` — those 14 legends are gone too. 020 stays in the record because the *ownership* findings still matter.
+
+### 🎯 NEXT UP — frictionless-but-recoverable onboarding (Ben's ask)
+Ben: *"ensure that user information is stored but they dont have to sign up as soon as they hit my page… if they swipe and like it, then yeah sign up and save your deck… frictionless and fun AND usable."*
+**The model is already correct** — anonymous sign-in means data is server-side from swipe #1; only the *credential* is missing. `Brew.jsx` already nudges at >10 kept cards, growth-only, unlinked-accounts-only. **Four gaps to close:**
+1. **Dismiss is permanent per legend** (`localStorage magicdex-backup-nudge:<legendId>`) — dismiss once at 10 cards and a 99-card deck never asks again. Biggest hole. Make it a *snooze* with escalating thresholds (~40, ~75), still capped.
+2. **No passive signal.** Once dismissed there is zero indication the box is unbacked. Needs a small always-visible "not backed up" marker on the Box — non-modal.
+3. **Per-legend, not per-user** — no global unbacked state.
+4. **Misses the highest-intent moments** — export/share, and returning for a 2nd session.
+**Do NOT literally delete on leave.** Anonymous rows persist server-side; a returning user on the same browser still has their deck. Honest framing is "lives only in this browser," not "deleted when you leave."
+
 ## 2026-07-28 — EMPTY BOX: ACTUAL root cause was migration 019
 
 🔴 **CORRECTION to the section below.** The auth/`reloadSignal` bug was real and worth fixing, but it was **not** why the Box was empty. **Migration 019 was.** Adding `decks.partner_legend_id → legends(id)` gave `legends` a **second** relationship to `decks`, so PostgREST could no longer infer which one a bare `decks(...)` embed meant and returned **PGRST201 instead of rows — for every user, signed in or not, service key included.** Three queries broke the moment 019 was applied (2026-07-27), which is exactly when the Box went empty: `LegendBox` (box load), `LegendIdentity` (counts), and `fetchLegendDeck` (the shared resolver every surface depends on).
