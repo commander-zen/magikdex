@@ -1,8 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import LegendBox from "../components/LegendBox";
 import LegendIdentity from "../components/LegendIdentity";
 import SettingsSheet from "../components/SettingsSheet";
+import { supabase } from "../lib/supabase.js";
 
 // The last-active legend's id — most recently brewed/opened. Persisted to
 // localStorage now; a `legends.last_active_at` column can back this later.
@@ -15,6 +16,25 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
   const { theme } = useTheme();
   const [activeLegend, setActiveLegend] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // An anonymous box has no credential behind it — lose the browser storage and
+  // the account is gone, not locked (see lib/backupState.js). Brew's prompts are
+  // bounded and dismissible, so once they're spent there'd be NO signal left
+  // that the box is unbacked. This is that signal: ambient, never modal, and
+  // only shown once there's something to lose.
+  const [hasEmail, setHasEmail] = useState(null); // null = unknown yet
+  const [legendCount, setLegendCount] = useState(0);
+
+  // Re-read on reloadSignal: App bumps it when the signed-in account changes,
+  // so linking an email (or signing in) clears this without a manual refresh.
+  useEffect(() => {
+    let cancelled = false;
+    supabase.auth.getSession().then(({ data }) => {
+      if (!cancelled) setHasEmail(Boolean(data.session?.user?.email));
+    });
+    return () => { cancelled = true; };
+  }, [reloadSignal, settingsOpen]);
+
+  const showBackupFlag = hasEmail === false && legendCount > 0;
 
   const glyphColor   = `${theme.white}80`;
   const titleColor   = theme.white;
@@ -25,6 +45,7 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
   // Pick the detail pane on every load: keep the current legend if it survived
   // the reload, else the persisted last-active, else the first in the Box.
   function handleLegendsLoaded(list) {
+    setLegendCount(list.length);
     setActiveLegend(prev => {
       if (prev) {
         const still = list.find(l => l.id === prev.id);
@@ -87,6 +108,35 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
         }}>
           mag&#x0131;kdex
         </div>
+        <div style={{ display: "flex", alignItems: "center", gap: 2 }}>
+          {/* Ambient, not modal: states a fact and offers the fix in one tap.
+              Deliberately NOT red — nothing is broken, and alarming someone
+              who just wanted to brew is its own kind of friction. */}
+          {showBackupFlag && (
+            <button
+              onClick={() => setSettingsOpen(true)}
+              aria-label="This box is not backed up — add an email"
+              style={{
+                display: "flex", alignItems: "center", gap: 6,
+                minHeight: 44, padding: "0 8px",
+                background: "transparent", border: "none",
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <span style={{
+                width: 6, height: 6, flexShrink: 0,
+                background: theme.accent,
+              }} />
+              <span style={{
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 10, letterSpacing: "0.08em",
+                color: dimColor, whiteSpace: "nowrap",
+              }}>
+                not backed up
+              </span>
+            </button>
+          )}
         <button
           onClick={() => setSettingsOpen(true)}
           aria-label="Settings"
@@ -109,6 +159,7 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
             settings
           </span>
         </button>
+        </div>
       </div>
 
       {/* 2. DETAIL PANE (~46vh) */}

@@ -11,6 +11,7 @@ import { getBrewDefaults } from "../lib/brewDefaults.js";
 import { tagCard, untagCard, fetchDeckCardsWithTags, autoWrecTags, applyAutoTags, WREC_TO_OTAGS } from "../lib/deckTags.js";
 import { fetchLegendDeck, deleteLegend, upsertLegend, fetchDeckPartner, combinedColorIdentity } from "../lib/legendDeck.js";
 import { supabase } from "../lib/supabase.js";
+import { pendingStep, snoozeStep, exportPromptDue, markExportPrompted, clearBackupPrompts } from "../lib/backupState.js";
 
 // deck_card ids the user has curated (or that auto-tagging has already been
 // offered to). The deck-list "heal" only re-suggests to ZERO-tag rows, so
@@ -381,13 +382,13 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   const baseStackRef = useRef([]);
 
   // ── Backup nudge (Ben 2026-07-03): zero barrier to START brewing, but once
-  // someone is >9 kept cards deep they've built something worth keeping —
-  // prompt an unlinked (anonymous, no email) account to back the brew up.
-  // Fires only on GROWTH past the threshold within this session (a resumed
-  // big deck doesn't nudge on entry, only on its next flick), once per
-  // legend per browser (dismiss = don't nag that brew again; Settings always
-  // has the flow).
-  const NUDGE_DECK_SIZE = 10;
+  // someone is deep enough to have built something worth keeping, prompt an
+  // unlinked (anonymous, no email) account to back the box up.
+  //
+  // Thresholds and the snooze ladder live in lib/backupState.js — see the note
+  // there for why dismiss can't be permanent. Fires only on GROWTH within this
+  // session (a resumed big deck doesn't nudge on entry, only on its next
+  // flick), and Settings always has the flow regardless.
   const [hasEmail, setHasEmail] = useState(null); // null = unknown yet
   const [showBackupNudge, setShowBackupNudge] = useState(false);
   const [nudgeEmail, setNudgeEmail] = useState("");
@@ -395,26 +396,39 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   const [nudgeSent, setNudgeSent] = useState(false);
   const [nudgeError, setNudgeError] = useState(null);
   const initialDeckSizeRef = useRef(null);
-
-  function nudgeKey(legendId) {
-    return `magicdex-backup-nudge:${legendId}`;
-  }
+  // Which rung triggered the visible prompt, so "not now" snoozes THAT one and
+  // leaves the rest armed. null = triggered by export, which has its own flag.
+  const [nudgeStep, setNudgeStep] = useState(null);
 
   useEffect(() => {
     const total = decklist.length;
     if (!session?.legend?.id || showBackupNudge || nudgeSent) return;
     if (hasEmail !== false) return; // linked already, or auth state unknown
     if (initialDeckSizeRef.current === null) return; // session still initializing
-    if (total < NUDGE_DECK_SIZE || total <= initialDeckSizeRef.current) return;
-    try { if (localStorage.getItem(nudgeKey(session.legend.id))) return; } catch { return; }
-    // Threshold-crossing is inherently an effect of list growth — one guarded
+    if (total <= initialDeckSizeRef.current) return; // growth only, never on entry
+    const step = pendingStep(total);
+    if (step === null) return;
+    // Threshold-crossing is inherently an effect of list growth — guarded
     // setState, no cascade (every early return above keeps it a no-op).
     // eslint-disable-next-line react-hooks/set-state-in-effect
+    setNudgeStep(step);
     setShowBackupNudge(true);
   }, [decklist.length, hasEmail, session, showBackupNudge, nudgeSent]);
 
+  // Exporting says more about intent than any card count — the user is taking
+  // this deck somewhere. Worth one ask, outside the step ladder.
+  function handleExported() {
+    if (hasEmail !== false || nudgeSent || showBackupNudge) return;
+    if (!exportPromptDue()) return;
+    markExportPrompted();
+    setNudgeStep(null);
+    setShowBackupNudge(true);
+  }
+
   function dismissBackupNudge() {
-    try { localStorage.setItem(nudgeKey(session?.legend?.id), "1"); } catch { /* nag again next visit */ }
+    // Snooze only the rung that fired; the higher ones stay armed. An
+    // export-triggered prompt (null) is already one-shot via its own flag.
+    if (nudgeStep !== null) snoozeStep(nudgeStep);
     setShowBackupNudge(false);
   }
 
@@ -437,7 +451,9 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       return;
     }
     setNudgeSent(true);
-    try { localStorage.setItem(nudgeKey(session?.legend?.id), "1"); } catch { /* flag is best-effort */ }
+    // Linked — the whole ladder is spent. Cleared rather than left set so a
+    // later sign-out to a fresh anonymous box gets its own prompts.
+    clearBackupPrompts();
   }
 
   // Decided cards (pile/decklist/maybe, this session or earlier) by name —
@@ -463,6 +479,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     setShowBackupNudge(false);
     setNudgeSent(false);
     setNudgeError(null);
+    setNudgeStep(null);
     supabase.auth.getSession().then(({ data }) => {
       const user = data.session?.user;
       setHasEmail(user ? Boolean(user.email) : null);
@@ -1587,6 +1604,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             onBrew={session ? goToSwipe : undefined}
             onQuickBrew={session ? quickBrew : undefined}
             onDeleteDeck={session ? handleDeleteDeck : undefined}
+            onExported={session ? handleExported : undefined}
             onAddMore={session ? handleAddMore : undefined}
             onDeckSearch={session ? runGlobalSearch : undefined}
             stackCount={swipeCards.length}
@@ -1626,9 +1644,9 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
                     fontSize: 13, lineHeight: 1.5,
                     color: "var(--text)",
                   }}>
-                    {decklist.length} cards in — this brew is
-                    becoming something. Add an email so it can't be lost to a
-                    cleared browser or a new phone. Used for nothing else.
+                    {nudgeStep === null
+                      ? "Exported. That copy is yours — but this box still lives only in this browser. Add an email and it follows you to any device. Used for nothing else."
+                      : `${decklist.length} cards in — this brew is becoming something. Right now it lives only in this browser. Add an email and it follows you. Used for nothing else.`}
                   </div>
                   <input
                     type="email"
