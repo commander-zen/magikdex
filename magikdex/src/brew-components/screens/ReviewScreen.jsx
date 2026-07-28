@@ -231,6 +231,9 @@ export default function ReviewScreen({
   // stale search or an exhausted stack. Falls back to onBrew if not supplied.
   onQuickBrew,
   onDeleteDeck,
+  // Fired after a Moxfield export completes — Brew treats it as an intent
+  // signal and may offer to back the box up. Optional.
+  onExported,
   onAddMore,
   onDeckSearch,
   stackCount = 0,
@@ -471,6 +474,9 @@ export default function ReviewScreen({
       try { await navigator.share({ text, title: `${commander?.name ?? "Deck"} export` }); }
       catch { /* user cancelled or share unsupported for this payload — ignore */ }
     }
+    // Taking the deck elsewhere is the strongest signal that it matters to
+    // them — Brew uses it to offer a backup. Last, so it never delays the copy.
+    onExported?.();
   }
 
   const groups = {
