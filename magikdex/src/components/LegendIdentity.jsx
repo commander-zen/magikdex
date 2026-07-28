@@ -47,7 +47,9 @@ export default function LegendIdentity({ legend }) {
     let cancelled = false;
     supabase
       .from("legends")
-      .select("decks(id, status, build_name, deck_cards(quantity, section))")
+      // FK named on purpose — see fetchLegendDeck: partner_legend_id (019) made
+      // the bare `decks(...)` embed ambiguous and it fails for every user.
+      .select("decks!decks_legend_id_fkey(id, status, build_name, deck_cards(quantity, section))")
       .eq("id", legend.id)
       .single()
       .then(({ data, error }) => {

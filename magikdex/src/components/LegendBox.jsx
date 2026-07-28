@@ -95,7 +95,12 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
   async function loadLegends() {
     const { data, error } = await supabase
       .from("legends")
-      .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks(id, status, deck_cards(quantity, section))")
+      // decks! MUST name the FK. Migration 019 added decks.partner_legend_id →
+      // legends(id), so there are now TWO paths from legends to decks and a bare
+      // `decks(...)` embed is ambiguous (PostgREST PGRST201) — it fails for
+      // every user, which is what emptied the Box. We want the deck this legend
+      // COMMANDS, never the decks it's a partner in.
+      .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks!decks_legend_id_fkey(id, status, deck_cards(quantity, section))")
       .order("name");
     // A failed read used to leave `legends` at [] silently, which renders as
     // BOX EMPTY — identical to a genuinely empty box. That made a broken query
