@@ -4,6 +4,7 @@ import { getSettings } from "../../lib/settings.js";
 import { useDoubleTap } from "../../hooks/useDoubleTap.js";
 import { useGameChangers } from "../../hooks/useGameChangers.js";
 import { WREC_CHIPS, WrecIcon, WREC_CHIP_COLORS, LABEL_BY_TAG } from "../../components/WrecBand.jsx";
+import FlipCard from "../FlipCard.jsx";
 
 // "Basic" + "Land" (not the literal "Basic Land") so snow basics — type line
 // "Basic Snow Land — Wastes" — count too.
@@ -360,10 +361,11 @@ export default function SwipeScreen({
 
   // ── Derived visuals ──────────────────────────────────────────────────────────
 
-  const artUrl = card ? (flipped
-    ? getCardImage({ ...card, image_uris: card.card_faces?.[1]?.image_uris }, "large")
-    : getCardImage(card, "large") ?? getCardImage(card, "normal")
-  ) : null;
+  // Which face is showing is now FlipCard's business — it keeps both in the DOM
+  // and rotates between them, so this no longer picks a single url.
+  const backFaceUrl = card?.card_faces?.[1]?.image_uris
+    ? getCardImage({ ...card, image_uris: card.card_faces[1].image_uris }, "large")
+    : null;
 
   // Flat carousel motion — no rotation, the card's movement is the feedback.
   // The whole strip (current + peeking neighbors) shares one transition.
@@ -516,9 +518,11 @@ export default function SwipeScreen({
             const c = effectiveCards[i];
             if (!c) return null;
             const isCurrent = i === idx;
-            const url = isCurrent
-              ? artUrl
-              : (getCardImage(c, "large") ?? getCardImage(c, "normal"));
+            const url = getCardImage(c, "large") ?? getCardImage(c, "normal");
+            // Only the current card can be flipped, so only it pays for a
+            // second image — neighbours would be downloading a face that can
+            // never be shown before they scroll into place.
+            const backUrl = isCurrent ? backFaceUrl : null;
             // Keying by card id keeps DOM nodes stable across the post-browse
             // index swap, so the strip never visually jumps.
             const transform = isCurrent
@@ -547,12 +551,18 @@ export default function SwipeScreen({
                   boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
                 }}>
                   {url && !(isCurrent && imgError) ? (
-                    <img
-                      src={url}
+                    <FlipCard
+                      frontSrc={url}
+                      backSrc={backUrl}
                       alt={c.name}
-                      draggable={false}
+                      backAlt={c.card_faces?.[1]?.name}
+                      flipped={isCurrent && flipped}
                       onError={isCurrent ? () => setImgError(true) : undefined}
-                      style={{
+                      // block, not the default inline-flex: this slot has a
+                      // fixed height and an inline box would sit on a baseline
+                      // and leave a sliver of gap under the card.
+                      containerStyle={{ display: "block", width: "100%", height: "100%" }}
+                      imgStyle={{
                         display: "block",
                         width: "100%",
                         height: "100%",
@@ -1101,14 +1111,16 @@ export default function SwipeScreen({
             // sized to the image (inline-flex) rather than the overlay, or the
             // button would float out in the dark beside it.
             <div style={{ position: "relative", display: "inline-flex" }}>
-              <img
-                src={commanderFlipped
-                  ? getCardImage({ ...commanderFull, image_uris: commanderFull.card_faces?.[1]?.image_uris }, "normal")
-                  : getCardImage(commanderFull, "normal")}
-                alt={commanderFlipped
-                  ? `${commanderFull.card_faces?.[1]?.name ?? commanderName} card`
-                  : (commanderName ?? "Commander card")}
-                style={{
+              <FlipCard
+                frontSrc={getCardImage(commanderFull, "normal")}
+                backSrc={commanderHasBack
+                  ? getCardImage({ ...commanderFull, image_uris: commanderFull.card_faces[1].image_uris }, "normal")
+                  : null}
+                alt={commanderName ?? "Commander card"}
+                backAlt={`${commanderFull.card_faces?.[1]?.name ?? commanderName} card`}
+                flipped={commanderFlipped}
+                imgStyle={{
+                  display: "block",
                   width: "min(88vw, 400px)",
                   maxHeight: "82vh",
                   objectFit: "contain",
