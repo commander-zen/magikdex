@@ -388,6 +388,14 @@ export default function SwipeScreen({
   // cache-first on first open (null = loading, undefined = lookup failed).
   const [showCommander, setShowCommander] = useState(false);
   const [commanderFull, setCommanderFull] = useState(null);
+  // Transforming commanders (Ral, Monsoon Mage // Ral, Leyline Prodigy) are
+  // legal and increasingly common, and the back face is half the card — the
+  // deck cards in the carousel have flipped since UAT batch 3, but this
+  // overlay only ever drew the front. Same rule as `hasBackFace`: a distinct
+  // back-face IMAGE, so split/adventure cards (one shared image) don't get a
+  // control that would appear to do nothing.
+  const [commanderFlipped, setCommanderFlipped] = useState(false);
+  const commanderHasBack = Boolean(commanderFull?.card_faces?.[1]?.image_uris);
 
   // Zero-results escape hatch (Change 3): when a stack filter matches nothing,
   // "search all cards" re-runs the same query through the global-search path and
@@ -443,6 +451,7 @@ export default function SwipeScreen({
   async function openCommander() {
     if (!commanderName) return;
     setShowCommander(true);
+    setCommanderFlipped(false); // always open on the front face
     if (commanderFull == null) {
       const full = await getCardData(commanderName);
       setCommanderFull(full ?? undefined);
@@ -1088,17 +1097,47 @@ export default function SwipeScreen({
           }}
         >
           {commanderFull ? (
-            <img
-              src={getCardImage(commanderFull, "normal")}
-              alt={commanderName ?? "Commander card"}
-              style={{
-                width: "min(88vw, 400px)",
-                maxHeight: "82vh",
-                objectFit: "contain",
-                borderRadius: "5.5% / 4%",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
-              }}
-            />
+            // Wrapped so the flip control can sit ON the card. The wrapper is
+            // sized to the image (inline-flex) rather than the overlay, or the
+            // button would float out in the dark beside it.
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <img
+                src={commanderFlipped
+                  ? getCardImage({ ...commanderFull, image_uris: commanderFull.card_faces?.[1]?.image_uris }, "normal")
+                  : getCardImage(commanderFull, "normal")}
+                alt={commanderFlipped
+                  ? `${commanderFull.card_faces?.[1]?.name ?? commanderName} card`
+                  : (commanderName ?? "Commander card")}
+                style={{
+                  width: "min(88vw, 400px)",
+                  maxHeight: "82vh",
+                  objectFit: "contain",
+                  borderRadius: "5.5% / 4%",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.5)",
+                }}
+              />
+              {/* stopPropagation matters here: the overlay dismisses on ANY
+                  click, so without it flipping would close the card instead. */}
+              {commanderHasBack && (
+                <button
+                  onClick={e => { e.stopPropagation(); setCommanderFlipped(f => !f); }}
+                  aria-label="Flip commander card"
+                  style={{
+                    position: "absolute", bottom: 16, right: 16, zIndex: 5,
+                    minHeight: 44, minWidth: 44,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "rgba(0,0,0,0.6)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: 20,
+                    padding: "6px 14px",
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 12, letterSpacing: "0.1em",
+                    color: "rgba(255,255,255,0.55)",
+                    cursor: "pointer",
+                  }}
+                >flip</button>
+              )}
+            </div>
           ) : (
             <div style={{
               fontFamily: "'Noto Sans Mono', monospace",
