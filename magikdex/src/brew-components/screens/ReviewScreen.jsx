@@ -355,6 +355,10 @@ export default function ReviewScreen({
   // text (same overlay grammar as the swipe screen's commander bar; the
   // header carries no art — Ben: name only). undefined = lookup failed.
   const [showCommander, setShowCommander] = useState(false);
+  // Transforming commanders (Ral, Monsoon Mage // Ral, Leyline Prodigy) need
+  // their back face here too — this overlay and the swipe screen's are separate
+  // implementations, so fixing one silently leaves the other broken.
+  const [commanderFlipped, setCommanderFlipped] = useState(false);
   // Partner picker. commanderCard is fetched up-front (not lazily like
   // commanderFull) because whether to OFFER a partner at all depends on the
   // commander's oracle text — the affordance can't wait for a tap.
@@ -426,6 +430,7 @@ export default function ReviewScreen({
 
   async function openCommander() {
     setShowCommander(true);
+    setCommanderFlipped(false); // always open on the front face
     if (commanderFull || !commander?.name) return;
     const card = await getCardData(commander.name);
     setCommanderFull(card ?? undefined);
@@ -1573,15 +1578,46 @@ export default function ReviewScreen({
           }}
         >
           {commanderFull ? (
-            <img
-              src={getCardImage(commanderFull, "normal")}
-              alt={commander?.name}
-              draggable={false}
-              style={{
-                width: "min(88vw, 400px)",
-                borderRadius: "4.75% / 3.5%",
-              }}
-            />
+            // Wrapped so the flip control sits ON the card; the wrapper hugs the
+            // image (inline-flex) rather than filling the overlay.
+            <div style={{ position: "relative", display: "inline-flex" }}>
+              <img
+                src={commanderFlipped
+                  ? getCardImage({ ...commanderFull, image_uris: commanderFull.card_faces?.[1]?.image_uris }, "normal")
+                  : getCardImage(commanderFull, "normal")}
+                alt={commanderFlipped
+                  ? commanderFull.card_faces?.[1]?.name ?? commander?.name
+                  : commander?.name}
+                draggable={false}
+                style={{
+                  width: "min(88vw, 400px)",
+                  borderRadius: "4.75% / 3.5%",
+                }}
+              />
+              {/* Gated on a real back-face IMAGE, so split/adventure cards (one
+                  shared image) don't get a control that appears to do nothing.
+                  stopPropagation is required: the backdrop dismisses on any
+                  click, so without it flipping would close the card instead. */}
+              {Boolean(commanderFull.card_faces?.[1]?.image_uris) && (
+                <button
+                  onClick={e => { e.stopPropagation(); setCommanderFlipped(f => !f); }}
+                  aria-label="Flip commander card"
+                  style={{
+                    position: "absolute", bottom: 16, right: 16, zIndex: 5,
+                    minHeight: 44, minWidth: 44,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "rgba(0,0,0,0.6)",
+                    border: "1px solid rgba(255,255,255,0.2)",
+                    borderRadius: 20,
+                    padding: "6px 14px",
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 12, letterSpacing: "0.1em",
+                    color: "rgba(255,255,255,0.55)",
+                    cursor: "pointer",
+                  }}
+                >flip</button>
+              )}
+            </div>
           ) : (
             <div style={{
               fontFamily: "'Noto Sans Mono', monospace",
