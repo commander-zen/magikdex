@@ -1,18 +1,6 @@
-import { useState, useEffect } from "react";
+import { useState } from "react";
 
 // A double-faced card that turns over in 3D instead of swapping its image.
-//
-// SECOND ATTEMPT. The first (c173b43, reverted in 25f6e93) shipped a dead flip
-// to prod: the card never showed its back. What was wrong is the thing this
-// version is built around — in the canonical CSS flip-card, BOTH faces are
-// absolutely positioned inside a container that has its own size, and the
-// rotating element is absolute too. The first version left the front face in
-// normal flow so it could size an auto-height card, which mixes an in-flow box
-// with an absolute one inside the same preserve-3d context; backface-visibility
-// then had nothing reliable to hide and the front stayed visible at 180°.
-//
-// So the container must be SIZED BY THE CALLER — either it already has a box
-// (the carousel slot) or it gets an aspect-ratio (the commander overlays).
 //
 // HOW IT WORKS: both faces stack, the back pre-rotated 180°, and
 // backface-visibility hides whichever points away. Rotating their shared parent
@@ -20,11 +8,29 @@ import { useState, useEffect } from "react";
 // crossfading two images. Both faces resident also means the back is decoded
 // before the turn starts — a lazily-swapped src would flash blank mid-flip.
 //
-// NOT VERIFIED VISUALLY BY ME: this environment's browser pane does not
-// composite frames, so screenshots fail and even a plain, demonstrably
-// animating control element reports an identity transform. DOM-property checks
-// (transition present, preserve-3d set) are what gave false confidence last
-// time. This needs a real device pass before it goes near main.
+// The container must be SIZED BY THE CALLER, because both faces are absolute
+// and therefore contribute nothing to layout: either the caller already has a
+// box (the carousel slot) or it takes the aspect-ratio default below.
+//
+// ── History, because two attempts failed in ways worth not repeating ─────────
+// 1st (c173b43, reverted 25f6e93) shipped a DEAD flip to prod — the card never
+//   showed its back. It left the front face in normal flow so it could size an
+//   auto-height card, mixing an in-flow box with an absolute one in one
+//   preserve-3d context, and backface-visibility had nothing reliable to hide.
+//   Both faces are absolute now.
+// 2nd replaced backface-visibility with a JS timer that swapped which face was
+//   visible at half the transition's DURATION. Ben on device: "it does a cut, i
+//   can tell at the midpoint the face of the card is just swapping." Half the
+//   duration is not half the ANGLE under an eased curve, so the faces traded
+//   places while the card still faced the viewer. Geometry has to decide the
+//   handover, not a clock — which is precisely what backface-visibility does.
+//
+// Verified on device (Ben, 3rd pass pending): the rotation itself renders. Note
+// that this environment CANNOT confirm that — its browser pane doesn't
+// composite, so even a textbook pure-CSS flip card reports an identity
+// transform and never reveals its back here. Property checks (preserve-3d set,
+// transition present) are what produced false confidence the first time; they
+// are not evidence that anything turns.
 
 // Scryfall's `normal` images are 488x680. Used only as the default box shape
 // for callers with no intrinsic height; object-fit keeps any mismatch letterboxed
@@ -55,32 +61,6 @@ export default function FlipCard({
       : CSS.supports("transform-style", "preserve-3d")
   );
 
-  // FAILSAFE, and the reason this can't ship dead twice. backface-visibility is
-  // what SHOULD hide the away-facing side, but if it doesn't (the first attempt
-  // failed exactly this way) the front stays on top and the flip visibly does
-  // nothing. So which face is visible is ALSO switched outright, halfway through
-  // the turn — where the card is edge-on and the swap can't be seen.
-  //
-  // If 3D works this is redundant. If 3D doesn't, the flip still WORKS; it just
-  // reads as a cut instead of a turn. Worst case ugly, never broken.
-  //
-  // Driven by a TIMER, not `transition: visibility 0s 260ms`. That was the first
-  // shape of this failsafe and it was worse than nothing: it made the swap
-  // depend on the same CSS animation clock the flip already depends on, so
-  // anywhere transitions stall, the computed visibility never advances and the
-  // card is stuck showing its front. A timer shares no machinery with the
-  // animation, which is the entire point of a fallback.
-  //
-  // visibility, not opacity: opacity below 1 is a grouping property that forces
-  // flattening, which is the one thing that would break preserve-3d.
-  const [showBack, setShowBack] = useState(flipped);
-  useEffect(() => {
-    // Always a timer (0ms when motion is reduced) so this never becomes a
-    // synchronous setState in an effect body.
-    const t = setTimeout(() => setShowBack(flipped), reduceMotion ? 0 : 260);
-    return () => clearTimeout(t);
-  }, [flipped, reduceMotion]);
-
   // Single-faced card: no 3D machinery and no second <img>, so the carousel's
   // per-frame cost is unchanged for the vast majority of cards. Placed AFTER
   // every hook above — an early return in front of them would make the hook
@@ -97,14 +77,18 @@ export default function FlipCard({
     );
   }
 
-  // NO backface-visibility, deliberately. It's the usual way to hide the
-  // away-facing side, but it only works if the 3D rotation is actually applied —
-  // and when it isn't, it hides the BACK permanently (the back is pre-rotated
-  // 180°, so it reads as facing away forever) and the flip goes blank. The
-  // timer-driven visibility swap above already hides exactly one face at a
-  // time, which makes backface-visibility redundant AND removes the only way
-  // this can fail closed. The faces are coplanar, so leaving it off also avoids
-  // relying on z-order between two overlapping siblings.
+  // backface-visibility is what hides the away-facing side, and it has to be
+  // this rather than a JS timer swapping which face is visible.
+  //
+  // That timer WAS the previous version, as a hedge against 3D not rendering.
+  // Ben on device: "it does a cut, i can tell at the midpoint the face of the
+  // card is just swapping." The seam was the timer firing at half the DURATION
+  // while the eased rotation was nowhere near half its ANGLE — so the faces
+  // traded places with the card still turned toward the viewer, in full view.
+  // backface-visibility can't have that bug: the browser decides from the real
+  // geometry, so the handover always lands exactly at edge-on where there is
+  // nothing to see. The same device pass also confirmed the rotation itself
+  // works, which is what made the hedge unnecessary.
   const face = {
     position: "absolute",
     top: 0,
@@ -112,6 +96,8 @@ export default function FlipCard({
     width: "100%",
     height: "100%",
     objectFit: "contain",
+    backfaceVisibility: "hidden",
+    WebkitBackfaceVisibility: "hidden",
     ...faceStyle,
   };
 
@@ -135,9 +121,12 @@ export default function FlipCard({
         height: "100%",
         transformStyle: "preserve-3d",
         WebkitTransformStyle: "preserve-3d",
-        // Eases out slower than it starts, which reads as weight rather than a
-        // snap. No bounce — a card doesn't overshoot when you turn it.
-        transition: reduceMotion ? "none" : "transform 520ms cubic-bezier(0.4, 0.12, 0.2, 1)",
+        // Symmetric ease-in-out: accelerate out of rest, decelerate into the
+        // stop, which is how a hand actually turns a card. No bounce — a card
+        // doesn't overshoot. The previous curve put its second control point
+        // BEHIND its first (0.2 after 0.4), so it crawled, lunged through the
+        // middle, then crawled again; that lunge is where the midpoint sat.
+        transition: reduceMotion ? "none" : "transform 460ms cubic-bezier(0.45, 0.05, 0.55, 0.95)",
         transform: flipped ? "rotateY(180deg)" : "rotateY(0deg)",
       }}>
         <img
@@ -145,7 +134,7 @@ export default function FlipCard({
           alt={alt}
           draggable={false}
           onError={onError}
-          style={{ ...face, visibility: showBack ? "hidden" : "visible" }}
+          style={face}
         />
         <img
           src={backSrc}
@@ -156,7 +145,6 @@ export default function FlipCard({
             ...face,
             transform: "rotateY(180deg)",
             WebkitTransform: "rotateY(180deg)",
-            visibility: showBack ? "visible" : "hidden",
           }}
         />
       </div>
