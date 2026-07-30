@@ -32,7 +32,14 @@ export function faceRotation(card, faceIndex = 0) {
   // splits (Fire // Ice), Aftermath (Commit // Memory), and Rooms (Charred
   // Foyer // Warped Space). Scryfall gives them all layout "split" — Aftermath
   // is marked by keywords, Rooms by their type line, neither by layout.
-  if (layout === "split") return 90;
+  //
+  // COUNTER-clockwise, the opposite of a Battle below. Splits are packed into
+  // the upright frame by turning them clockwise, so they come back the other
+  // way; Battles are packed the other direction. Ben, on device, with +90 on
+  // both: "the nonbattle split cards rotate the wrong way" — they landed
+  // upside down while Battles read correctly. The two genuinely differ, so one
+  // shared angle can't serve both.
+  if (layout === "split") return -90;
 
   // Kamigawa flip cards: the lower half is printed upside down. One image, so
   // the face index is irrelevant.
@@ -40,6 +47,7 @@ export function faceRotation(card, faceIndex = 0) {
 
   // Battles are layout "transform" (there is no "battle" layout), which is why
   // they already flip correctly — only their front is printed sideways.
+  // CLOCKWISE, unlike splits above. Confirmed correct on device.
   if (layout === "transform" || layout === "modal_dfc") {
     const type = card.card_faces?.[faceIndex]?.type_line ?? "";
     if (/\bBattle\b/.test(type)) return 90;
