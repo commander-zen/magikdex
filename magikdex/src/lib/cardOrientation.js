@@ -28,18 +28,22 @@ export function faceRotation(card, faceIndex = 0) {
   if (!card) return 0;
   const layout = card.layout;
 
-  // Split covers three printings that all share one sideways image: plain
-  // splits (Fire // Ice), Aftermath (Commit // Memory), and Rooms (Charred
-  // Foyer // Warped Space). Scryfall gives them all layout "split" — Aftermath
-  // is marked by keywords, Rooms by their type line, neither by layout.
+  // Layout "split" covers three DIFFERENTLY ORIENTED printings, which is the
+  // trap here — the layout tells you the image is sideways, never which way.
+  // Established one at a time on device:
+  //   plain splits (Fire // Ice) and Aftermath (Insult // Injury) -> -90
+  //   Rooms (Charred Foyer // Warped Space)                       -> +90
+  // Ben, after splits were flipped to -90: "reverse problem now where rooms
+  // are upside down cause they go the wrong way."
   //
-  // COUNTER-clockwise, the opposite of a Battle below. Splits are packed into
-  // the upright frame by turning them clockwise, so they come back the other
-  // way; Battles are packed the other direction. Ben, on device, with +90 on
-  // both: "the nonbattle split cards rotate the wrong way" — they landed
-  // upside down while Battles read correctly. The two genuinely differ, so one
-  // shared angle can't serve both.
-  if (layout === "split") return -90;
+  // Rooms are told apart by the subtype in their TYPE line, not by name — a
+  // card called "Locker Room" is not a Room, an "Enchantment — Room" is. And
+  // not by layout or keywords: Aftermath carries a keyword, Rooms carry
+  // nothing but this.
+  if (layout === "split") {
+    const type = card.type_line ?? card.card_faces?.[0]?.type_line ?? "";
+    return /\bRoom\b/.test(type) ? 90 : -90;
+  }
 
   // Kamigawa flip cards: the lower half is printed upside down. One image, so
   // the face index is irrelevant.
