@@ -1,4 +1,5 @@
 import { useState } from "react";
+import { rotationTransform } from "../lib/cardOrientation.js";
 
 // A double-faced card that turns over in 3D instead of swapping its image.
 //
@@ -46,6 +47,12 @@ export default function FlipCard({
   onError,
   faceStyle,
   containerStyle,
+  // Degrees to turn each face so its text reads horizontally — 0 for the
+  // overwhelming majority of cards. Per-face because a Battle is sideways on
+  // its front and upright on its back. Callers resolve these from
+  // lib/cardOrientation.js and pass 0 when the reader hasn't asked to rotate.
+  frontRotate = 0,
+  backRotate = 0,
 }) {
   const [reduceMotion] = useState(
     () => typeof matchMedia === "function" &&
@@ -61,18 +68,34 @@ export default function FlipCard({
       : CSS.supports("transform-style", "preserve-3d")
   );
 
+  // Turning a face is its own transition so it reads as a separate gesture from
+  // the flip, and so a rotate on a single-faced card still animates.
+  const turn = deg => ({
+    transform: rotationTransform(deg) ?? undefined,
+    transition: reduceMotion ? "none" : "transform 320ms cubic-bezier(0.45, 0.05, 0.55, 0.95)",
+  });
+
   // Single-faced card: no 3D machinery and no second <img>, so the carousel's
   // per-frame cost is unchanged for the vast majority of cards. Placed AFTER
   // every hook above — an early return in front of them would make the hook
   // order depend on whether a card happens to be double-faced.
+  //
+  // NOTE this is the path split and Kamigawa-flip cards take — they have one
+  // shared image and no back face — so rotation has to be applied here, not
+  // only in the 3D branch below. Those are the two layouts that need it most.
   if (!backSrc || !supports3d) {
+    const showingBack = Boolean(backSrc) && flipped;
     return (
       <img
         src={!backSrc ? frontSrc : (flipped ? backSrc : frontSrc)}
-        alt={flipped && backSrc ? (backAlt ?? alt) : alt}
+        alt={showingBack ? (backAlt ?? alt) : alt}
         draggable={false}
         onError={onError}
-        style={{ ...faceStyle, ...containerStyle }}
+        style={{
+          ...faceStyle,
+          ...containerStyle,
+          ...turn(showingBack ? backRotate : frontRotate),
+        }}
       />
     );
   }
@@ -134,7 +157,7 @@ export default function FlipCard({
           alt={alt}
           draggable={false}
           onError={onError}
-          style={face}
+          style={{ ...face, ...turn(frontRotate) }}
         />
         <img
           src={backSrc}
@@ -143,8 +166,11 @@ export default function FlipCard({
           aria-hidden={!flipped}
           style={{
             ...face,
-            transform: "rotateY(180deg)",
-            WebkitTransform: "rotateY(180deg)",
+            // The pre-rotation that makes this the BACK comes first; any
+            // reading-angle turn composes on top of it.
+            transform: `rotateY(180deg)${rotationTransform(backRotate) ? ` ${rotationTransform(backRotate)}` : ""}`,
+            WebkitTransform: `rotateY(180deg)${rotationTransform(backRotate) ? ` ${rotationTransform(backRotate)}` : ""}`,
+            transition: reduceMotion ? "none" : "transform 320ms cubic-bezier(0.45, 0.05, 0.55, 0.95)",
           }}
         />
       </div>
