@@ -2,6 +2,7 @@ import { useState, useEffect, useRef } from "react";
 import { getCardData, getCardDataBatch, getCardImage } from "../../lib/scryfall.js";
 import WrecBand, { WREC_CHIPS, LABEL_BY_TAG, WrecIcon, WREC_CHIP_COLORS } from "../../components/WrecBand.jsx";
 import PartnerPickerSheet from "../PartnerPickerSheet.jsx";
+import FlipCard from "../FlipCard.jsx";
 import { partnerVariant } from "../../lib/partners.js";
 
 // Change 14 — how far left a decklist row must be dragged to commit a delete.
@@ -1581,18 +1582,18 @@ export default function ReviewScreen({
             // Wrapped so the flip control sits ON the card; the wrapper hugs the
             // image (inline-flex) rather than filling the overlay.
             <div style={{ position: "relative", display: "inline-flex" }}>
-              <img
-                src={commanderFlipped
-                  ? getCardImage({ ...commanderFull, image_uris: commanderFull.card_faces?.[1]?.image_uris }, "normal")
-                  : getCardImage(commanderFull, "normal")}
-                alt={commanderFlipped
-                  ? commanderFull.card_faces?.[1]?.name ?? commander?.name
-                  : commander?.name}
-                draggable={false}
-                style={{
-                  width: "min(88vw, 400px)",
-                  borderRadius: "4.75% / 3.5%",
-                }}
+              <FlipCard
+                frontSrc={getCardImage(commanderFull, "normal")}
+                backSrc={commanderFull.card_faces?.[1]?.image_uris
+                  ? getCardImage({ ...commanderFull, image_uris: commanderFull.card_faces[1].image_uris }, "normal")
+                  : null}
+                alt={commander?.name}
+                backAlt={commanderFull.card_faces?.[1]?.name ?? commander?.name}
+                flipped={commanderFlipped}
+                // Both faces are absolute, so the box needs its own size —
+                // width plus the card aspect FlipCard defaults to.
+                containerStyle={{ width: "min(88vw, 400px)" }}
+                faceStyle={{ borderRadius: "4.75% / 3.5%" }}
               />
               {/* Gated on a real back-face IMAGE, so split/adventure cards (one
                   shared image) don't get a control that appears to do nothing.
