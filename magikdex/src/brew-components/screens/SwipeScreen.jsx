@@ -5,6 +5,7 @@ import { useDoubleTap } from "../../hooks/useDoubleTap.js";
 import { useGameChangers } from "../../hooks/useGameChangers.js";
 import { WREC_CHIPS, WrecIcon, WREC_CHIP_COLORS, LABEL_BY_TAG } from "../../components/WrecBand.jsx";
 import FlipCard from "../FlipCard.jsx";
+import { faceRotation } from "../../lib/cardOrientation.js";
 
 // "Basic" + "Land" (not the literal "Basic Land") so snow basics — type line
 // "Basic Snow Land — Wastes" — count too.
@@ -33,6 +34,21 @@ function haptic(pattern = 10) {
 // Pixel width of a carousel slot — mirrors the cardWidth CSS (min(96vw, 440px))
 // plus the 4px gap between neighboring cards.
 const getCardPx = () => Math.min(window.innerWidth * 0.96, 440) + 4;
+
+// Shared by the rotate/flip pills that sit on the card's bottom-right corner.
+const cardControlStyle = {
+  minHeight: 44, minWidth: 44,
+  display: "flex", alignItems: "center", justifyContent: "center",
+  background: "rgba(0,0,0,0.6)",
+  border: "1px solid rgba(255,255,255,0.2)",
+  borderRadius: 20,
+  padding: "6px 14px",
+  fontFamily: "'Noto Sans Mono', monospace",
+  fontSize: 12, letterSpacing: "0.1em",
+  color: "rgba(255,255,255,0.55)",
+  cursor: "pointer",
+  WebkitTapHighlightColor: "transparent",
+};
 
 export default function SwipeScreen({
   cards, pile, onPileChange,
@@ -97,6 +113,7 @@ export default function SwipeScreen({
   const [searchOpen,   setSearchOpen]   = useState(false);
   const [imgError,     setImgError]     = useState(false);
   const [flipped,      setFlipped]      = useState(false);
+  const [rotated,      setRotated]      = useState(false);
   // UAT 8/9 — how many swipe gestures (browse or decide) this session; the
   // gesture reminder fades for good at 8, when the hands have learned it.
   const [swipeCount,   setSwipeCount]   = useState(0);
@@ -114,8 +131,18 @@ export default function SwipeScreen({
 
   // UAT batch 3, item 3 — only TRUE double-faced cards (a distinct back-face
   // image) get the flip control. Split / aftermath / adventure cards share one
-  // image, so "flip" showed nothing there; they're read by rotating the phone.
+  // image, so "flip" showed nothing there.
   const hasBackFace = Boolean(card?.card_faces?.[1]?.image_uris);
+
+  // Sideways printings (split, Rooms, Aftermath, Kamigawa flips, Battle
+  // fronts) get a rotate control instead. "Read it by turning the phone" is no
+  // longer an answer — the manifest locks the installed PWA to portrait.
+  //
+  // Resolved for the face ACTUALLY ON SCREEN, so the control disappears when a
+  // Battle is flipped to its upright back rather than offering a no-op turn.
+  const frontRotation = faceRotation(card, 0);
+  const backRotation  = faceRotation(card, 1);
+  const canRotate = (flipped ? backRotation : frontRotation) !== 0;
 
   // One quiet line under the commander name (UAT 10): the legend name never
   // repeats itself and the stack counts are gone — "review" names the flip
@@ -147,6 +174,7 @@ export default function SwipeScreen({
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setImgError(false);
     setFlipped(false);
+    setRotated(false);
     clearTimeout(longPressTimerRef.current);
   }, [idx]);
 
@@ -557,6 +585,10 @@ export default function SwipeScreen({
                       alt={c.name}
                       backAlt={c.card_faces?.[1]?.name}
                       flipped={isCurrent && flipped}
+                      // Rotation is opt-in per card, and only the current card
+                      // can be rotated — neighbours are always as-printed.
+                      frontRotate={isCurrent && rotated ? frontRotation : 0}
+                      backRotate={isCurrent && rotated ? backRotation : 0}
                       onError={isCurrent ? () => setImgError(true) : undefined}
                       // This slot is already card-shaped, so it overrides
                       // FlipCard's default aspect-ratio with its real box.
@@ -622,28 +654,32 @@ export default function SwipeScreen({
                   )}
                 </div>
 
-                {/* Flip button — TRUE double-faced cards only (a real back-face
-                    image; item 3). One consistent "flip" label toggling either
-                    direction, not a face-specific FRONT/BACK. ≥44px target. */}
-                {isCurrent && hasBackFace && (
-                  <button
-                    onClick={e => { e.stopPropagation(); setFlipped(f => !f); }}
-                    aria-label="Flip card"
-                    style={{
-                      position: "absolute", bottom: 16, right: 16, zIndex: 5,
-                      minHeight: 44, minWidth: 44,
-                      display: "flex", alignItems: "center", justifyContent: "center",
-                      background: "rgba(0,0,0,0.6)",
-                      border: "1px solid rgba(255,255,255,0.2)",
-                      borderRadius: 20,
-                      padding: "6px 14px",
-                      fontFamily: "'Noto Sans Mono', monospace",
-                      fontSize: 12, letterSpacing: "0.1em",
-                      color: "rgba(255,255,255,0.55)",
-                      cursor: "pointer",
-                      pointerEvents: "auto",
-                    }}
-                  >flip</button>
+                {/* Card controls — a ROW, because a Battle needs both: its
+                    front is printed sideways AND it transforms. Flip is for
+                    TRUE double-faced cards (a real back-face image; item 3);
+                    rotate appears only when the face on screen is actually
+                    turned, so it vanishes on a Battle's upright back. Each
+                    ≥44px. */}
+                {isCurrent && (canRotate || hasBackFace) && (
+                  <div style={{
+                    position: "absolute", bottom: 16, right: 16, zIndex: 5,
+                    display: "flex", gap: 8, pointerEvents: "auto",
+                  }}>
+                    {canRotate && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setRotated(r => !r); }}
+                        aria-label={rotated ? "Restore card orientation" : "Rotate card to read it"}
+                        style={cardControlStyle}
+                      >{rotated ? "reset" : "rotate"}</button>
+                    )}
+                    {hasBackFace && (
+                      <button
+                        onClick={e => { e.stopPropagation(); setFlipped(f => !f); }}
+                        aria-label="Flip card"
+                        style={cardControlStyle}
+                      >flip</button>
+                    )}
+                  </div>
                 )}
               </div>
             );
