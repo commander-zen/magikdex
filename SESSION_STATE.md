@@ -1,5 +1,45 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-07-30 — CARD DISPLAY: 3D flip + rotate for sideways printings. UAT PASSED, ON `main`.
+
+✅ **Double-faced cards turn in 3D** (`FlipCard.jsx`, one component for all three flip sites). ✅ **Sideways printings get a rotate toggle.** Both device-verified by Ben; `dev` and `main` are level at `d2760e2`.
+
+### The orientation table — established BY EYE, one round-trip each
+There is **no field in the Scryfall data that says which way a sideways card was packed.** `layout` tells you the image is rotated, never which direction. This table cost three device corrections and cannot be derived — treat it as measured data:
+
+| Case | Detect | Turn |
+|---|---|---|
+| Plain split (Fire // Ice), Aftermath | `layout: split`, no Room subtype | **-90** |
+| **Room** | `layout: split` + `Room` in **type_line** | **+90** |
+| Battle **front only** | `layout: transform` + `Battle` in face type_line | **+90** |
+| Kamigawa flip | `layout: flip` | **180** (no scale) |
+| transform / MDFC / adventure / normal | — | **0** |
+
+- **Rotation is PER-FACE.** A Battle is sideways on front, upright on back. A card-level flag breaks the back.
+- **Rooms are matched on type_line, never name** — "Bottomless Pool // Locker Room" has Room in its *name*; "Central Elevator // Promising Stairs" is a Room with no "Room" in its name. Name matching fails both ways.
+- `layout: battle` **does not exist** — battles are `transform`, which is why they already flipped.
+- Toggle, not automatic: on Aftermath the top half is already upright, so auto-rotating fixes one half and breaks the other.
+- Quarter turns scale by 488/680 (~72%) to fit an upright box. `-90 % 180` is `-90`, not `0` — the scale branch depends on that.
+- Detection is pure `layout` + `type_line`, both already in `CARD_CACHE_COLS`. **Zero extra Scryfall calls.**
+- Counts: split 126, battle 36, flip 21, meld 21.
+
+### ⚠️ VERIFICATION LIMIT — read before touching anything visual
+**This environment cannot render 3D transforms or complete CSS transitions.** Proven: a textbook pure-CSS flip card, no React involved, reports an identity transform and never reveals its back here. Consequences, both of which already bit:
+1. A dead flip shipped to prod on the strength of DOM-property checks (`preserve-3d` set, `getAnimations()` running). **Those prove nothing renders.** Reverted in `25f6e93`.
+2. A later "I reproduced the bug" claim was also worthless — the same test fails on known-good CSS.
+
+**Anything visual goes to `dev` and waits for Ben's device.** Property checks are necessary, never sufficient.
+
+### Other findings worth keeping
+- **Vercel firewall**: Bot Protection *Inactive*, Custom Rules 0, 8 challenges in a day — all from repeated automated polling of prod after deploys. Real users unaffected. **Don't poll prod from scripts.**
+- **`is:aftermath` and `is:room` are INVALID Scryfall syntax and fail SILENTLY** — the term is dropped and everything matches. A real trap for [OHANA-187](https://linear.app/bnm-ohana/issue/OHANA-187) (Arbiter): a bad filter looks like a working search with wrong results. Valid: `is:split` (= `layout:split`), `t:room`, `is:flip`, `is:meld`, `is:dfc`, `is:transform`, `is:mdfc`, `keyword:aftermath`.
+- Scryfall returns **every** image as 488x680 portrait, for every layout. It never sends a landscape image.
+- `manifest.webmanifest` sets `"orientation": "portrait"` — the installed PWA is orientation-locked, so "turn your phone" is not an available answer.
+
+### 🎯 NEXT — the two pieces left from this thread
+1. **Meld** (21 cards). NOT a rotation problem — Hanweir Battlements renders correctly. The question is "what does it become": `all_parts` → `meld_result`. **`all_parts` is not in `CARD_CACHE_COLS`**, so it needs a live fetch on tap. The meld result must be **view-only** — it is not a legal deck card.
+2. **Rotate in the two commander overlays.** Carousel only so far. Matters for flip-card commanders (Erayo, Soratami Ascendant). Same mechanical change, different code path — needs its own device pass.
+
 ## 2026-07-28 — ALL DECK DATA PURGED (Ben's call). Clean slate for beta.
 
 ✅ **Database is empty of user data.** `deck_card_tags` 745, `deck_cards` 876, `decks` 25, `legends` 31 → all 0. Ben confirmed the full-reset option over the narrower ones: *"wipe away those decks i'm fine with that data purge."* Consistent with his standing position — real decks live in Moxfield, this was test data. Recorded in `021_purge_all_deck_data.sql`. **Reversible** — full snapshot of all four tables at `full-purge-backup-20260728-161534.json` (scratchpad); restore parent→child.
@@ -7,7 +47,7 @@
 - Verified post-purge: app renders BOX EMPTY with **no console errors and no error banner** — i.e. the query genuinely returned zero rather than failing, which is exactly the distinction added earlier today.
 - ⚠️ This supersedes the consolidation in `020` — those 14 legends are gone too. 020 stays in the record because the *ownership* findings still matter.
 
-### ✅ BUILT — frictionless-but-recoverable onboarding ([OHANA-195](https://linear.app/bnm-ohana/issue/OHANA-195)) — `8010448`, **ON `dev`, NOT PROMOTED**
+### ✅ BUILT + PROMOTED — frictionless-but-recoverable onboarding ([OHANA-195](https://linear.app/bnm-ohana/issue/OHANA-195)) — `8010448`, on `main` via `524110e`
 All four gaps closed. New module `src/lib/backupState.js` owns thresholds + the ladder.
 1. **Dismiss is a SNOOZE, not a tombstone** — escalating steps 10/40/75, only the fired rung is silenced. Fixes the old hole where waving it off at 10 cards meant a 99-card deck was never asked again.
 2. **Per-browser, not per-legend** — one anonymous account is one browser; the credential covers the whole box.
