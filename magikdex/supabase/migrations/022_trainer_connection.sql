@@ -2,12 +2,20 @@
 -- Run manually in the Supabase SQL editor (this project's schema lives in the
 -- dashboard; there is no CLI migration history).
 --
--- NOT APPLIED — written for review. Depends on 018_trainer_identity.sql, which
--- is ALSO not yet applied. Apply 018 first.
+-- NOT APPLIED — written for review. Depends on 023_trainer_identity.sql, which
+-- is ALSO not yet applied. Apply 023 first.
+--
+-- ⚠️ 018 IS SUPERSEDED — DO NOT APPLY IT. This file originally targeted 018,
+-- which modelled the identity axis as two free-text columns (play_type,
+-- play_type_secondary). 023 replaces those with identity_mode +
+-- playstyle text[] + favorite_legends text[], so get_trainer_card() and
+-- my_roster() below were rewritten to match. Nothing else changed: the privacy
+-- design in this file (no event log, no public read on trainer_connection, no
+-- mutuality flag, met_context/note owner-only) was already right and stands.
 --
 -- Numbered 022 because 019-021 landed while this thread was paused
 -- (019 partner commanders, 020 legend consolidation, 021 the deck-data purge).
--- 018 remains the only unapplied migration ahead of this one.
+-- 023 is now the only unapplied migration ahead of this one.
 --
 -- Additive. Creates two tables, one enum, four functions, one trigger. Touches
 -- no existing table; 018's `trainer_public` view is deliberately left exactly
@@ -241,8 +249,14 @@ returns table (
   pronouns text,
   bio text,
   home_region text,
-  play_type text,
-  play_type_secondary text,
+  -- identity_mode is declared text, not trainer_identity_mode, so a client
+  -- reading this function never has to know the enum type exists. The cast in
+  -- the body below is explicit for the same reason it is in my_roster(): relying
+  -- on Postgres' assignment-context enum→text I/O coercion works but is a
+  -- subtlety, and a wrong guess here is a create-time error, not a runtime one.
+  identity_mode text,
+  playstyle text[],
+  favorite_legends text[],
   philosophy text[],
   visibility trainer_visibility,
   created_at timestamptz
@@ -259,8 +273,9 @@ as $$
     t.pronouns,
     t.bio,
     t.home_region,
-    t.play_type,
-    t.play_type_secondary,
+    t.identity_mode::text,
+    t.playstyle,
+    t.favorite_legends,
     t.philosophy,
     t.visibility,
     t.created_at
@@ -288,7 +303,13 @@ returns table (
   handle citext,
   display_name text,
   photo_url text,
-  play_type text,
+  -- All three identity columns come back, not just the one identity_mode
+  -- selects. The roster list has to render each card the way its OWNER chose to
+  -- be represented, which is a per-row decision the caller makes from
+  -- identity_mode — so the data for both axes has to be here to make it.
+  identity_mode text,
+  playstyle text[],
+  favorite_legends text[],
   philosophy text[],
   source connection_source,
   first_met_at timestamptz,
@@ -308,7 +329,9 @@ as $$
     case when t.visibility in ('public', 'unlisted') then t.handle end,
     case when t.visibility in ('public', 'unlisted') then t.display_name end,
     case when t.visibility in ('public', 'unlisted') then t.photo_url end,
-    case when t.visibility in ('public', 'unlisted') then t.play_type end,
+    case when t.visibility in ('public', 'unlisted') then t.identity_mode::text end,
+    case when t.visibility in ('public', 'unlisted') then t.playstyle end,
+    case when t.visibility in ('public', 'unlisted') then t.favorite_legends end,
     case when t.visibility in ('public', 'unlisted') then t.philosophy end,
     c.source,
     c.first_met_at,
@@ -325,6 +348,47 @@ $$;
 
 revoke all on function my_roster() from public;
 grant execute on function my_roster() to authenticated;
+
+-- ── roster_count ─────────────────────────────────────────────────────────────
+-- The ONE new piece of public surface. That a connection exists, and how many,
+-- is a trust signal and is safe to publish. WHEN, WHERE, and WHAT WAS NOTED are
+-- not, and none of them are reachable through this function — the return type is
+-- a bare int, which is the enforcement. There is deliberately no companion
+-- function returning handles or names in common: that is a materially larger
+-- privacy surface than a count and stays deferred (see Known gaps #7).
+--
+-- SECURITY DEFINER because trainer_connection has no public read policy and must
+-- not get one. The count is computed here, under the definer's privileges, and
+-- only the integer crosses back out. This is the same shape as get_trainer_card:
+-- a narrow function is the public door, never a relation.
+--
+-- ⚠️ THE GUARD RETURNS 0, NOT NULL. `trainer_is_reachable(p_trainer)` sits in
+-- the WHERE clause, so for a private trainer every row is filtered out and
+-- count(*) over zero rows is 0 — the function is still callable and still
+-- returns a value. This is worth stating plainly because it is easy to misread
+-- as a null/error guard, and the test file asserts the real behaviour.
+--
+-- 0-not-null is the better outcome anyway: a private trainer is
+-- indistinguishable from a public trainer with an empty roster, so the response
+-- leaks nothing about which of the two you are looking at. A null would itself
+-- be the signal "this account is private", which is one bit more than 0 gives
+-- away. Reachable = public OR unlisted, matching trainer_is_reachable's wider
+-- test rather than trainer_is_public.
+create or replace function roster_count(p_trainer uuid)
+returns int
+language sql
+stable
+security definer
+set search_path = public
+as $$
+  select count(*)::int
+  from trainer_connection
+  where trainer_id = p_trainer
+    and trainer_is_reachable(p_trainer);
+$$;
+
+revoke all on function roster_count(uuid) from public;
+grant execute on function roster_count(uuid) to anon, authenticated;
 
 -- ── Indexes ──────────────────────────────────────────────────────────────────
 -- The primary key covers (trainer_id, connected_trainer_id). The reverse
@@ -363,7 +427,22 @@ create index if not exists trainer_block_blocked_idx
 --    trigger, but a block placed while a scan is mid-flight is a last-writer
 --    race — acceptable, since the trigger's delete runs after.
 --
--- 6. This slice ASSUMES 018's open decision #3 resolves as "unlisted is
+-- 6. This slice ASSUMES 023's open decision #3 resolves as "unlisted is
 --    resolvable by handle." get_trainer_card() is that resolution. If Ben
 --    decides unlisted should stay dark, this function and the 'unlisted' arm of
 --    trainer_is_reachable() both narrow to 'public' only.
+--
+-- 7. No "people you both know" list. roster_count() publishes the SIZE of a
+--    roster and nothing about its membership. Names or handles in common is a
+--    much larger privacy surface — it leaks who is on someone else's roster,
+--    which is the object this whole file keeps private — so it is withheld on
+--    the same doctrine as the mutuality flag in #3.
+--
+-- 8. roster_count() TAKES A uuid THAT NO PUBLIC SURFACE HANDS OUT. trainer_public
+--    exposes no id (023's gap #2) and get_trainer_card() does not return one
+--    either, so an anonymous caller who only knows a handle cannot reach this
+--    function — it is currently callable in principle and unreachable in
+--    practice. Whatever resolves 023 #2 (add id to the view, or return it from
+--    get_trainer_card) also lights this up, which is precisely why that decision
+--    should be made deliberately rather than as a convenience: the id is the
+--    join key for every public read that follows.

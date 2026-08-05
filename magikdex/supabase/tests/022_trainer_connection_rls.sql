@@ -2,18 +2,22 @@
 --
 -- HOW TO RUN. Paste the whole file into the Supabase SQL editor and execute it
 -- as one batch. It opens a transaction, seeds fixtures, asserts, and ROLLS
--- BACK. Both 018_trainer_identity.sql and 022_trainer_connection.sql must
--- already be applied.
+-- BACK. Both 023_trainer_identity.sql and 022_trainer_connection.sql must
+-- already be applied, in that order. NOT 018 — it is superseded.
 --
--- Same approach as 018's test file: pgTAP, role-switched with `set local role`,
+-- Same approach as 023's test file: pgTAP, role-switched with `set local role`,
 -- nothing persisted. Output is TAP — every line should start `ok`.
+--
+-- Assertions 1-13 are the original connection/block/unlisted coverage. 14-22
+-- were added with the 023 identity rewrite: they cover roster_count() and prove
+-- get_trainer_card() / my_roster() actually return the new identity columns.
 
 begin;
 
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(13);
+select plan(22);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 -- Seeded as the session superuser, which bypasses RLS.
@@ -34,12 +38,24 @@ select
   '', now(), now(), now()
 from generate_series(1, 5) as i;
 
-insert into trainer (id, handle, display_name, visibility) values
-  ('11111111-1111-1111-1111-111111111111', 'a_public',   'Trainer A', 'public'),
-  ('22222222-2222-2222-2222-222222222222', 'b_public',   'Trainer B', 'public'),
-  ('33333333-3333-3333-3333-333333333333', 'c_unlisted', 'Trainer C', 'unlisted'),
-  ('44444444-4444-4444-4444-444444444444', 'd_private',  'Trainer D', 'private'),
-  ('55555555-5555-5555-5555-555555555555', 'e_public',   'Trainer E', 'public');
+-- B and C carry real identity data on BOTH axes, with opposite identity_mode
+-- values, so the function tests at 20-21 assert against something meaningful
+-- rather than against the '{}' defaults. C is deliberately the 'legends' one:
+-- it is also the unlisted trainer, so one fixture covers both cases.
+insert into trainer
+  (id, handle, display_name, visibility, identity_mode, playstyle, favorite_legends)
+values
+  ('11111111-1111-1111-1111-111111111111', 'a_public',   'Trainer A', 'public',
+   'playstyle', '{}', '{}'),
+  ('22222222-2222-2222-2222-222222222222', 'b_public',   'Trainer B', 'public',
+   'playstyle', array['tokens', 'aristocrats'], array['Prossh, Skyraider of Kher']),
+  ('33333333-3333-3333-3333-333333333333', 'c_unlisted', 'Trainer C', 'unlisted',
+   'legends', array['stax'],
+   array['Kinnan, Bonder Prodigy', 'Najeela, the Blade-Blossom']),
+  ('44444444-4444-4444-4444-444444444444', 'd_private',  'Trainer D', 'private',
+   'playstyle', array['chaos'], '{}'),
+  ('55555555-5555-5555-5555-555555555555', 'e_public',   'Trainer E', 'public',
+   'playstyle', '{}', '{}');
 
 -- ── Anonymous ────────────────────────────────────────────────────────────────
 set local role anon;
@@ -202,6 +218,125 @@ select results_eq(
 select is_empty(
   $$ select handle from trainer_public where handle = 'c_unlisted' $$,
   '13. trainer_public still does NOT list the unlisted trainer'
+);
+
+-- ── roster_count ─────────────────────────────────────────────────────────────
+-- Extra fixtures, seeded as superuser so RLS does not filter them: the PRIVATE
+-- trainer D gets a real roster row. That is the whole point — asserting 0 for a
+-- trainer who has nothing proves nothing, so D must actually have a connection
+-- for the reachability guard to be the thing suppressing it.
+reset role;
+
+insert into trainer_connection (trainer_id, connected_trainer_id) values
+  ('44444444-4444-4444-4444-444444444444', '22222222-2222-2222-2222-222222222222'),
+  ('33333333-3333-3333-3333-333333333333', '22222222-2222-2222-2222-222222222222');
+
+-- State at this point: A → {B, C} = 2 (A→E was severed by E's block at 10).
+--                      C → {B}    = 1
+--                      D → {B}    = 1 row, but D is private.
+
+set local role anon;
+
+-- 14. The count is public surface, callable by anon, and correct.
+select is(
+  roster_count('11111111-1111-1111-1111-111111111111'),
+  2,
+  '14. roster_count returns the correct count for a PUBLIC trainer'
+);
+
+-- 15. ⚠️ THE GUARD RETURNS 0, NOT NULL, AND IS NOT AN ERROR. D has a real
+--     connection row; trainer_is_reachable sits in the WHERE, so the row is
+--     filtered and count(*) over an empty set is 0. This assertion is the
+--     answer to "confirm which behaviour the guard actually produces".
+select is(
+  roster_count('44444444-4444-4444-4444-444444444444'),
+  0,
+  '15. roster_count returns 0 for a PRIVATE trainer who DOES have connections'
+);
+
+-- 16. Stated separately because 0 and NULL are different leaks. 0 makes a
+--     private trainer indistinguishable from a public trainer with an empty
+--     roster; NULL would itself announce "this account is private", which is one
+--     bit more than the count is allowed to give away.
+--     Written as ok(... is not null) rather than isnt(..., null): a bare NULL
+--     gives pgTAP's polymorphic isnt() no type to resolve against.
+select ok(
+  roster_count('44444444-4444-4444-4444-444444444444') is not null,
+  '16. roster_count for a PRIVATE trainer is 0, not null (no privacy tell)'
+);
+
+-- 17. Reachable is public OR unlisted — the wider test, matching
+--     get_trainer_card's posture rather than trainer_is_public's.
+select is(
+  roster_count('33333333-3333-3333-3333-333333333333'),
+  1,
+  '17. roster_count works for an UNLISTED trainer'
+);
+
+-- 18-19. The return type IS the privacy enforcement: a bare scalar int cannot
+--        carry met_context, note, first_met_at or last_met_at no matter how the
+--        body is later edited. Asserted against the installed catalog, not the
+--        source file, so widening the signature breaks a test.
+select is(
+  pg_get_function_result('roster_count(uuid)'::regprocedure),
+  'integer',
+  '18. roster_count''s signature is exactly `returns int` — nothing wider'
+);
+
+select is_empty(
+  $$ select p.proname from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public' and p.proname = 'roster_count'
+       and (p.proretset or p.prorettype <> 'int4'::regtype) $$,
+  '19. roster_count returns a single scalar, not a set or a composite row'
+);
+
+-- ── The 023 identity rewrite ─────────────────────────────────────────────────
+
+-- 20. get_trainer_card carries the new columns. C is 'legends' mode and holds
+--     data on both axes — both come back, because which one RENDERS is the
+--     caller's decision from identity_mode, not the database's.
+select results_eq(
+  $$ select identity_mode, playstyle, favorite_legends
+     from get_trainer_card('c_unlisted'::citext) $$,
+  $$ values ('legends'::text,
+             array['stax'],
+             array['Kinnan, Bonder Prodigy', 'Najeela, the Blade-Blossom']) $$,
+  '20. get_trainer_card returns identity_mode, playstyle and favorite_legends'
+);
+
+-- 21. Same for the roster read model, as A, whose roster is {B, C} — one trainer
+--     in each identity_mode, so this also proves the pass-through is per row.
+reset role;
+set local role authenticated;
+set local request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
+set local request.jwt.claims =
+  '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
+
+select results_eq(
+  $$ select handle::text, identity_mode, playstyle, favorite_legends
+     from my_roster() order by handle $$,
+  $$ values ('b_public'::text, 'playstyle'::text,
+             array['tokens', 'aristocrats'],
+             array['Prossh, Skyraider of Kher']),
+            ('c_unlisted'::text, 'legends'::text,
+             array['stax'],
+             array['Kinnan, Bonder Prodigy', 'Najeela, the Blade-Blossom']) $$,
+  '21. my_roster returns identity_mode, playstyle and favorite_legends per row'
+);
+
+-- 22. No stragglers. Checks the INSTALLED function bodies rather than the file,
+--     so it catches a stale definition left behind in the database by an earlier
+--     apply of the 018-era version — which grep over the repo cannot see.
+reset role;
+
+select is_empty(
+  $$ select p.proname from pg_proc p
+     join pg_namespace n on n.oid = p.pronamespace
+     where n.nspname = 'public'
+       and p.proname in ('get_trainer_card', 'my_roster', 'roster_count')
+       and pg_get_functiondef(p.oid) like '%play_type%' $$,
+  '22. no 022 function references play_type any more'
 );
 
 select * from finish();
