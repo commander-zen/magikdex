@@ -1,5 +1,35 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-05 (latest) — 🔓 BASELINE CAPTURED. `001_baseline.sql` written. Two LIVE security findings.
+
+The root cause behind every "unverified text" complaint today is fixed at the source: **the repo now describes its own schema.** Introspected the live project via `pg_catalog` from the dashboard, squashed into `001_baseline.sql`.
+
+### 🔎 The service key IS useful — for introspection
+`SUPABASE_SERVICE_KEY` can't run SQL (it's a PostgREST key), but `GET /rest/v1/` returns a full **OpenAPI spec**: every exposed table, column, type, PK and FK. Zero new credentials. That alone proved **`trainer` does not exist** (so neither 018 nor 023 is applied — the prerequisite question, answered by evidence instead of three paragraphs of reasoning) and **confirmed `decks.id` is a uuid PK**, which had only been inferred from migration files.
+
+### 🔎 The gap was 2 tables, not the whole schema
+Six of eight live tables DO have create-table DDL (002, 006, 007, 009, 011). Only **`decks` and `deck_cards`** were missing — dashboard-created, never in version control. Small gap, but load-bearing: `decks` is what every later migration ALTERs, so `supabase db reset` died on line 13 of 002 and **no migration in this project has ever been replayed or tested.**
+
+### ⚠️ 001 IS A SQUASH — 002-022 must be ARCHIVED, not replayed
+Reconstructing June's original `decks` shape is guesswork (002 also drops NOT NULL on url/platform), so 001 is *current* state. That means 002-022 are history: move them to `supabase/migrations/archive/` before any `db reset`. Most are `if not exists` no-ops, but **008 (`add constraint`), 019, 020 and 021 are NOT idempotent — 021 is a data purge.** Replay order becomes: `001` → trainer migration → nothing.
+
+### ⚠️ 001 IS INCOMPLETE — FUNCTIONS NOT DUMPED
+The query covered types/tables/constraints/indexes/RLS/policies/grants/triggers but **not functions**. `tag_stack` and `brew_stack` are live RPCs from 010/012/015. **Archiving those migrations before dumping the functions loses them.** Dump-and-append is the next step, and it blocks archiving.
+
+### 🚨 FINDING 1 — any authenticated user can rewrite the entire card cache. LIVE.
+`cards_update` is `for update to authenticated using (true) with check (true)` — **no ownership predicate.** Any of the ~85 accounts can overwrite any row in `cards`: names, oracle text, images, legality. `cards_insert` is the same shape. Reachable through the REST API today with nothing but a signed-in session. Probably deliberate (client fills cache on demand) but the blast radius is *one user corrupts the card DB for everyone* — and the ingest scripts already use the service key, so the client write may be unnecessary.
+
+### 🚨 FINDING 2 — `truncate` is granted to `anon` on every table, and RLS does not filter it
+RLS applies to SELECT/INSERT/UPDATE/DELETE only. **TRUNCATE is checked against table privileges alone**, so no policy stands between `anon` and an empty table. **Not currently exploitable** — PostgREST exposes no TRUNCATE verb and the only RPCs are `tag_stack`/`brew_stack`. A loaded gun with no trigger attached; the trigger would be any future `security definer` function taking caller-supplied SQL. `revoke truncate … from anon, authenticated;` costs nothing.
+
+Both findings are reproduced faithfully in 001 rather than fixed — **a baseline that differs from production defeats its purpose.** Fixes belong in one follow-up migration.
+
+### 🎯 NEXT
+1. **Dump functions, append to 001.** Blocks everything else.
+2. Archive 002-022 → `supabase/migrations/archive/`.
+3. Docker + CLI → `supabase db reset` → the 38 trainer assertions finally execute.
+4. Separate migration for findings 1 and 2. Not urgent, not optional.
+
 ## 2026-08-05 (later) — `022` REALIGNED TO `023` + `roster_count()`. NOT APPLIED, NOT RUN.
 
 Closed the 022-breaks-on-023 issue flagged earlier today. ✅ `get_trainer_card()` and `my_roster()` now return `identity_mode` / `playstyle` / `favorite_legends`; ✅ new `roster_count(uuid)`; ✅ 022's header no longer tells you to apply 018; ✅ test file 13 → 22 assertions. **022's privacy design untouched** — no public read on `trainer_connection`, no mutuality flag, no event log, `met_context`/`note`/timestamps still owner-only.
