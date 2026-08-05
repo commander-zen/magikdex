@@ -26,11 +26,10 @@
 -- After archiving, the replay order is:
 --   001_baseline.sql  →  the trainer migration  →  nothing else.
 --
--- ⚠️ INCOMPLETE: FUNCTIONS ARE NOT IN HERE. The introspection query covered
--- types, tables, constraints, indexes, RLS, policies, grants and triggers — but
--- not functions. `tag_stack` and `brew_stack` are live RPCs created by 010/012/
--- 015, and archiving those migrations without dumping the functions first would
--- lose them. Dump functions and append before archiving anything.
+-- COMPLETE as of the second introspection pass: types, tables, constraints,
+-- indexes, functions, RLS, policies, grants. There are NO triggers on any table
+-- in this schema — the trigger section of the dump came back empty, which is
+-- consistent with `prokind = 'f'` returning no trigger functions either.
 --
 -- ⚠️ Two live security findings are recorded at the foot of this file. They are
 -- reproduced faithfully here rather than fixed — a baseline that differs from
@@ -212,6 +211,126 @@ create index if not exists deck_cards_deck_id_idx on public.deck_cards using btr
 create index if not exists decks_user_idx on public.decks using btree (user_id);
 create index if not exists legends_user_idx on public.legends using btree (user_id);
 
+-- ── Functions ────────────────────────────────────────────────────────────────
+-- The two RPCs the client calls (010/012/015). Placed after the tables because
+-- `language sql` bodies are parsed and validated at CREATE time — unlike
+-- plpgsql, these cannot be created ahead of the relations they reference.
+--
+-- Both are SECURITY INVOKER (the default — neither declares SECURITY DEFINER),
+-- so they read `cards` / `card_tags` / `deck_cards` under the CALLER's RLS. That
+-- is why the `p_deck_id` exclusion is safe: a caller cannot use it to probe
+-- someone else's deck contents, because `deck_cards_own` filters the subquery
+-- for them. See finding #4 for the trap this creates if that ever changes.
+
+CREATE OR REPLACE FUNCTION public.brew_stack(p_legend_oracle_id text, p_color_identity text[], p_deck_id uuid DEFAULT NULL::uuid, p_exclude_lands boolean DEFAULT true, p_limit integer DEFAULT 400)
+ RETURNS TABLE(oracle_id text, scryfall_id text, name text, type_line text, oracle_text text, mana_cost text, cmc numeric, color_identity text[], layout text, card_faces jsonb, image_normal text, art_crop text, edhrec_rank integer, matched_tags text[], synergy numeric, theme_boost integer)
+ LANGUAGE sql
+ STABLE
+AS $function$
+  with themes as (
+    select lt.theme_slug as otag, (5 - lt.rank)::int as boost
+    from legend_themes lt
+    where lt.legend_oracle_id = p_legend_oracle_id and lt.rank < 5
+    union all
+    select a.otag, (5 - lt.rank)::int
+    from legend_themes lt
+    join (values
+      ('burn',                  'synergy-burn'),
+      ('tokens',                'repeatable-token-generator'),
+      ('aristocrats',           'sacrifice-outlet'),
+      ('card-draw',             'card-advantage'),
+      ('reanimator',            'reanimate'),
+      ('spell-copy',            'copy'),
+      ('clones',                'clone'),
+      ('wheels',                'wheel'),
+      ('anthems',               'anthem'),
+      ('counterspells',         'counterspell'),
+      ('extra-combats',         'extra-combat'),
+      ('extra-turns',           'extra-turn'),
+      ('plus-1-plus-1-counters','counters-matter')
+    ) as a(theme_slug, otag) on a.theme_slug = lt.theme_slug
+    where lt.legend_oracle_id = p_legend_oracle_id and lt.rank < 5
+  ),
+  legend_tags as (
+    select ct.tag from card_tags ct
+    where ct.oracle_id = p_legend_oracle_id
+      and ct.source = 'tagger-card-page'
+    union
+    select t.otag from themes t
+  ),
+  tag_matches as (
+    select ct.oracle_id,
+           array_agg(ct.tag order by ct.tag) as matched_tags,
+           max(t.boost) as theme_boost
+    from card_tags ct
+    join legend_tags lt on lt.tag = ct.tag
+    left join themes t on t.otag = ct.tag
+    group by ct.oracle_id
+  ),
+  syn as (
+    select ls.name_lower, ls.synergy
+    from legend_synergy ls
+    where ls.legend_oracle_id = p_legend_oracle_id
+  )
+  select c.oracle_id, c.scryfall_id, c.name, c.type_line, c.oracle_text,
+         c.mana_cost, c.cmc, c.color_identity, c.layout, c.card_faces,
+         c.image_normal, c.art_crop, c.edhrec_rank, m.matched_tags, s.synergy,
+         m.theme_boost
+  from cards c
+  left join tag_matches m on m.oracle_id = c.oracle_id
+  left join syn s on s.name_lower = c.name_lower
+  where (m.oracle_id is not null or s.name_lower is not null)
+    and c.color_identity <@ p_color_identity
+    and coalesce(c.legal_commander, false)
+    and coalesce(c.layout, '') not in ('token', 'double_faced_token', 'emblem', 'art_series')
+    and c.oracle_id <> p_legend_oracle_id
+    and (not p_exclude_lands or c.type_line !~* '\yland\y')
+    and (p_deck_id is null or not exists (
+      select 1 from deck_cards dc
+      where dc.deck_id = p_deck_id and dc.card_name = c.name
+    ))
+  order by s.synergy desc nulls last, m.theme_boost desc nulls last,
+           c.edhrec_rank asc nulls last, c.name
+  limit p_limit;
+$function$;
+
+CREATE OR REPLACE FUNCTION public.tag_stack(p_tags text[], p_color_identity text[], p_deck_id uuid DEFAULT NULL::uuid, p_exclude_lands boolean DEFAULT true, p_limit integer DEFAULT 400)
+ RETURNS TABLE(oracle_id text, scryfall_id text, name text, type_line text, oracle_text text, mana_cost text, cmc numeric, color_identity text[], layout text, card_faces jsonb, image_normal text, art_crop text, edhrec_rank integer, matched_tags text[])
+ LANGUAGE sql
+ STABLE
+AS $function$
+  with tag_matches as (
+    select ct.oracle_id, array_agg(ct.tag order by ct.tag) as matched_tags
+    from card_tags ct
+    where ct.tag = any(p_tags)
+    group by ct.oracle_id
+  )
+  select c.oracle_id, c.scryfall_id, c.name, c.type_line, c.oracle_text,
+         c.mana_cost, c.cmc, c.color_identity, c.layout, c.card_faces,
+         c.image_normal, c.art_crop, c.edhrec_rank, m.matched_tags
+  from cards c
+  join tag_matches m on m.oracle_id = c.oracle_id
+  where c.color_identity <@ p_color_identity
+    and coalesce(c.legal_commander, false)
+    and coalesce(c.layout, '') not in ('token', 'double_faced_token', 'emblem', 'art_series')
+    and (not p_exclude_lands or c.type_line !~* '\yland\y')
+    and (p_deck_id is null or not exists (
+      select 1 from deck_cards dc
+      where dc.deck_id = p_deck_id and dc.card_name = c.name
+    ))
+  order by c.edhrec_rank asc nulls last, c.name
+  limit p_limit;
+$function$;
+
+-- Both are called as PostgREST RPCs from the client, so anon and authenticated
+-- need EXECUTE. Stated explicitly rather than leaning on Postgres' default of
+-- granting EXECUTE to PUBLIC, so the baseline replays identically on a database
+-- where that default has been tightened.
+grant execute on function
+  public.brew_stack(text, text[], uuid, boolean, integer) to anon, authenticated, service_role;
+grant execute on function
+  public.tag_stack(text[], text[], uuid, boolean, integer) to anon, authenticated, service_role;
+
 -- ── Row level security ───────────────────────────────────────────────────────
 alter table public.card_tags      enable row level security;
 alter table public.cards          enable row level security;
@@ -313,7 +432,25 @@ grant select, insert, update, delete, truncate, references, trigger
 --    costs nothing and is not in this file because a baseline must match
 --    production. Put it in the same follow-up as #1.
 --
--- 3. `decks` AND `deck_cards` WERE THE ONLY MISSING TABLES. Six of the eight
+-- 4. NEITHER RPC PINS ITS search_path, AND BOTH REFERENCE TABLES UNQUALIFIED.
+--    `brew_stack` and `tag_stack` read `cards`, `card_tags`, `legend_themes`,
+--    `legend_synergy` and `deck_cards` with no schema qualification and no
+--    `set search_path`.
+--
+--    HARMLESS TODAY: both are SECURITY INVOKER, so a caller who redirects the
+--    search_path only redirects it to tables they already have their own
+--    privileges on — they gain nothing.
+--
+--    IT BECOMES A VULNERABILITY THE MOMENT EITHER IS MADE SECURITY DEFINER,
+--    which is a one-word edit someone could plausibly make to "fix" a
+--    permissions problem. At that point an unqualified reference under an
+--    attacker-controlled search_path executes the definer's privileges against
+--    the attacker's tables. The trainer migrations already pin search_path on
+--    every definer function, so the pattern is established in this repo — these
+--    two predate it and are the outliers. Add `set search_path = public` to
+--    both; it is free and it removes the trap rather than documenting it.
+--
+-- 5. `decks` AND `deck_cards` WERE THE ONLY MISSING TABLES. Six of the eight
 --    live tables do have create-table DDL in the repo (002, 006, 007, 009, 011).
 --    The gap was small; it was just load-bearing, since `decks` is what every
 --    later migration alters and what `party_slot` was going to reference.

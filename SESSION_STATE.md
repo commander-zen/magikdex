@@ -13,8 +13,8 @@ Six of eight live tables DO have create-table DDL (002, 006, 007, 009, 011). Onl
 ### ⚠️ 001 IS A SQUASH — 002-022 must be ARCHIVED, not replayed
 Reconstructing June's original `decks` shape is guesswork (002 also drops NOT NULL on url/platform), so 001 is *current* state. That means 002-022 are history: move them to `supabase/migrations/archive/` before any `db reset`. Most are `if not exists` no-ops, but **008 (`add constraint`), 019, 020 and 021 are NOT idempotent — 021 is a data purge.** Replay order becomes: `001` → trainer migration → nothing.
 
-### ⚠️ 001 IS INCOMPLETE — FUNCTIONS NOT DUMPED
-The query covered types/tables/constraints/indexes/RLS/policies/grants/triggers but **not functions**. `tag_stack` and `brew_stack` are live RPCs from 010/012/015. **Archiving those migrations before dumping the functions loses them.** Dump-and-append is the next step, and it blocks archiving.
+### ✅ 001 IS NOW COMPLETE — functions appended
+`brew_stack` and `tag_stack` dumped and appended, with explicit EXECUTE grants. Both are `language sql`, `STABLE`, **SECURITY INVOKER** — they read under the caller's RLS, which is what makes their `p_deck_id` exclusion safe (you can't probe another user's deck; `deck_cards_own` filters the subquery for you). **No triggers exist** on any table in this schema — confirmed by both dump passes. Archiving 002-022 is now unblocked.
 
 ### 🚨 FINDING 1 — any authenticated user can rewrite the entire card cache. LIVE.
 `cards_update` is `for update to authenticated using (true) with check (true)` — **no ownership predicate.** Any of the ~85 accounts can overwrite any row in `cards`: names, oracle text, images, legality. `cards_insert` is the same shape. Reachable through the REST API today with nothing but a signed-in session. Probably deliberate (client fills cache on demand) but the blast radius is *one user corrupts the card DB for everyone* — and the ingest scripts already use the service key, so the client write may be unnecessary.
@@ -22,13 +22,15 @@ The query covered types/tables/constraints/indexes/RLS/policies/grants/triggers 
 ### 🚨 FINDING 2 — `truncate` is granted to `anon` on every table, and RLS does not filter it
 RLS applies to SELECT/INSERT/UPDATE/DELETE only. **TRUNCATE is checked against table privileges alone**, so no policy stands between `anon` and an empty table. **Not currently exploitable** — PostgREST exposes no TRUNCATE verb and the only RPCs are `tag_stack`/`brew_stack`. A loaded gun with no trigger attached; the trigger would be any future `security definer` function taking caller-supplied SQL. `revoke truncate … from anon, authenticated;` costs nothing.
 
-Both findings are reproduced faithfully in 001 rather than fixed — **a baseline that differs from production defeats its purpose.** Fixes belong in one follow-up migration.
+### ⚠️ FINDING 3 — neither RPC pins `search_path`, both reference tables unqualified
+`brew_stack` / `tag_stack` read `cards`, `card_tags`, `legend_themes`, `legend_synergy`, `deck_cards` with no schema qualification and no `set search_path`. **Harmless today** — SECURITY INVOKER means redirecting the search_path only points you at tables you already have privileges on. **It becomes a real vulnerability the moment either is made SECURITY DEFINER**, which is a one-word edit someone might plausibly make to "fix" a permissions problem. The trainer migrations already pin search_path on every definer function, so the pattern exists in this repo — these two predate it. `set search_path = public` on both is free.
+
+All three findings are reproduced faithfully in 001 rather than fixed — **a baseline that differs from production defeats its purpose.** Fixes belong in one follow-up migration.
 
 ### 🎯 NEXT
-1. **Dump functions, append to 001.** Blocks everything else.
-2. Archive 002-022 → `supabase/migrations/archive/`.
-3. Docker + CLI → `supabase db reset` → the 38 trainer assertions finally execute.
-4. Separate migration for findings 1 and 2. Not urgent, not optional.
+1. Archive 002-022 → `supabase/migrations/archive/`. **Now unblocked.**
+2. Docker + CLI → `supabase db reset` → the 38 trainer assertions finally execute.
+3. One follow-up migration for findings 1-3. Not urgent, not optional.
 
 ## 2026-08-05 (later) — `022` REALIGNED TO `023` + `roster_count()`. NOT APPLIED, NOT RUN.
 
