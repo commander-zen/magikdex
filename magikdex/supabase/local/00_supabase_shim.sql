@@ -121,6 +121,24 @@ as $$
   )::uuid;
 $$;
 
+-- The whole verified claim set, not just one field. Needed by any policy that
+-- reads a claim without a dedicated helper — `is_anonymous` being the one that
+-- matters here (028), since an anonymous Supabase session carries the
+-- `authenticated` ROLE and is distinguishable ONLY by this claim.
+--
+-- Returns jsonb so `auth.jwt() ->> 'is_anonymous'` works exactly as upstream.
+-- Both GUC spellings are checked for the same reason auth.uid() checks both.
+create or replace function auth.jwt()
+returns jsonb
+language sql
+stable
+as $$
+  select coalesce(
+    nullif(current_setting('request.jwt.claim', true), ''),
+    nullif(current_setting('request.jwt.claims', true), '')
+  )::jsonb;
+$$;
+
 create or replace function auth.role()
 returns text
 language sql
@@ -144,6 +162,7 @@ as $$
 $$;
 
 grant execute on function auth.uid()   to anon, authenticated, service_role;
+grant execute on function auth.jwt()   to anon, authenticated, service_role;
 grant execute on function auth.role()  to anon, authenticated, service_role;
 grant execute on function auth.email() to anon, authenticated, service_role;
 
