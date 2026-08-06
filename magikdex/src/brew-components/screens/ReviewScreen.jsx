@@ -334,6 +334,12 @@ export default function ReviewScreen({
       // Maybeboard rows aren't in that carousel, so they keep the inline
       // expander (their only tag + move-to-mainboard path).
       if (sectionKey === "decklist" && onHand) {
+        // orderedDeckNames is declared further down, but this is a TAP handler:
+        // it runs on user interaction, long after the component body has finished
+        // executing, so the binding is always initialised by the time we get
+        // here. Unlike the commanderFull case below, which ran during render and
+        // crashed the whole app.
+        // eslint-disable-next-line no-use-before-define
         onHand(orderedDeckNames(), name);
       } else {
         setExpandedKey(k => (k === key ? null : key));
@@ -366,17 +372,28 @@ export default function ReviewScreen({
   // printing (Erayo, Soratami Ascendant is a Kamigawa flip card), and this
   // overlay is a separate implementation, so it needs them explicitly.
   const [commanderRotated, setCommanderRotated] = useState(false);
-  const commanderHasBack  = Boolean(commanderFull?.card_faces?.[1]?.image_uris);
-  const commanderFrontRot = faceRotation(commanderFull, 0);
-  const commanderBackRot  = faceRotation(commanderFull, 1);
-  const commanderCanRotate =
-    (commanderFlipped ? commanderBackRot : commanderFrontRot) !== 0;
   // Partner picker. commanderCard is fetched up-front (not lazily like
   // commanderFull) because whether to OFFER a partner at all depends on the
   // commander's oracle text — the affordance can't wait for a tap.
   const [partnerOpen, setPartnerOpen] = useState(false);
   const [commanderCard, setCommanderCard] = useState(null);
   const [commanderFull, setCommanderFull] = useState(null);
+
+  // ⚠️ THESE MUST STAY BELOW the useState above. They read commanderFull, and
+  // `const` bindings are in the temporal dead zone until their declaration runs
+  // — so with these placed first, every mount of this screen threw
+  // "Cannot access 'commanderFull' before initialization" and React unmounted
+  // the whole tree. That is a BLACK SCREEN, not a broken panel, and because
+  // App.jsx restores a persisted brew session on load it reproduced on every
+  // reload for anyone whose last session was in Review.
+  //
+  // It shipped because this screen only mounts once you have a deck open, and
+  // it was never exercised on a device before release.
+  const commanderHasBack  = Boolean(commanderFull?.card_faces?.[1]?.image_uris);
+  const commanderFrontRot = faceRotation(commanderFull, 0);
+  const commanderBackRot  = faceRotation(commanderFull, 1);
+  const commanderCanRotate =
+    (commanderFlipped ? commanderBackRot : commanderFrontRot) !== 0;
   // Change 1 — the "add cards" search bar. Submitting hands the query to the
   // parent, which builds a search-derived swipe stack and switches to the swipe
   // view (unmounting this screen); only a rejected query (too short / everything
