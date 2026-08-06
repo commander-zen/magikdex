@@ -1,5 +1,49 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-06 (midday) — ✅ 027 HANDLE LIFECYCLE + REPEATABLE RUNNER. Suite 66/66.
+
+```bash
+bash supabase/local/run-tests.sh          # or: run-tests.sh 027
+```
+Drops and recreates the local database, replays every migration in filename order, runs every test file, prints **only** failures. **Rebuilding each run is the point — a suite run against a hand-poked database tests the poking, not the migrations.** ~4 seconds.
+
+```
+001_baseline → 024_harden_privileges → 025_trainer_identity → 026_trainer_connection → 027_handle_lifecycle
+024: 9 ok   025: 21 ok   026: 24 ok   027: 12 ok   → 66 assertions, 0 failed
+```
+
+### 🔎 THE DEAD FEATURE — worth learning to spot
+`handle_reservation` has carried `reason IN ('reserved','released')` and `released_from uuid` **since the first draft, with no writer anywhere in the schema.** The seed only ever inserts `'reserved'`. So the mechanism that stops a stranger re-registering `@ben` ten minutes after Ben renames was **schema with no behaviour behind it** — and two migrations plus a full test suite went by without noticing, because reading the table tells you what was *meant*.
+
+**A column whose only reader is a CHECK constraint is a design intention, not a feature.** It reads as finished. Nothing enforces that anyone built it.
+
+### 027 closes two gaps with one trigger
+Both are answers to *"what happens on rename"*, which is why they're one migration:
+- **Rate limit: one change per 30 days.** `handle_changed_at` is **NULL** on a new profile, not `now()` — a `now()` default would start every signup inside its own cooldown, locking anyone who typo'd their handle out of fixing it for a month (asserted, 027-1).
+- **Release on rename.** The old handle goes into `handle_reservation` with `reason='released'` and `released_from`, so it can't be grabbed by someone who watched you give it up (027-4, 027-5, 027-6).
+- **Reclaiming your OWN released handle is permitted** via `released_from` — otherwise renaming is a one-way door and you're locked out of your own name by the mechanism protecting it (027-10). System reservations have no `released_from`, so `admin` stays absolute (027-12).
+
+### ⚠️ INVISIBLE LANDMINE, documented in the file
+Postgres fires `BEFORE ROW` triggers in **alphabetical order by trigger name.** `profile_handle_lifecycle` must sort before `profile_handle_not_reserved` so the reservation check reads an up-to-date table. Rename that trigger to anything sorting after `profile_handle_n…` and rename-then-reclaim breaks for reasons nobody would enjoy debugging.
+
+### Housekeeping
+- `tests/018`, `tests/022`, `tests/023` → `tests/archive/`, mirroring the migrations. They referenced public-schema tables that no longer exist.
+- `supabase/local/pgtap--1.3.4.sql` persisted out of the session scratchpad (gitignored, 370KB vendor file; regeneration command is in the ignore comment).
+
+### ⚠️ PO-LEVEL RISK RAISED AT REVIEW
+**Five migrations of backend, zero user-visible surface.** Sharpest example: `credential` is built, tested, and locked so only a server can write it — **and nothing writes to it.** The issuer service does not exist. We built the receiving end of a pipe with no pipe. Fine as sequencing; a problem if it continues. Unshipped backend stops being progress and becomes inventory.
+
+### 🎯 DECISIONS OWED BY BEN
+1. **`philosophy` — minimum 1 or allow empty?** Spec says default `{}`, product notes say minimum 1. They disagree; empty currently wins.
+2. **Credential issuer service — roadmap, or descope credentials?**
+3. **30-day handle window confirmed?** It's a literal; changing it later is a migration.
+
+### 🎯 NEXT
+1. **Apply 024 to prod — AUTHORIZED BY BEN 2026-08-06, NOT YET DONE.** Blocked on credentials: no Supabase DB password and no personal access token available in this environment. `PGPASSWORD` in `.env` is the LOCAL Postgres password only. Either supply a PAT / DB connection string, or paste the migration in the SQL editor.
+2. Thinnest possible Trainer UI (claim handle, view own card) — converts inventory into product and proves the stack end to end.
+3. Apply 025-027 behind that UI.
+4. Open: `save_connection` has no rate limit (handle-guessing probe).
+
 ## 2026-08-06 — ✅ TRAINER SCHEMA REWRITTEN AND VERIFIED. 54/54 assertions, 4-file replay.
 
 ```
