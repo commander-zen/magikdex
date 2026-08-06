@@ -222,11 +222,9 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
 
       <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
 
-      {/* Trainer is NOT mounted here. It was briefly a sheet behind a badge glyph
-          in this header; it is being rebuilt as its own app, so magikdex no
-          longer carries it. src/components/TrainerSheet.jsx and src/lib/trainer.js
-          stay in the tree as the starting point for that build — nothing in
-          magikdex imports them. */}
+      {/* Trainer is deliberately NOT here. It was briefly a sheet behind a badge
+          glyph in this header; it is its own app now, at trainer/ in this repo.
+          magikdex carries no trainer code and talks to no trainer table. */}
     </div>
   );
 }
