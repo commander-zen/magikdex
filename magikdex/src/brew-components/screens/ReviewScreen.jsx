@@ -3,7 +3,9 @@ import { getCardData, getCardDataBatch, getCardImage } from "../../lib/scryfall.
 import WrecBand, { WREC_CHIPS, LABEL_BY_TAG, WrecIcon, WREC_CHIP_COLORS } from "../../components/WrecBand.jsx";
 import PartnerPickerSheet from "../PartnerPickerSheet.jsx";
 import FlipCard from "../FlipCard.jsx";
+import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { partnerVariant } from "../../lib/partners.js";
+import { faceRotation } from "../../lib/cardOrientation.js";
 
 // Change 14 — how far left a decklist row must be dragged to commit a delete.
 const ROW_DELETE_AT = 88;
@@ -360,6 +362,15 @@ export default function ReviewScreen({
   // their back face here too — this overlay and the swipe screen's are separate
   // implementations, so fixing one silently leaves the other broken.
   const [commanderFlipped, setCommanderFlipped] = useState(false);
+  // Same controls as the swipe carousel — a commander can be a sideways
+  // printing (Erayo, Soratami Ascendant is a Kamigawa flip card), and this
+  // overlay is a separate implementation, so it needs them explicitly.
+  const [commanderRotated, setCommanderRotated] = useState(false);
+  const commanderHasBack  = Boolean(commanderFull?.card_faces?.[1]?.image_uris);
+  const commanderFrontRot = faceRotation(commanderFull, 0);
+  const commanderBackRot  = faceRotation(commanderFull, 1);
+  const commanderCanRotate =
+    (commanderFlipped ? commanderBackRot : commanderFrontRot) !== 0;
   // Partner picker. commanderCard is fetched up-front (not lazily like
   // commanderFull) because whether to OFFER a partner at all depends on the
   // commander's oracle text — the affordance can't wait for a tap.
@@ -431,7 +442,8 @@ export default function ReviewScreen({
 
   async function openCommander() {
     setShowCommander(true);
-    setCommanderFlipped(false); // always open on the front face
+    setCommanderFlipped(false); // always open on the front face…
+    setCommanderRotated(false); // …and as printed
     if (commanderFull || !commander?.name) return;
     const card = await getCardData(commander.name);
     setCommanderFull(card ?? undefined);
@@ -1590,33 +1602,38 @@ export default function ReviewScreen({
                 alt={commander?.name}
                 backAlt={commanderFull.card_faces?.[1]?.name ?? commander?.name}
                 flipped={commanderFlipped}
+                frontRotate={commanderRotated ? commanderFrontRot : 0}
+                backRotate={commanderRotated ? commanderBackRot : 0}
                 // Both faces are absolute, so the box needs its own size —
                 // width plus the card aspect FlipCard defaults to.
                 containerStyle={{ width: "min(88vw, 400px)" }}
                 faceStyle={{ borderRadius: "4.75% / 3.5%" }}
               />
-              {/* Gated on a real back-face IMAGE, so split/adventure cards (one
-                  shared image) don't get a control that appears to do nothing.
-                  stopPropagation is required: the backdrop dismisses on any
-                  click, so without it flipping would close the card instead. */}
-              {Boolean(commanderFull.card_faces?.[1]?.image_uris) && (
-                <button
-                  onClick={e => { e.stopPropagation(); setCommanderFlipped(f => !f); }}
-                  aria-label="Flip commander card"
-                  style={{
-                    position: "absolute", bottom: 16, right: 16, zIndex: 5,
-                    minHeight: 44, minWidth: 44,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: "rgba(0,0,0,0.6)",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    borderRadius: 20,
-                    padding: "6px 14px",
-                    fontFamily: "'Noto Sans Mono', monospace",
-                    fontSize: 12, letterSpacing: "0.1em",
-                    color: "rgba(255,255,255,0.55)",
-                    cursor: "pointer",
-                  }}
-                >flip</button>
+              {/* Flip is gated on a real back-face IMAGE, so split cards (one
+                  shared image) don't get a control that appears to do nothing —
+                  they get rotate instead. stopPropagation is required on both:
+                  the backdrop dismisses on any click, so without it these would
+                  close the card rather than act on it. */}
+              {(commanderHasBack || commanderCanRotate) && (
+                <div style={{
+                  position: "absolute", bottom: 16, right: 16, zIndex: 5,
+                  display: "flex", gap: 8,
+                }}>
+                  {commanderCanRotate && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setCommanderRotated(r => !r); }}
+                      aria-label={commanderRotated ? "Restore card orientation" : "Rotate card to read it"}
+                      style={CARD_CONTROL_STYLE}
+                    >{commanderRotated ? "reset" : "rotate"}</button>
+                  )}
+                  {commanderHasBack && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setCommanderFlipped(f => !f); }}
+                      aria-label="Flip commander card"
+                      style={CARD_CONTROL_STYLE}
+                    >flip</button>
+                  )}
+                </div>
               )}
             </div>
           ) : (

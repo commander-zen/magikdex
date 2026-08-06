@@ -1,10 +1,11 @@
 import { useState, useEffect, useRef, useMemo } from "react";
-import { getCardImage, getCardData } from "../../lib/scryfall.js";
+import { getCardImage, getCardData, fetchMeldResult } from "../../lib/scryfall.js";
 import { getSettings } from "../../lib/settings.js";
 import { useDoubleTap } from "../../hooks/useDoubleTap.js";
 import { useGameChangers } from "../../hooks/useGameChangers.js";
 import { WREC_CHIPS, WrecIcon, WREC_CHIP_COLORS, LABEL_BY_TAG } from "../../components/WrecBand.jsx";
 import FlipCard from "../FlipCard.jsx";
+import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
 
 // "Basic" + "Land" (not the literal "Basic Land") so snow basics — type line
@@ -34,21 +35,6 @@ function haptic(pattern = 10) {
 // Pixel width of a carousel slot — mirrors the cardWidth CSS (min(96vw, 440px))
 // plus the 4px gap between neighboring cards.
 const getCardPx = () => Math.min(window.innerWidth * 0.96, 440) + 4;
-
-// Shared by the rotate/flip pills that sit on the card's bottom-right corner.
-const cardControlStyle = {
-  minHeight: 44, minWidth: 44,
-  display: "flex", alignItems: "center", justifyContent: "center",
-  background: "rgba(0,0,0,0.6)",
-  border: "1px solid rgba(255,255,255,0.2)",
-  borderRadius: 20,
-  padding: "6px 14px",
-  fontFamily: "'Noto Sans Mono', monospace",
-  fontSize: 12, letterSpacing: "0.1em",
-  color: "rgba(255,255,255,0.55)",
-  cursor: "pointer",
-  WebkitTapHighlightColor: "transparent",
-};
 
 export default function SwipeScreen({
   cards, pile, onPileChange,
@@ -114,6 +100,11 @@ export default function SwipeScreen({
   const [imgError,     setImgError]     = useState(false);
   const [flipped,      setFlipped]      = useState(false);
   const [rotated,      setRotated]      = useState(false);
+  // The melded form, fetched on demand and kept keyed to the card it belongs
+  // to — browsing away and back shouldn't refetch, and a stale result must
+  // never be shown against the wrong card.
+  const [meldResult,   setMeldResult]   = useState(null); // { forName, card }
+  const [meldBusy,     setMeldBusy]     = useState(false);
   // UAT 8/9 — how many swipe gestures (browse or decide) this session; the
   // gesture reminder fades for good at 8, when the hands have learned it.
   const [swipeCount,   setSwipeCount]   = useState(0);
@@ -143,6 +134,30 @@ export default function SwipeScreen({
   const frontRotation = faceRotation(card, 0);
   const backRotation  = faceRotation(card, 1);
   const canRotate = (flipped ? backRotation : frontRotation) !== 0;
+
+  // Meld parts have no back face of their own — the thing worth seeing is the
+  // card they combine INTO, which lives behind a live lookup (all_parts isn't
+  // cached). Once fetched it rides the existing flip machinery, so the part
+  // turns over to reveal what it becomes.
+  //
+  // The melded card is display-only and can never enter a deck: every commit
+  // path below acts on `card`, which stays the PART no matter which face is
+  // showing. Brisela is not a card you may put in a decklist.
+  const isMeld = card?.layout === "meld";
+  const meldSrc = meldResult?.forName && meldResult.forName === card?.name
+    ? (getCardImage(meldResult.card, "large") ?? getCardImage(meldResult.card, "normal"))
+    : null;
+
+  async function toggleMeld() {
+    if (meldBusy) return;
+    if (meldSrc) { setFlipped(f => !f); return; }
+    setMeldBusy(true);
+    const result = await fetchMeldResult(card.name);
+    setMeldBusy(false);
+    if (!result) return; // no meld preview is survivable; leave the card as-is
+    setMeldResult({ forName: card.name, card: result });
+    setFlipped(true);
+  }
 
   // One quiet line under the commander name (UAT 10): the legend name never
   // repeats itself and the stack counts are gone — "review" names the flip
@@ -426,6 +441,14 @@ export default function SwipeScreen({
   // control that would appear to do nothing.
   const [commanderFlipped, setCommanderFlipped] = useState(false);
   const commanderHasBack = Boolean(commanderFull?.card_faces?.[1]?.image_uris);
+  // A commander can be a sideways printing too — Kamigawa flip cards like
+  // Erayo, Soratami Ascendant are legendary on their front face, so this
+  // overlay needs the same rotate control the carousel has.
+  const [commanderRotated, setCommanderRotated] = useState(false);
+  const commanderFrontRot = faceRotation(commanderFull, 0);
+  const commanderBackRot  = faceRotation(commanderFull, 1);
+  const commanderCanRotate =
+    (commanderFlipped ? commanderBackRot : commanderFrontRot) !== 0;
 
   // Zero-results escape hatch (Change 3): when a stack filter matches nothing,
   // "search all cards" re-runs the same query through the global-search path and
@@ -481,7 +504,8 @@ export default function SwipeScreen({
   async function openCommander() {
     if (!commanderName) return;
     setShowCommander(true);
-    setCommanderFlipped(false); // always open on the front face
+    setCommanderFlipped(false); // always open on the front face…
+    setCommanderRotated(false); // …and as printed
     if (commanderFull == null) {
       const full = await getCardData(commanderName);
       setCommanderFull(full ?? undefined);
@@ -550,7 +574,9 @@ export default function SwipeScreen({
             // Only the current card can be flipped, so only it pays for a
             // second image — a neighbour would be fetching a face that can't be
             // shown before it scrolls into place.
-            const backUrl = isCurrent ? backFaceUrl : null;
+            // A real back face if the card has one, otherwise the melded form
+            // once it's been fetched — never both, since no card is both.
+            const backUrl = isCurrent ? (backFaceUrl ?? meldSrc) : null;
             // Keying by card id keeps DOM nodes stable across the post-browse
             // index swap, so the strip never visually jumps.
             const transform = isCurrent
@@ -583,7 +609,7 @@ export default function SwipeScreen({
                       frontSrc={url}
                       backSrc={backUrl}
                       alt={c.name}
-                      backAlt={c.card_faces?.[1]?.name}
+                      backAlt={c.card_faces?.[1]?.name ?? (isCurrent ? meldResult?.card?.name : undefined)}
                       flipped={isCurrent && flipped}
                       // Rotation is opt-in per card, and only the current card
                       // can be rotated — neighbours are always as-printed.
@@ -660,7 +686,7 @@ export default function SwipeScreen({
                     rotate appears only when the face on screen is actually
                     turned, so it vanishes on a Battle's upright back. Each
                     ≥44px. */}
-                {isCurrent && (canRotate || hasBackFace) && (
+                {isCurrent && (canRotate || hasBackFace || isMeld) && (
                   <div style={{
                     position: "absolute", bottom: 16, right: 16, zIndex: 5,
                     display: "flex", gap: 8, pointerEvents: "auto",
@@ -669,15 +695,25 @@ export default function SwipeScreen({
                       <button
                         onClick={e => { e.stopPropagation(); setRotated(r => !r); }}
                         aria-label={rotated ? "Restore card orientation" : "Rotate card to read it"}
-                        style={cardControlStyle}
+                        style={CARD_CONTROL_STYLE}
                       >{rotated ? "reset" : "rotate"}</button>
                     )}
                     {hasBackFace && (
                       <button
                         onClick={e => { e.stopPropagation(); setFlipped(f => !f); }}
                         aria-label="Flip card"
-                        style={cardControlStyle}
+                        style={CARD_CONTROL_STYLE}
                       >flip</button>
+                    )}
+                    {/* Meld parts only. Says what the card BECOMES, which is
+                        the one thing its own face can't tell you. */}
+                    {isMeld && (
+                      <button
+                        onClick={e => { e.stopPropagation(); toggleMeld(); }}
+                        disabled={meldBusy}
+                        aria-label={flipped ? "Show this card" : "Show the melded card"}
+                        style={{ ...CARD_CONTROL_STYLE, opacity: meldBusy ? 0.5 : 1 }}
+                      >{meldBusy ? "…" : (flipped && meldSrc ? "back" : "meld")}</button>
                     )}
                   </div>
                 )}
@@ -1154,6 +1190,8 @@ export default function SwipeScreen({
                 alt={commanderName ?? "Commander card"}
                 backAlt={`${commanderFull.card_faces?.[1]?.name ?? commanderName} card`}
                 flipped={commanderFlipped}
+                frontRotate={commanderRotated ? commanderFrontRot : 0}
+                backRotate={commanderRotated ? commanderBackRot : 0}
                 // Both faces are absolute, so the box needs its own size —
                 // width plus the card aspect FlipCard defaults to.
                 containerStyle={{
@@ -1163,26 +1201,28 @@ export default function SwipeScreen({
                 }}
                 faceStyle={{ borderRadius: "5.5% / 4%" }}
               />
-              {/* stopPropagation matters here: the overlay dismisses on ANY
-                  click, so without it flipping would close the card instead. */}
-              {commanderHasBack && (
-                <button
-                  onClick={e => { e.stopPropagation(); setCommanderFlipped(f => !f); }}
-                  aria-label="Flip commander card"
-                  style={{
-                    position: "absolute", bottom: 16, right: 16, zIndex: 5,
-                    minHeight: 44, minWidth: 44,
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    background: "rgba(0,0,0,0.6)",
-                    border: "1px solid rgba(255,255,255,0.2)",
-                    borderRadius: 20,
-                    padding: "6px 14px",
-                    fontFamily: "'Noto Sans Mono', monospace",
-                    fontSize: 12, letterSpacing: "0.1em",
-                    color: "rgba(255,255,255,0.55)",
-                    cursor: "pointer",
-                  }}
-                >flip</button>
+              {/* stopPropagation matters on BOTH: the overlay dismisses on ANY
+                  click, so without it these would close the card instead. */}
+              {(commanderHasBack || commanderCanRotate) && (
+                <div style={{
+                  position: "absolute", bottom: 16, right: 16, zIndex: 5,
+                  display: "flex", gap: 8,
+                }}>
+                  {commanderCanRotate && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setCommanderRotated(r => !r); }}
+                      aria-label={commanderRotated ? "Restore card orientation" : "Rotate card to read it"}
+                      style={CARD_CONTROL_STYLE}
+                    >{commanderRotated ? "reset" : "rotate"}</button>
+                  )}
+                  {commanderHasBack && (
+                    <button
+                      onClick={e => { e.stopPropagation(); setCommanderFlipped(f => !f); }}
+                      aria-label="Flip commander card"
+                      style={CARD_CONTROL_STYLE}
+                    >flip</button>
+                  )}
+                </div>
               )}
             </div>
           ) : (

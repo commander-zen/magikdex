@@ -99,6 +99,35 @@ export async function fetchCardByName(name, options = {}) {
   return res.json();
 }
 
+// ── Meld results ─────────────────────────────────────────────────────────────
+// Meld is the one card relationship the local cache can't answer. A meld part
+// (Hanweir Battlements) renders perfectly on its own — nothing is rotated, so
+// unlike the sideways layouts there's nothing to fix visually. The unanswered
+// question is "what does this become", and that lives in `all_parts`, which is
+// NOT in CARD_CACHE_COLS. So this is a live lookup, on demand, only when the
+// reader asks: 21 cards in the game, none of them common.
+//
+// Two hops by necessity — `all_parts` gives the result's name and uri but not
+// its images, so the part card comes first and the result card second.
+//
+// Returns null on ANY failure. A missing meld preview is a shrug; a thrown
+// error in the middle of browsing a deck is not.
+export async function fetchMeldResult(name, options = {}) {
+  try {
+    const part = await fetchCardByName(name, options);
+    const result = (part.all_parts ?? []).find(p => p.component === "meld_result");
+    if (!result?.uri) return null;
+    const res = await fetch(result.uri, {
+      headers: { "User-Agent": UA },
+      signal: options.signal,
+    });
+    if (!res.ok) return null;
+    return res.json();
+  } catch {
+    return null;
+  }
+}
+
 // ── Name-lookup cache plumbing (migration 007 `cards`) ───────────────────────
 // fetchCardIdentity is the one exact→fuzzy name lookup behind getCardData and
 // the legend identity backfill. It now reads the local gameplay cache FIRST and

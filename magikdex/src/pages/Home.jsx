@@ -3,6 +3,7 @@ import { useTheme } from "../theme/ThemeContext";
 import LegendBox from "../components/LegendBox";
 import LegendIdentity from "../components/LegendIdentity";
 import SettingsSheet from "../components/SettingsSheet";
+import TrainerSheet from "../components/TrainerSheet";
 import { supabase } from "../lib/supabase.js";
 
 // The last-active legend's id — most recently brewed/opened. Persisted to
@@ -16,6 +17,7 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
   const { theme } = useTheme();
   const [activeLegend, setActiveLegend] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const [trainerOpen, setTrainerOpen] = useState(false);
   // An anonymous box has no credential behind it — lose the browser storage and
   // the account is gone, not locked (see lib/backupState.js). Brew's prompts are
   // bounded and dismissible, so once they're spent there'd be NO signal left
@@ -137,6 +139,31 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
               </span>
             </button>
           )}
+        {/* Trainer card — sits left of the gear because it's identity, not
+            configuration. Same 44px target and half-opacity glyph as settings so
+            the header cluster stays one visual weight. */}
+        <button
+          onClick={() => setTrainerOpen(true)}
+          aria-label="Trainer card"
+          style={{
+            width: 44, height: 44,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "transparent", border: "none", padding: 0,
+            cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <span
+            className="material-symbols-rounded"
+            style={{
+              fontSize: 20,
+              color: glyphColor,
+              fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
+            }}
+          >
+            badge
+          </span>
+        </button>
         <button
           onClick={() => setSettingsOpen(true)}
           aria-label="Settings"
@@ -221,6 +248,16 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
       </div>
 
       <SettingsSheet open={settingsOpen} onClose={() => setSettingsOpen(false)} />
+
+      {/* An anonymous box can't hold a public handle (see lib/trainer.js), so
+          the sheet hands off to settings for the email step rather than
+          duplicating that flow. It closes itself first so the two sheets never
+          stack. */}
+      <TrainerSheet
+        open={trainerOpen}
+        onClose={() => setTrainerOpen(false)}
+        onOpenSettings={() => setSettingsOpen(true)}
+      />
     </div>
   );
 }

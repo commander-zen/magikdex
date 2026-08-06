@@ -24,3 +24,7 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Local pgTAP install script — 370KB vendor file, regenerate from the pgTAP
+# release with: sed -e s,__OS__,Windows, -e s,__VERSION__,1.3, sql/pgtap.sql.in
+supabase/local/pgtap--1.3.4.sql
