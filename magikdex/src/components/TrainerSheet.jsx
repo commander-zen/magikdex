@@ -68,8 +68,22 @@ export default function TrainerSheet({ open, onClose, onOpenSettings }) {
     setBusy(true);
     setErr(null);
     const { profile: p, error } = await claimHandle(account.userId, h, displayName);
+    if (error) {
+      // A unique violation might mean the handle belongs to somebody else — or
+      // that it is ALREADY YOURS and this form should never have been on screen.
+      // That second case really happened in UAT: a failing profile read made a
+      // successful claim look like it never happened, and the retry then reported
+      // the user's own handle as "taken".
+      //
+      // Re-read before believing the error. If a profile comes back, the claim had
+      // already landed and the right move is to show the card, not an error.
+      const { profile: existing } = await getMyProfile(account.userId);
+      setBusy(false);
+      if (existing) { setProfile(existing); setErr(null); return; }
+      setErr(error);
+      return;
+    }
     setBusy(false);
-    if (error) { setErr(error); return; }
     setProfile(p);
   }
 
