@@ -1,5 +1,44 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-06 (late afternoon) — 🚀 **025 APPLIED TO PRODUCTION + first Trainer UI shipped to `dev`.**
+
+### ✅ 025 live and verified two ways
+pgTAP in the hosted editor (21 ok), then **independent verification that didn't rely on the rolled-back test**:
+
+**Over plain HTTP** — `get_trainer_card` returns `[]` (was `PGRST202`), `get_trainer_party` and `get_trainer_credentials` both 200. **`roster_count` returns 404**, which is the useful signal: it proves prod has exactly 025 and not 026, so the migration order is intact.
+
+**Catalog check** — 9/9 `true`: schema exists, 4 tables, RLS on all 4, **`anon` has NO usage on the trainer schema**, `authenticated` does, claim policy exists, 16 reserved handles seeded, no enumerable view, no public function returns a uuid.
+
+### ⏳ BLOCKED ON ONE DASHBOARD SETTING
+**Project Settings → API → Exposed schemas → add `trainer`.** Confirmed still not done (`PGRST106: Invalid schema: trainer`). Until then the claim form cannot work — the public card RPCs are fine (they live in `public`), but owner CRUD goes through `supabase.schema("trainer")`.
+
+**When it's flipped, verify `anon` is STILL locked out over HTTP.** That's the single most important property in 025 — exposure and privilege are different locks, and the boundary only holds because `anon` was never granted USAGE.
+
+### ✅ Trainer UI on `dev` (`48b8b2b`) — first user-visible surface for any of this
+Badge glyph left of the gear on the Box header. `TrainerSheet` reuses SettingsSheet's shape (portal, height-capped so the × stays reachable, pinned header). Three states: anonymous gate, claim form, card + visibility.
+
+**`lib/trainer.js` is the only data layer. It has no list-all call and must never get one** — that surface doesn't exist in the database on purpose.
+
+### 🔑 DESIGN CALL — anonymous accounts are gated from claiming
+Every visitor gets an anonymous account on load (`App.jsx`), living only in browser storage. Combined with **027 reserving a released handle forever**, claiming from a browser-only account means clearing the browser **permanently consumes that handle**, held by an account nobody can sign into — and it can never be reissued. Same durability argument as the deck-backup nudge, far worse failure mode: a lost deck is sad, a lost handle is unrecoverable *and* blocks the name for everyone. Claim now requires a linked email; the sheet hands off to Settings rather than duplicating that flow. **Reversible if Ben disagrees.**
+
+### 🔎 Testing the error copy against the live API caught two real gaps
+Guessing PostgREST's wording would have shipped nonsense to users:
+- `PGRST106` actually returns `"Invalid schema: trainer"` — the regex expected different wording and only the code check saved it.
+- **`PGRST202` wasn't handled at all**, so "migration not applied" would have rendered as *"Could not find the function public.get_trainer_card(p_handle) in the schema cache."* Now: *"trainer isn't installed on this project yet — apply migration 025."*
+
+### "what a stranger sees"
+The card view calls the public RPC and shows its literal answer, **including the empty one, rendered as a result rather than an error** — null is the correct response for a private card. A privacy control you can't verify is a promise, not a setting.
+
+### ⚠️ VERIFICATION LIMIT HELD AGAIN
+Browser pane isn't compositing in this environment — no screenshots. Verified at DOM level only: the anonymous gate renders, and the "add an email" handoff closes trainer / opens settings without stacking (`translateY` checked on both). Lint clean, build passes. **Layout still needs Ben's device**, same conclusion as the FlipCard work.
+
+### 🎯 NEXT
+1. **Flip Exposed Schemas** → then link an email, reload, claim a handle. That's the end-to-end proof.
+2. Device pass on the sheet layout.
+3. 026/027 unapplied. `roster_count` 404 is expected until 026 lands.
+4. Still owed: `philosophy` min-1?, credential issuer roadmap-or-descope, `save_connection` rate limit.
+
 ## 2026-08-06 (afternoon) — 🚀 **024 APPLIED TO PRODUCTION.** Verified. The live card-cache hole is closed.
 
 **First migration this project has ever shipped with a test behind it.** Ben applied it in the SQL editor; verified twice.

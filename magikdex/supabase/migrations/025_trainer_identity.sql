@@ -1,7 +1,17 @@
 -- 025_trainer_identity.sql — Trainer identity, in its own schema
 --
--- NOT APPLIED — written for review. Verified locally against a fresh
--- 001 → 024 replay; see supabase/tests/025_trainer_identity_rls.sql.
+-- ✅ APPLIED TO PRODUCTION 2026-08-06 (project iduoct…). Verified three ways:
+-- the pgTAP suite in the hosted editor (21 ok); a live REST check (the three
+-- public RPCs answer, and roster_count still 404s — proving prod has exactly
+-- 025 and not 026); and a catalog check, 9/9 true, including `anon` having NO
+-- USAGE on this schema.
+--
+-- ⏳ The owner path is NOT reachable yet: `trainer` still has to be added to
+-- Project Settings → API → Exposed schemas. The public card RPCs work already
+-- because they live in `public`.
+--
+-- Also verified locally against a fresh 001 → 024 replay; see
+-- supabase/tests/025_trainer_identity_rls.sql.
 --
 -- Supersedes archive/018 and archive/023. Identity only: profile, handles,
 -- party, credentials. Connections/blocks/roster are a separate migration on top.
