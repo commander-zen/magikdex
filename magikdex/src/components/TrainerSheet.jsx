@@ -18,6 +18,12 @@ export default function TrainerSheet({ open, onClose, onOpenSettings }) {
   const [account, setAccount] = useState(null);
   const [profile, setProfile] = useState(null);
   const [loading, setLoading] = useState(true);
+  // Two error slots, not one. A LOAD failure ("the database is behind the app")
+  // and an ACTION failure ("that handle is taken") are different claims about the
+  // world, and rendering both in the same place under the claim button made a
+  // load error look like the button had produced it — and look permanent, since
+  // nothing the user typed could clear it. Caught in UAT on production.
+  const [loadErr, setLoadErr] = useState(null);
   const [err, setErr] = useState(null);
 
   // Claim form
@@ -37,6 +43,7 @@ export default function TrainerSheet({ open, onClose, onOpenSettings }) {
     (async () => {
       setLoading(true);
       setErr(null);
+      setLoadErr(null);
       setPeek(null);
       const acct = await getTrainerAccount();
       if (cancelled) return;
@@ -45,7 +52,7 @@ export default function TrainerSheet({ open, onClose, onOpenSettings }) {
         const { profile: p, error } = await getMyProfile(acct.userId);
         if (cancelled) return;
         setProfile(p);
-        if (error) setErr(error);
+        if (error) setLoadErr(error);
       } else {
         setProfile(null);
       }
@@ -187,6 +194,19 @@ export default function TrainerSheet({ open, onClose, onOpenSettings }) {
             padding: "0 20px calc(env(safe-area-inset-bottom) + 24px)",
           }}>
 
+            {/* A load failure is about the PROJECT, not about anything the user
+                did, so it gets its own banner at the top rather than sitting
+                under the form's submit button pretending to be validation. */}
+            {loadErr && (
+              <div style={{
+                marginBottom: 14, padding: 12,
+                border: `1px solid ${theme.red}`,
+                ...monoStyle, color: theme.red, lineHeight: 1.6,
+              }}>
+                {loadErr}
+              </div>
+            )}
+
             {loading ? (
               <div style={{ ...monoStyle, color: dimColor, padding: "24px 0" }}>
                 loading…
@@ -239,7 +259,10 @@ export default function TrainerSheet({ open, onClose, onOpenSettings }) {
                   <span style={{ ...monoStyle, fontSize: 16, color: dimColor }}>@</span>
                   <input
                     value={handle}
-                    onChange={e => setHandle(normalizeHandle(e.target.value))}
+                    // Clear any previous submit error on the next keystroke —
+                    // "that handle is taken" must not still be on screen while
+                    // the user types a different one.
+                    onChange={e => { setErr(null); setHandle(normalizeHandle(e.target.value)); }}
                     placeholder="handle"
                     autoCapitalize="off"
                     autoCorrect="off"
@@ -369,13 +392,20 @@ export default function TrainerSheet({ open, onClose, onOpenSettings }) {
                   </div>
                 )}
 
-                <div style={{ ...rowStyle, marginTop: 20, borderBottom: "none" }}>
-                  <span style={{ ...monoStyle, color: dimColor }}>
-                    {profile.handle_changed_at
-                      ? `handle last changed ${String(profile.handle_changed_at).slice(0, 10)}`
-                      : "handle has never been changed"}
-                  </span>
-                </div>
+                {/* Only rendered when the COLUMN exists, which means 027 is
+                    applied and the 30-day rate limit is real. `in` rather than a
+                    truthiness check: absent (no migration) and null (never
+                    renamed) mean different things, and promising a rate limit
+                    that isn't enforced yet would be a lie. */}
+                {"handle_changed_at" in profile && (
+                  <div style={{ ...rowStyle, marginTop: 20, borderBottom: "none" }}>
+                    <span style={{ ...monoStyle, color: dimColor }}>
+                      {profile.handle_changed_at
+                        ? `handle last changed ${String(profile.handle_changed_at).slice(0, 10)}`
+                        : "handle has never been changed"}
+                    </span>
+                  </div>
+                )}
               </div>
             )}
 

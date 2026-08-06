@@ -61,6 +61,14 @@ function describeError(error) {
   if (code === "PGRST202") {
     return "trainer isn't installed on this project yet — apply migration 025";
   }
+  // 42703 / PGRST204: a column this client asked for doesn't exist, i.e. the
+  // database is behind the code. Caught in production the first time: the select
+  // named handle_changed_at, which 027 adds, and 027 wasn't applied — so the
+  // whole profile read failed and the claim form looked broken. The select is now
+  // column-agnostic (see getMyProfile), and this stays as the net.
+  if (code === "42703" || code === "PGRST204" || /column .* does not exist/i.test(msg)) {
+    return "this project's database is behind the app — a trainer migration hasn't been applied";
+  }
   // unique_violation on trainer.profile.handle
   if (code === "23505") return "that handle is taken";
   // The reserved-handle trigger raises check_violation. Its message names the
@@ -102,10 +110,22 @@ export async function getTrainerAccount() {
 // impossible to read.
 export async function getMyProfile(userId) {
   if (!userId) return { profile: null, error: null };
+  // `*` on purpose, not laziness. An explicit column list couples this file to
+  // WHICH MIGRATIONS ARE APPLIED: naming handle_changed_at (added by 027) made
+  // the entire read fail with 42703 on a project that only had 025, so the claim
+  // form rendered a database error it had nothing to do with.
+  //
+  // A star is safe here specifically because this reads ONE row — the caller's
+  // own, enforced by RLS and by the filter below. It is not a pattern for public
+  // reads: those go through the get_trainer_card RPC, whose column list IS the
+  // privacy boundary and must stay explicit.
+  //
+  // Fields from unapplied migrations simply come back undefined, and the UI
+  // treats them as absent rather than broken.
   const { data, error } = await supabase
     .schema("trainer")
     .from("profile")
-    .select("id, handle, display_name, pronouns, bio, home_region, visibility, identity_mode, playstyle, favorite_legends, philosophy, created_at, handle_changed_at")
+    .select("*")
     .eq("id", userId)
     .maybeSingle();
   return { profile: data ?? null, error: describeError(error) };
