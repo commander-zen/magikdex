@@ -1,5 +1,53 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-06 — ✅ TRAINER SCHEMA REWRITTEN AND VERIFIED. 54/54 assertions, 4-file replay.
+
+```
+migrations/  001_baseline → 024_harden_privileges → 025_trainer_identity → 026_trainer_connection
+tests/       024: 9 ok    025: 21 ok    026: 24 ok    → TOTAL 54, 0 failed
+```
+
+Replays from an empty database every run. Nothing applied to the live project. `archive/018`, `archive/022`, `archive/023` are superseded — kept as the spec, not the code.
+
+### The three decisions that shaped it (Ben's calls)
+1. **No directory.** Public reads are three handle-keyed SECURITY DEFINER functions in `public`, never a view. Enumeration is structurally impossible, not merely unbuilt — asserted by test 025-7.
+2. **No uuid published, ever.** A handle changes; a uuid doesn't, so a published uuid is a permanent cross-scrape tracking key that survives a rename.
+3. **Identity first, connections second.** Two migrations, not one.
+
+### 🔑 THE SCHEMA BOUNDARY IS THE BIG WIN
+**Supabase's default grants are scoped to `public`.** A fresh schema inherits nothing — no USAGE, no table privileges. So `023` needed **eleven REVOKE statements** to claw back defaults it never wanted; `025` needs **zero**, because there is nothing to claw back. Every privilege is one somebody typed on purpose.
+
+`anon` has USAGE on **nothing** in the `trainer` schema. Test 025-1 asserts refusal *before RLS is consulted*. That is "never unlocked," not "locked after cleanup."
+
+### 🔑 Handle-keying solved a problem uuid-publishing was going to solve
+`023`'s gap #2 was: no `id` on the public surface → `/t/<handle>` can read a profile but can't join to party slots. The obvious fix was "expose the id." Keying every public function on handle gets the join **without publishing anything**. Same for `roster_count`, which in `archive/022` took a uuid nothing hands out.
+
+### 🔎 Bugs found only by executing — three in 025, zero readable
+1. **`position` is reserved in a `RETURNS TABLE` column list** — legal as a bare column in `CREATE TABLE`. Same word, two answers.
+2. **`get_trainer_party` leaked `deck_id`.** Removed the trainer uuid on privacy grounds, then handed out a deck uuid twenty lines later — *same cross-rename tracking vector, different name*. Also undereferenceable (`decks` isn't anon-readable). **Caught by my own assertion 6.** The test held a line I'd already decided and then violated by reflex.
+3. **`pg_get_functiondef()` THROWS on aggregates**, so the no-aggregate assertion errored instead of failing. Switched to `prosrc`.
+
+### 🔎 THE TESTING LESSON WORTH KEEPING
+Assertion 025-12 first matched `proname like '%trust%'` and caught pgTAP's own `language_is_trusted`. It was testing a **naming convention** when the invariant is *"no function aggregates credentials into a score."* Rewritten to match on behaviour: any function touching `trainer.credential` that contains `sum|count|avg|max|min`. `archive/018` shipped exactly that function (`trust_level`, venue=4/api=2/self=1) — this assertion is what stops it returning when someone wants a leaderboard.
+
+**Test names describe intent; predicates must encode the rule.** When they drift, the test passes while the thing it protected rots.
+
+### 026 closed two of archive/022's own gaps
+- **`met_count` is now incremented server-side.** 022's gap #1 was a client-side upsert, so the client owned the counter — untenable once `roster_count` publishes it. The upsert moved inside `save_connection()`.
+- **`roster_count` returns 0, not null, for an unreachable trainer — intentionally**, now asserted (026-23). 0 makes a private trainer indistinguishable from a public one with an empty roster; null would itself announce "this account is private."
+- Privacy design carried over unchanged and re-verified: **one row per pair, never an encounter log** (026-11), rosters private in both directions so mutuality is uncomputable (026-17), block severs both directions (026-18), `met_context` carries the same no-geo CHECK as `home_region` (026-14). Private and nonexistent handles fail **identically** so the API isn't an existence oracle (026-8).
+- **Policies with no grants** on `trainer.connection`/`trainer.block`: unreachable today, and already owner-scoped if the schema is ever exposed for convenience.
+
+### ⚠️ Deployment notes
+1. **Public path + all of connections need NO dashboard change** — every function lives in `public`.
+2. **The owner-profile path DOES.** For `supabase.from()` on `trainer.profile`, add `trainer` to Exposed Schemas and prefix client calls `supabase.schema('trainer')`. Until then owner profile writes are service-role only. Connections are unaffected (all RPC).
+
+### 🎯 NEXT
+1. Nothing is applied to production yet. Apply `024` → `025` → `026` when ready; `001` is already the live shape.
+2. Client work: `.schema('trainer')` prefix + Exposed Schemas toggle, or wrap profile CRUD in RPCs too.
+3. Open: handle-change rate limit (no `handle_changed_at` yet); `philosophy` allows empty; `save_connection` has no rate limit (handle-guessing probe).
+4. pgTAP is loaded into `public` locally instead of installed as an extension — UAC was cancelled. Test files are unmodified; the runner sed-swaps the `create extension` line. Staged files are in the session scratchpad.
+
 ## 2026-08-05 (end of night) — ✅ 38/38 ASSERTIONS EXECUTED. Local Postgres works. No Docker.
 
 **The session's whole premise is fixed.** Every migration and test file in this repo has now been run by a real Postgres, from an empty database, in order. Nothing was applied to the live project.
