@@ -1,6 +1,44 @@
 # SESSION_STATE — MTG DNA
 
-## 2026-08-05 (latest) — 🔓 BASELINE CAPTURED. `001_baseline.sql` written. Two LIVE security findings.
+## 2026-08-05 (end of night) — ✅ 38/38 ASSERTIONS EXECUTED. Local Postgres works. No Docker.
+
+**The session's whole premise is fixed.** Every migration and test file in this repo has now been run by a real Postgres, from an empty database, in order. Nothing was applied to the live project.
+
+```
+OK   00_supabase_shim.sql
+OK   pgtap--1.3.4.sql
+OK   001_baseline.sql
+OK   023_trainer_identity.sql      → 16/16 ok
+OK   022_trainer_connection.sql    → 22/22 ok
+```
+
+**The 023-then-022 ordering question answered itself in four seconds**, exactly as predicted — apply 023, then 022, and both are clean.
+
+### 🔎 THE BUG THAT PROVES THE POINT — `001` was broken and nobody could have known
+First real run died at line 164: `deck_card_tags`'s FK to `deck_cards(id)` was added **before `deck_cards_pkey` existed**. A foreign key needs a unique index on its target, and I had grouped constraints **by table** — so alphabetical order put the FK ahead of its own target's primary key. `decks → legends` had the same latent fault.
+
+**Fixed by grouping constraints by KIND, not by table:** all PKs and UNIQUEs first, then all FKs, then CHECKs (order-independent, so last). This is precisely the class of error that three months of hand-pasting into the dashboard never surfaces, and that one local run catches instantly.
+
+### Docker never happened — and didn't need to
+`wsl --install` was the real blocker (Win11 **Home** has no Hyper-V backend, WSL2 is the only option, and WSL was absent). Went native instead: **PostgreSQL 17.10 via winget**, plus [00_supabase_shim.sql](magikdex/supabase/local/00_supabase_shim.sql) supplying the four things Supabase provides that the tests depend on —
+1. `anon` / `authenticated` / `service_role` roles (`service_role` with **BYPASSRLS**, which is what makes it the credential-issuer path)
+2. `auth` schema + stub `auth.users` — **no `grant usage on schema auth`**, deliberately, so a leak can't hide locally
+3. the real `auth.uid()` reading `request.jwt.claim.sub` from a GUC — which is *why* `set local request.jwt.claim.sub` works as impersonation
+4. `extensions` schema **+ `search_path` including it** — without that, `handle citext` fails locally for a reason that would never happen in prod. False failures teach you to distrust your own tests.
+
+The `alter default privileges … grant all on tables` line is the highest-fidelity part: without it "no policy" reads as *denied* locally and *zero rows* in production, and the 42501 assertions would pass for the wrong reason.
+
+### ⚠️ Known local-only deviation
+pgTAP is loaded into `public` rather than installed as an extension — the UAC prompt to write `share\extension` was cancelled. Test files are **unmodified**; the runner sed-replaces the `create extension pgtap` line into a local copy at run time. On hosted Supabase the files work as written. To remove the workaround, copy `pgtap.control` + `pgtap--1.3.4.sql` (both staged in the session scratchpad) into `C:\Program Files\PostgreSQL\17\share\extension` as admin.
+
+### 🎯 NEXT
+1. **Rebuild loop is now:** `dropdb magikdex && createdb magikdex` → shim → pgtap → 001 → migration → tests. Seconds.
+2. Archive 002-022 → `supabase/migrations/archive/`.
+3. The trainer rewrite (one migration, `trainer` schema) — **now writable against a database that can prove it.**
+4. Follow-up migration for the three security findings below. `cards_update` is the live one.
+5. `wsl --install` when there's disk and patience; not needed for testing migrations.
+
+## 2026-08-05 (earlier) — 🔓 BASELINE CAPTURED. `001_baseline.sql` written. Two LIVE security findings.
 
 The root cause behind every "unverified text" complaint today is fixed at the source: **the repo now describes its own schema.** Introspected the live project via `pg_catalog` from the dashboard, squashed into `001_baseline.sql`.
 

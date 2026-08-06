@@ -151,52 +151,57 @@ create table if not exists public.legends (
 );
 
 -- ── Constraints ──────────────────────────────────────────────────────────────
+-- GROUPED BY KIND, NOT BY TABLE, and the order is load-bearing. A foreign key
+-- requires a unique index on the column it points at, so every PRIMARY KEY and
+-- UNIQUE has to be in place before the first FOREIGN KEY is added. Grouping
+-- these by table instead put `deck_card_tags`'s FK to `deck_cards(id)` ahead of
+-- `deck_cards_pkey` and the migration died on it — caught by actually running
+-- this file, which is the entire reason 001 exists.
+
+-- 1. Keys and unique constraints — the targets every FK below depends on.
 alter table public.card_tags add constraint card_tags_pkey
   primary key (oracle_id, tag);
-alter table public.card_tags add constraint card_tags_source_check
-  check (source = any (array['otag-search'::text, 'tagger-card-page'::text]));
-
 alter table public.cards add constraint cards_pkey primary key (oracle_id);
+alter table public.deck_card_tags add constraint deck_card_tags_pkey primary key (id);
+alter table public.deck_cards add constraint deck_cards_pkey primary key (id);
+alter table public.decks add constraint decks_pkey primary key (id);
+alter table public.legend_synergy add constraint legend_synergy_pkey
+  primary key (legend_oracle_id, name_lower);
+alter table public.legend_themes add constraint legend_themes_pkey
+  primary key (legend_oracle_id, theme_slug);
+alter table public.legends add constraint legends_pkey primary key (id);
 
-alter table public.deck_card_tags add constraint deck_card_tags_pkey
-  primary key (id);
-alter table public.deck_card_tags add constraint deck_card_tags_deck_card_id_fkey
-  foreign key (deck_card_id) references public.deck_cards(id) on delete cascade;
 alter table public.deck_card_tags add constraint deck_card_tags_deck_card_id_tag_key
   unique (deck_card_id, tag);
-alter table public.deck_card_tags add constraint deck_card_tags_source_check
-  check (source = any (array['user'::text, 'auto'::text]));
-
-alter table public.deck_cards add constraint deck_cards_pkey primary key (id);
-alter table public.deck_cards add constraint deck_cards_deck_id_fkey
-  foreign key (deck_id) references public.decks(id) on delete cascade;
-alter table public.deck_cards add constraint deck_cards_ownership_check
-  check (ownership = any (array['Own'::text, 'Missing'::text, 'Proxy'::text]));
-
-alter table public.decks add constraint decks_pkey primary key (id);
-alter table public.decks add constraint decks_legend_id_fkey
-  foreign key (legend_id) references public.legends(id);
 -- One deck per legend (008). This is the constraint that is NOT idempotent on
 -- replay, which is part of why 002-022 have to be archived rather than re-run.
 alter table public.decks add constraint decks_legend_id_unique unique (legend_id);
+alter table public.legends add constraint legends_user_name_unique
+  unique (user_id, name);
+
+-- 2. Foreign keys.
+alter table public.deck_card_tags add constraint deck_card_tags_deck_card_id_fkey
+  foreign key (deck_card_id) references public.deck_cards(id) on delete cascade;
+alter table public.deck_cards add constraint deck_cards_deck_id_fkey
+  foreign key (deck_id) references public.decks(id) on delete cascade;
+alter table public.decks add constraint decks_legend_id_fkey
+  foreign key (legend_id) references public.legends(id);
 alter table public.decks add constraint decks_partner_legend_id_fkey
   foreign key (partner_legend_id) references public.legends(id);
+
+-- 3. Check constraints — order-independent, so they come last.
+alter table public.card_tags add constraint card_tags_source_check
+  check (source = any (array['otag-search'::text, 'tagger-card-page'::text]));
+alter table public.deck_card_tags add constraint deck_card_tags_source_check
+  check (source = any (array['user'::text, 'auto'::text]));
+alter table public.deck_cards add constraint deck_cards_ownership_check
+  check (ownership = any (array['Own'::text, 'Missing'::text, 'Proxy'::text]));
 alter table public.decks add constraint decks_partner_differs
   check ((partner_legend_id is null) or (partner_legend_id <> legend_id));
 alter table public.decks add constraint decks_platform_check
   check (platform = any (array['moxfield'::text, 'archidekt'::text]));
 alter table public.decks add constraint decks_status_check
   check (status = any (array['Active'::text, 'Shelved'::text, 'Retired'::text]));
-
-alter table public.legend_synergy add constraint legend_synergy_pkey
-  primary key (legend_oracle_id, name_lower);
-
-alter table public.legend_themes add constraint legend_themes_pkey
-  primary key (legend_oracle_id, theme_slug);
-
-alter table public.legends add constraint legends_pkey primary key (id);
-alter table public.legends add constraint legends_user_name_unique
-  unique (user_id, name);
 
 -- ── Indexes ──────────────────────────────────────────────────────────────────
 create index if not exists card_tags_tag_idx on public.card_tags using btree (tag);
