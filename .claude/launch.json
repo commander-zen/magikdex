@@ -6,6 +6,12 @@
       "runtimeExecutable": "npm",
       "runtimeArgs": ["--prefix", "magikdex", "run", "dev", "--", "--host"],
       "port": 5173
+    },
+    {
+      "name": "trainer-dev",
+      "runtimeExecutable": "npm",
+      "runtimeArgs": ["--prefix", "trainer", "run", "dev", "--", "--host"],
+      "port": 5174
     }
   ]
 }
