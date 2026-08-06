@@ -1,5 +1,31 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-06 (afternoon) — 🚀 **024 APPLIED TO PRODUCTION.** Verified. The live card-cache hole is closed.
+
+**First migration this project has ever shipped with a test behind it.** Ben applied it in the SQL editor; verified twice.
+
+1. pgTAP suite in the hosted editor → 9 ok.
+2. Live catalog check of the **persisted** state (the pgTAP run rolls back, so it proves behaviour, not persistence) → all nine conditions `true`:
+
+| check | pass |
+|---|---|
+| `cards_update` policy is gone | true |
+| anon / authenticated cannot UPDATE or DELETE cards | true |
+| **authenticated CAN still INSERT cards (cache fill preserved)** | true |
+| **anon can still SELECT cards (no read regression)** | true |
+| anon has TRUNCATE on no public table | true |
+| `brew_stack` / `tag_stack` pin `search_path` | true |
+
+**What this closed:** any of the ~85 accounts could previously overwrite any row in `cards` — names, oracle text, images, legality — through the REST API with nothing but a signed-in session. Also revoked `truncate`/`trigger` from anon (RLS does not mediate either) and pinned `search_path` on both RPCs.
+
+**Zero functional regression.** The client write-back at `src/lib/scryfall.js:196` only fires on a cache MISS, so the UPDATE half it lost was effectively dead code — and that call already swallows its errors by design. `npm run ingest:cards` is unaffected (service key → service_role, not revoked).
+
+### ⚠️ DO NOT "FIX" 001_baseline TO MATCH PROD
+`001` was captured **before** `024`, so it still records `cards_update` and the truncate grants. That is correct: `001` is the baseline, `024` is the forward step, and replaying `001 → 024` reproduces current production. Editing `001` to match today's prod would make the pair unreplayable.
+
+### Still unapplied: 025, 026, 027
+Recommended sequencing unchanged — put the thin Trainer UI in front of them rather than shipping more unused backend.
+
 ## 2026-08-06 (midday) — ✅ 027 HANDLE LIFECYCLE + REPEATABLE RUNNER. Suite 66/66.
 
 ```bash
@@ -39,7 +65,7 @@ Postgres fires `BEFORE ROW` triggers in **alphabetical order by trigger name.** 
 3. **30-day handle window confirmed?** It's a literal; changing it later is a migration.
 
 ### 🎯 NEXT
-1. **Apply 024 to prod — AUTHORIZED BY BEN 2026-08-06, NOT YET DONE.** Blocked on credentials: no Supabase DB password and no personal access token available in this environment. `PGPASSWORD` in `.env` is the LOCAL Postgres password only. Either supply a PAT / DB connection string, or paste the migration in the SQL editor.
+1. ✅ **024 APPLIED TO PROD 2026-08-06 and verified.** See the afternoon entry at the top.
 2. Thinnest possible Trainer UI (claim handle, view own card) — converts inventory into product and proves the stack end to end.
 3. Apply 025-027 behind that UI.
 4. Open: `save_connection` has no rate limit (handle-guessing probe).

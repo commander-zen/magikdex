@@ -1,7 +1,17 @@
 -- 024_harden_privileges.sql — close the three findings from the 001 introspection
 --
--- NOT APPLIED — written for review. Verified locally against a fresh
--- 001_baseline replay; see supabase/tests/024_harden_privileges_rls.sql.
+-- ✅ APPLIED TO PRODUCTION 2026-08-06 (project iduoct…). Verified twice: the
+-- pgTAP suite in the hosted SQL editor (9 ok), then a live catalog check of the
+-- persisted state — all nine conditions true, including the two that matter most
+-- (authenticated CAN still INSERT into cards, anon CAN still SELECT it).
+--
+-- Also verified locally against a fresh 001_baseline replay; see
+-- supabase/tests/024_harden_privileges_rls.sql.
+--
+-- Note on 001_baseline: it was captured BEFORE this migration, so it still
+-- records cards_update and the truncate grants. That is correct — 001 is the
+-- baseline and this is the forward step. Replaying 001 → 024 reproduces current
+-- production. Do not "fix" 001 to match prod.
 --
 -- Numbered 024 rather than restarting at 002: the archived migrations still
 -- carry 002-023, and reusing a number would make "which 002?" a real question
