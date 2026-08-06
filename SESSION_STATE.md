@@ -1,5 +1,42 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-06 (evening) — 🎉 **UAT PASSED. @zen IS LIVE. 001→028 applied except 026. No more copy-paste.**
+
+**`SUPABASE_DB_URL` is now in `magikdex/.env`** (direct connection, `db.iduoct….supabase.co:5432`). Claude applies migrations and runs pgTAP against prod directly. **Ben is no longer the paste conduit.**
+
+### ✅ Applied to prod this session: 024, 025, 027, 028
+`027` + `028` applied and their suites run **against production**: 12 ok + 7 ok. Prod state verified: `handle_changed_at` column, rename trigger, released_from index, `is_anonymous` gate on the insert policy — all true. **`026` deliberately absent** (`roster_count` 404s), because there's no connection UI yet.
+
+### 🎉 THE END-TO-END PROOF
+`@zen` resolves over the plain anon key:
+```json
+{"handle":"zen","display_name":"zen","philosophy":[],"identity_mode":"playstyle",
+ "playstyle":[],"favorite_legends":[],"visibility":"public","created_at":"..."}
+```
+**No `id` field.** The no-uuid-ever property holding in production, on real data, through the real API.
+
+### 🔎 THREE UAT BUGS, ONE ROOT CAUSE — the app ran ahead of the database
+All three came from the same place: 73 assertions passing against `001`→`028` locally while prod had only `001`, `024`, `025`.
+
+1. **`column profile.handle_changed_at does not exist`.** `getMyProfile` named a `027` column explicitly, so the ENTIRE profile read failed with 42703. Fixed by `select("*")` — deliberate, not lazy: **an explicit column list couples the client to which migrations are applied.** A star is safe there because it reads ONE row, the caller's own, under RLS. It is NOT a pattern for public reads — `get_trainer_card`'s column list IS the privacy boundary and stays explicit.
+2. **"the error is persistent."** One `err` slot rendered load failures and submit failures in the same place under the button, so a project-level problem read as validation nothing could clear. Split into `loadErr` (own banner, top, framed as a project issue) and `err` (submit only, cleared on keystroke).
+3. **"I claimed my handle and then it was gone."** It never was. The write succeeded; the read failed → sheet showed the claim form again → re-claiming hit a unique violation on **his own handle**, reported as *"that handle is taken."* `submitClaim` now re-reads before believing a claim error; if a profile comes back, show the card. A genuine collision still surfaces, because then the re-read returns nothing.
+
+**One broken read produced three different-looking symptoms.** Worth remembering when triaging: a persistent error, a vanished record, and a stolen name were all the same missing column.
+
+### Also fixed
+The claim copy promised "once every 30 days" while `027` wasn't applied — **the UI was lying.** True now. The "handle last changed" line renders only when the column EXISTS (`in`, not truthiness — absent and null mean different things).
+
+### ⚠️ Process note — a real mistake worth recording
+Claude reported commits as "on `main`" for most of the day while **`dev` was 14 commits ahead of `origin/dev` and never pushed.** Vercel builds from the remote, so every "shipped" claim was false; Ben's screenshot of a header with no badge glyph is what caught it. Later, a fix was committed while sitting on `dev` and again reported as on `main`. **`git log --oneline -1 <branch>` after every push, or don't say it shipped.**
+
+### 🎯 NEXT
+1. Reload and confirm the card view loads (`@zen`, PUBLIC) and "what a stranger sees" behaves private→public.
+2. Device pass on the sheet layout — never verified visually; this environment can't composite.
+3. `8e86078` meld/rotate shipped to `main` **without its device pass** (Ben's call). Check the commander overlays; one revert if broken.
+4. More surface, not more schema: party slots and the playstyle picker are already in the DB waiting for UI.
+5. Still owed: `philosophy` min-1?, credential issuer roadmap-or-descope, `save_connection` rate limit (026, unapplied).
+
 ## 2026-08-06 (late afternoon) — 🚀 **025 APPLIED TO PRODUCTION + first Trainer UI shipped to `dev`.**
 
 ### ✅ 025 live and verified two ways

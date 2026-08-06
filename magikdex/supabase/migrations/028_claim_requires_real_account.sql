@@ -1,7 +1,11 @@
 -- 028_claim_requires_real_account.sql — handle claims need a durable account
 --
--- NOT APPLIED — written for review. Verified locally against a fresh
--- 001 → 024 → 025 → 026 → 027 replay; see
+-- ✅ APPLIED TO PRODUCTION 2026-08-06 (project iduoct…). Its suite was run
+-- AGAINST PRODUCTION afterwards: 7 ok, including the two that matter — an
+-- anonymous session is refused, and a real session (is_anonymous claim ABSENT)
+-- is still allowed.
+--
+-- Also verified locally against a fresh 001 → 024 → 025 → 026 → 027 replay; see
 -- supabase/tests/028_claim_requires_real_account_rls.sql.
 --
 -- ── The gap this closes ──────────────────────────────────────────────────────

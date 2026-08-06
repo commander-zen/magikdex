@@ -1,7 +1,11 @@
 -- 027_handle_lifecycle.sql — handle changes: rate limited, and released on rename
 --
--- NOT APPLIED — written for review. Verified locally against a fresh
--- 001 → 024 → 025 → 026 replay; see supabase/tests/027_handle_lifecycle_rls.sql.
+-- ✅ APPLIED TO PRODUCTION 2026-08-06 (project iduoct…). Its suite was run
+-- AGAINST PRODUCTION afterwards: 12 ok. Prod verified to carry the
+-- handle_changed_at column, the rename trigger, and the released_from index.
+--
+-- Also verified locally against a fresh 001 → 024 → 025 → 026 replay; see
+-- supabase/tests/027_handle_lifecycle_rls.sql.
 --
 -- ── Two gaps, one mechanism ──────────────────────────────────────────────────
 --
