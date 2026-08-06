@@ -45,18 +45,29 @@ export default function TrainerSheet({ open, onClose, onOpenSettings }) {
       setErr(null);
       setLoadErr(null);
       setPeek(null);
-      const acct = await getTrainerAccount();
-      if (cancelled) return;
-      setAccount(acct);
-      if (acct.userId && !acct.isAnonymous) {
-        const { profile: p, error } = await getMyProfile(acct.userId);
+      // try/finally so `loading` ALWAYS clears. Without it a THROWN failure —
+      // a dropped connection, a mobile network blip, anything the supabase client
+      // rejects on rather than returning {error} — left this stuck on "loading…"
+      // permanently, with no message and no way out but closing the sheet.
+      // "Nothing loads and nothing explains why" is the worst failure state a
+      // screen can have; a spinner with no timeout is how you build one.
+      try {
+        const acct = await getTrainerAccount();
         if (cancelled) return;
-        setProfile(p);
-        if (error) setLoadErr(error);
-      } else {
-        setProfile(null);
+        setAccount(acct);
+        if (acct.userId && !acct.isAnonymous) {
+          const { profile: p, error } = await getMyProfile(acct.userId);
+          if (cancelled) return;
+          setProfile(p);
+          if (error) setLoadErr(error);
+        } else {
+          setProfile(null);
+        }
+      } catch (e) {
+        if (!cancelled) setLoadErr(e?.message || "couldn't reach the server — check your connection");
+      } finally {
+        if (!cancelled) setLoading(false);
       }
-      if (!cancelled) setLoading(false);
     })();
     return () => { cancelled = true; };
   }, [open]);
