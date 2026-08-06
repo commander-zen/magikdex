@@ -1,5 +1,50 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-06 (night) — ✅ **BLACK SCREEN SOLVED. magikdex is back. Trainer is now its own app.**
+
+### 🔴 THE BUG — `ReviewScreen` temporal dead zone
+`ReviewScreen` read `commanderFull` **four lines above** its `useState`. `const` bindings are unusable until their declaration line executes, so this threw `ReferenceError: Cannot access 'commanderFull' before initialization` **during render, on every mount of that screen.**
+
+**Why it presented as "the whole app is dead":**
+1. A throw during render unmounts the **entire** React tree → black page, not a broken panel.
+2. `App.jsx` restores a persisted brew session on load. Ben's was in Review → crashed on **every** reload, surviving hard-refreshes.
+3. That screen only mounts once a deck is open → an empty test browser renders fine all day. **Not reproducible without his data.**
+
+**Where it came from:** `8e86078` (meld/rotate), marked **DEV ONLY** and awaiting a device pass, promoted to `main` during a "just ship it" moment. The risk was named in one line and should have been pushed on harder — it was the single known-unverified commit in the batch. `SwipeScreen` has the same feature and ordered it correctly; only `ReviewScreen` was wrong.
+
+### 🔑 THE LESSON THAT COST THE MOST
+**Three wrong hypotheses** — stale cache, service worker, Trainer card view — each costing a deploy and a reload. Every one was a guess, because *a crash on a phone with no debugger reports nothing.*
+
+What actually worked: **stop guessing, make the device report.** Shipped a crash reporter that paints the error on screen; Ben screenshotted the minified stack; decoding it against the prod bundle gave `Rc=App → Nc=Brew → Qs=ReviewScreen` and the exact throw site in one pass.
+
+**That should have been the first move, not the fourth.** A crash that reports nothing isn't a hard bug — it's an *unobservable* one, and observability was the missing tool the whole time.
+
+### ✅ Permanent guards added
+- **`src/CrashScreen.jsx` + `src/crashHandler.js`** — any crash now paints readable text on the device. No Mac, no Web Inspector. Covers React render errors, module-eval failures (React never mounts, so no boundary exists), unhandled rejections, and a 6s "mounted nothing, said nothing" check. Guarded so it never paints over a working app. Imports nothing from theme or shared modules — a reporter that depends on the broken thing reports nothing.
+  - ⚠️ **Known gap:** Safari's `error.stack` omits the message, so the reporter showed frames with no error text. Worth adding `e.name`/`e.message` explicitly.
+- **`no-use-before-define`** enabled (`variables`+`classes`, `functions:false`). Caught the bug instantly, plus a second safe reference in a tap handler (exempted with the reason written inline).
+
+### ✅ Trainer is a standalone app — `trainer/`
+Ben's actual requirement, never asked for and discovered forty turns in: **Trainer was meant to be its own product, not a sidecar in the magikdex Box header.** Unmounted from magikdex (`TrainerSheet.jsx` / `lib/trainer.js` remain in magikdex's tree importing nothing — **should be deleted**).
+
+New Vite app at `trainer/`, port 5174, same Supabase project, imports nothing from magikdex. Two routes, hand-parsed (a router for two paths is a dependency and a mental model you don't need):
+- `/t/<handle>` — public card, works signed out. **Verified against production: `/t/zen` renders the real card; `/t/definitely_not_real` renders "no card here".**
+- `/` — email sign-in, claim, visibility, "what a stranger sees".
+
+Not-found and private render **identically** — distinguishing them makes the page an existence oracle. Email-only sign-in agrees with `028` rather than guarding it.
+
+**To deploy:** new Vercel project, root directory `trainer/`, the two `VITE_SUPABASE_*` vars. Dashboard work, ~2 min.
+
+### Database — unchanged and healthy
+`001`→`028` applied except `026` (deliberate: no connection UI). 73 assertions. `SUPABASE_DB_URL` in `magikdex/.env` means migrations no longer need manual pasting.
+
+### 🎯 NEXT
+1. Delete `magikdex/src/components/TrainerSheet.jsx` and `magikdex/src/lib/trainer.js` — dead, duplicated in `trainer/`.
+2. Deploy the Trainer app (Vercel project, root `trainer/`).
+3. Add `e.name`/`e.message` to the crash reporter — Safari stacks omit them.
+4. Trainer surface: playstyle picker + philosophy multi-select. The 30-value taxonomy is already in `025` with no UI.
+5. Still owed: `philosophy` min-1?, credential issuer roadmap-or-descope, `026` + `save_connection` rate limit.
+
 ## 2026-08-06 (evening) — 🎉 **UAT PASSED. @zen IS LIVE. 001→028 applied except 026. No more copy-paste.**
 
 **`SUPABASE_DB_URL` is now in `magikdex/.env`** (direct connection, `db.iduoct….supabase.co:5432`). Claude applies migrations and runs pgTAP against prod directly. **Ben is no longer the paste conduit.**
