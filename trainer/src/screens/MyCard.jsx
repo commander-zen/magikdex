@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import { supabase } from "../lib/supabase.js";
 import CardEditor from "./CardEditor.jsx";
-import Roster from "./Roster.jsx";
+import Binder from "./Binder.jsx";
 import {
   getSession, getMyProfile, claimHandle, updateMyProfile, getPublicCard,
   normalizeHandle, handleProblem, VISIBILITY_CHOICES,
@@ -257,7 +257,7 @@ export default function MyCard() {
             {/* Two things this app is: the card you hand out, and the people who
                 handed you theirs. Everything else is in service of those. */}
             <div style={{ display: "flex", border: `1px solid ${t.muted}` }}>
-              {[["card", "MY CARD"], ["roster", "ROSTER"]].map(([v, lbl], i) => {
+              {[["card", "MY CARD"], ["binder", "BINDER"]].map(([v, lbl], i) => {
                 const on = tab === v;
                 return (
                   <button
@@ -367,7 +367,7 @@ export default function MyCard() {
 
               </>
             ) : (
-              <Roster />
+              <Binder />
             )}
 
             <button onClick={() => supabase.auth.signOut()} style={{ ...btn(false, false), marginTop: 6 }}>

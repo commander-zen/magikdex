@@ -7,9 +7,13 @@ import {
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
 
-// The roster — people you've played and were willing to swap cards with.
+// Your binder — the cards of people you have played and swapped with.
 //
-// This is the actual product; the card is the token it passes around. The whole
+// This is the actual product; the card is the token it passes around. The name
+// is deliberate: in Magic a binder is where cards worth keeping go, so your card
+// ending up in someone else’s binder is the exchange, described from the other
+// side. ("roster" was the first name and carries slang this product wants no
+// part of.) The whole
 // thing exists because of a specific failure: the game already happened, it was
 // good, and there is no handle on the other player afterward.
 //
@@ -20,7 +24,7 @@ const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em
 //     saved you. "We both added each other" is uncomputable on purpose
 //   · not public — no roster is readable by anyone but its owner. roster_count
 //     publishes the SIZE and nothing else
-export default function Roster() {
+export default function Binder() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
@@ -101,7 +105,7 @@ export default function Roster() {
           opacity: busy || !handle ? 0.55 : 1,
         }}
       >
-        {busy ? "saving…" : "add to roster"}
+        {busy ? "saving…" : "keep their card"}
       </button>
       {addErr && <span style={{ ...mono, fontSize: 11, color: t.red, lineHeight: 1.7 }}>{addErr}</span>}
       {/* Saving is unilateral and silent — no request, no approval, no
@@ -114,7 +118,7 @@ export default function Roster() {
 
       <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
         <span style={cap}>
-          your roster{rows.length ? ` · ${rows.length}` : ""}
+          your binder{rows.length ? ` · ${rows.length}` : ""}
         </span>
 
         {loading ? (
@@ -125,7 +129,7 @@ export default function Roster() {
             forget their name.
           </span>
         ) : rows.map(r => (
-          <RosterRow
+          <BinderRow
             key={r.handle}
             row={r}
             open={openKey === r.handle}
@@ -138,7 +142,7 @@ export default function Roster() {
   );
 }
 
-function RosterRow({ row, open, onToggle, onChanged }) {
+function BinderRow({ row, open, onToggle, onChanged }) {
   const [note, setNote] = useState(row.note ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);

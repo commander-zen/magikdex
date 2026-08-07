@@ -145,7 +145,17 @@ export async function getPublicCredentials(handle) {
   };
 }
 
-// ── The roster (migration 026) ───────────────────────────────────────────────
+// ── The binder (migration 026) ───────────────────────────────────────────────
+// NAMING SPLIT, ON PURPOSE. The product calls this the BINDER; the database calls
+// it my_roster() / roster_count(), because those shipped to production before the
+// rename. The wrappers below keep the database's names so a function is always
+// findable from the RPC it calls — a wrapper named differently from its endpoint
+// is a debugging trap at 2am.
+//
+// Renaming the SQL side is a small follow-up migration (create new, drop old) and
+// worth doing before anything external depends on roster_count — a QR code or a
+// printed card that hits that endpoint would pin the old name permanently.
+//
 // Every call is handle-keyed and goes through a SECURITY DEFINER function. The
 // tables themselves are granted to nobody: the social graph is not a public
 // object and there is no read path to it other than your own roster.
