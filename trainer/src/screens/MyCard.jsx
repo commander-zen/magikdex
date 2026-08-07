@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import { supabase } from "../lib/supabase.js";
+import CardEditor from "./CardEditor.jsx";
 import {
   getSession, getMyProfile, claimHandle, updateMyProfile, getPublicCard,
   normalizeHandle, handleProblem, VISIBILITY_CHOICES,
@@ -316,6 +317,18 @@ export default function MyCard() {
                 rate limit is real. `in` rather than truthiness: absent (no
                 migration) and null (never renamed) mean different things, and
                 promising a limit that isn't enforced would be a lie. */}
+            {/* Everything else on the card. Placed after visibility on purpose:
+                decide who can see it, then decide what they see. */}
+            <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 18 }}>
+              <CardEditor
+                profile={profile}
+                // The saved row is authoritative — the database may have
+                // normalised or rejected part of the patch, so the editor reseeds
+                // from what came back rather than from what was sent.
+                onSaved={p => { setProfile(p); setPeek(null); }}
+              />
+            </div>
+
             {"handle_changed_at" in profile && (
               <span style={{ ...mono, fontSize: 10, color: t.dim }}>
                 {profile.handle_changed_at

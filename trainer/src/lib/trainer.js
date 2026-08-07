@@ -136,6 +136,46 @@ export async function getPublicCredentials(handle) {
   };
 }
 
+// ── Vocabularies ─────────────────────────────────────────────────────────────
+// These mirror the CHECK constraints in migration 025. The DATABASE is the
+// authority and rejects anything outside them regardless; these exist so the UI
+// can offer the right options and cap selections before a round trip.
+//
+// If this list and the migration ever disagree, the migration wins and this is
+// the bug. Adding a value means a new migration, not an edit here — that is
+// deliberate, so the vocabulary stays a reviewed decision rather than a typo.
+export const PLAYSTYLE_CHOICES = [
+  "tokens", "plus_one_counters", "artifacts", "combo", "aggro",
+  "lifegain", "spellslinger", "reanimator", "aristocrats", "lands_matter",
+  "control", "burn", "equipment", "ramp", "enchantress",
+  "voltron", "midrange", "treasure", "mill", "sacrifice",
+  "blink", "wheels", "auras", "legends", "discard",
+  "stax", "group_hug", "politics", "chaos", "battlecruiser",
+];
+
+// No cap on count — a trainer can honestly claim all four.
+export const PHILOSOPHY_CHOICES = ["jank", "casual", "trash_magic", "cedh"];
+
+export const MAX_PLAYSTYLE = 3;
+export const MAX_LEGENDS = 3;
+export const LEGEND_MAX_LEN = 60;
+export const BIO_MAX = 280;
+export const PRONOUNS_MAX = 30;
+export const REGION_MAX = 60;
+
+// Mirrors profile_home_region_not_geo. The column rejects anything shaped like a
+// decimal degree, because a free-text "where do you play" field is the one place
+// a client could start writing lat/long into a table that also holds a person.
+// "St. Louis" and "Route 66" pass; "44.9778, -93.2650" does not.
+export const GEO_RE = /[-+]?[0-9]{1,3}\.[0-9]{3,}/;
+
+export function regionProblem(v) {
+  if (!v) return null;
+  if (v.length > REGION_MAX) return `${REGION_MAX} characters max`;
+  if (GEO_RE.test(v)) return "no coordinates — use a place name";
+  return null;
+}
+
 export const VISIBILITY_CHOICES = [
   // Copy states the CONSEQUENCE, not the setting name. "unlisted" means nothing
   // to someone deciding whether to be findable.
