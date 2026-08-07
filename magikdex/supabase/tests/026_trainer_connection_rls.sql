@@ -1,4 +1,8 @@
--- 026_trainer_connection_rls.sql — tests for 026_trainer_connection.sql
+-- 026_trainer_connection_rls.sql — tests for the buddy list (026 + 029)
+--
+-- Names updated by 029, which renamed connection->buddy and roster->buddy. The
+-- FILE keeps its number because tests assert the CURRENT schema, not the schema
+-- as of one migration; 026 itself is left alone as history.
 --
 -- HOW TO RUN (local): supabase/local/00_supabase_shim.sql for the harness, then
 --   001 → 024 → 025 → 026 → this file.
@@ -46,9 +50,9 @@ set local role anon;
 -- 1-2. THE SCHEMA BOUNDARY. anon has no USAGE on trainer, so the social graph is
 --      refused before RLS is even consulted.
 select throws_ok(
-  $$ select trainer_id from trainer.connection $$,
+  $$ select trainer_id from trainer.buddy $$,
   '42501', null,
-  '1. anon cannot reach trainer.connection at all'
+  '1. anon cannot reach trainer.buddy at all'
 );
 
 select throws_ok(
@@ -59,9 +63,9 @@ select throws_ok(
 
 -- 3. And cannot write one either — every mutation requires a session.
 select throws_ok(
-  $$ select public.save_connection('b_public') $$,
+  $$ select public.add_buddy('b_public') $$,
   '42501', null,
-  '3. anon cannot call save_connection'
+  '3. anon cannot call add_buddy'
 );
 
 -- ── Authenticated as A ───────────────────────────────────────────────────────
@@ -73,66 +77,66 @@ set local request.jwt.claims =
 
 -- 4-5. The happy path: scan a public card, it lands, you read it back.
 select lives_ok(
-  $$ select public.save_connection('b_public', 'Gnome Games commander night') $$,
+  $$ select public.add_buddy('b_public', 'Gnome Games commander night') $$,
   '4. a trainer can save a public trainer they met'
 );
 
 select results_eq(
-  $$ select handle::text, met_count, reachable from public.my_roster() $$,
+  $$ select handle::text, met_count, reachable from public.my_buddies() $$,
   $$ values ('b_public'::text, 1, true) $$,
-  '5. the owner reads back their own connection'
+  '5. the owner reads back their own buddy'
 );
 
 -- 6. An UNLISTED trainer CAN be saved — that is what unlisted means.
 select lives_ok(
-  $$ select public.save_connection('c_unlisted') $$,
+  $$ select public.add_buddy('c_unlisted') $$,
   '6. a trainer CAN save an UNLISTED trainer'
 );
 
 -- 7. A PRIVATE trainer cannot. Note the error is the same as for a nonexistent
 --    handle, so this is not an oracle for "exists but private".
 select throws_ok(
-  $$ select public.save_connection('d_private') $$,
+  $$ select public.add_buddy('d_private') $$,
   'P0002', null,
   '7. a trainer cannot save a PRIVATE trainer'
 );
 
 select throws_ok(
-  $$ select public.save_connection('no_such_handle') $$,
+  $$ select public.add_buddy('no_such_handle') $$,
   'P0002', null,
   '8. a nonexistent handle fails identically to a private one'
 );
 
 -- 9. You are not someone you met.
 select throws_ok(
-  $$ select public.save_connection('a_public') $$,
+  $$ select public.add_buddy('a_public') $$,
   '23514', null,
-  '9. a trainer cannot connect to themselves'
+  '9. a trainer cannot add themselves'
 );
 
 -- 10-11. RE-SCANNING UPDATES, IT NEVER APPENDS. This is the whole privacy
---        design: the roster stays a roster instead of becoming a movement log.
+--        design: the buddy list stays a list of people instead of a movement log.
 select lives_ok(
-  $$ select public.save_connection('b_public') $$,
+  $$ select public.add_buddy('b_public') $$,
   '10. re-saving the same trainer succeeds'
 );
 
 select results_eq(
-  $$ select count(*)::int from public.my_roster() where handle = 'b_public' $$,
+  $$ select count(*)::int from public.my_buddies() where handle = 'b_public' $$,
   $$ values (1) $$,
   '11. re-saving produced ONE row, not two (no encounter log)'
 );
 
 -- 12. And the counter moved — server-side, which is what makes it trustworthy.
 select results_eq(
-  $$ select met_count from public.my_roster() where handle = 'b_public' $$,
+  $$ select met_count from public.my_buddies() where handle = 'b_public' $$,
   $$ values (2) $$,
   '12. met_count incremented to 2 on the re-save'
 );
 
 -- 13. A re-scan with no context must not erase the context you typed first time.
 select results_eq(
-  $$ select met_context from public.my_roster() where handle = 'b_public' $$,
+  $$ select met_context from public.my_buddies() where handle = 'b_public' $$,
   $$ values ('Gnome Games commander night'::text) $$,
   '13. re-saving without context preserves the original met_context'
 );
@@ -140,19 +144,19 @@ select results_eq(
 -- 14. met_context is the geo backdoor if left unguarded. Same CHECK as
 --     profile.home_region.
 select throws_ok(
-  $$ select public.save_connection('e_public', '44.9778, -93.2650') $$,
+  $$ select public.add_buddy('e_public', '44.9778, -93.2650') $$,
   '23514', null,
   '14. coordinates in met_context are rejected'
 );
 
 -- 15. Notes are yours and do not count as a meeting.
 select lives_ok(
-  $$ select public.set_connection_note('b_public', 'played Voja, wants a rematch') $$,
-  '15. the owner can annotate a connection'
+  $$ select public.set_buddy_note('b_public', 'played Voja, wants a rematch') $$,
+  '15. the owner can annotate a buddy'
 );
 
 select results_eq(
-  $$ select note, met_count from public.my_roster() where handle = 'b_public' $$,
+  $$ select note, met_count from public.my_buddies() where handle = 'b_public' $$,
   $$ values ('played Voja, wants a rematch'::text, 2) $$,
   '16. writing a note did NOT bump met_count'
 );
@@ -167,7 +171,7 @@ set local request.jwt.claims =
 -- 17. B was saved by A and cannot tell. Rosters are private in BOTH directions,
 --     which is also what makes "is it mutual?" uncomputable — deliberately.
 select is_empty(
-  $$ select handle from public.my_roster() $$,
+  $$ select handle from public.my_buddies() $$,
   '17. a trainer cannot see inbound connections (no mutuality tell)'
 );
 
@@ -178,26 +182,26 @@ set local role authenticated;
 set local request.jwt.claim.sub = '11111111-1111-1111-1111-111111111111';
 set local request.jwt.claims =
   '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
-select public.save_connection('e_public');
+select public.add_buddy('e_public');
 
 reset role;
 set local role authenticated;
 set local request.jwt.claim.sub = '55555555-5555-5555-5555-555555555555';
 set local request.jwt.claims =
   '{"sub":"55555555-5555-5555-5555-555555555555","role":"authenticated"}';
-select public.save_connection('a_public');
+select public.add_buddy('a_public');
 select public.block_trainer('a_public');
 
 -- 18. Block means gone from BOTH rosters, not just yours. Verified as superuser
 --     because neither party can see the other's side.
 reset role;
 select is_empty(
-  $$ select trainer_id from trainer.connection
+  $$ select trainer_id from trainer.buddy
      where (trainer_id = '11111111-1111-1111-1111-111111111111'
             and connected_trainer_id = '55555555-5555-5555-5555-555555555555')
         or (trainer_id = '55555555-5555-5555-5555-555555555555'
             and connected_trainer_id = '11111111-1111-1111-1111-111111111111') $$,
-  '18. a block severs the connection in BOTH directions'
+  '18. a block severs the buddy edge in BOTH directions'
 );
 
 -- 19. And it stops a new one forming — which deleting a row alone could not do.
@@ -207,48 +211,48 @@ set local request.jwt.claims =
   '{"sub":"11111111-1111-1111-1111-111111111111","role":"authenticated"}';
 
 select throws_ok(
-  $$ select public.save_connection('e_public') $$,
+  $$ select public.add_buddy('e_public') $$,
   '42501', null,
   '19. a blocked trainer cannot re-add the trainer who blocked them'
 );
 
 -- 20. Forgetting works, and is the owner's own call.
 select lives_ok(
-  $$ select public.forget_connection('c_unlisted') $$,
+  $$ select public.remove_buddy('c_unlisted') $$,
   '20. the owner can forget a connection'
 );
 
 select is_empty(
-  $$ select handle from public.my_roster() where handle = 'c_unlisted' $$,
+  $$ select handle from public.my_buddies() where handle = 'c_unlisted' $$,
   '21. the forgotten connection is gone'
 );
 
--- ── roster_count ─────────────────────────────────────────────────────────────
+-- ── buddy_count ─────────────────────────────────────────────────────────────
 reset role;
 set local role anon;
 
 -- 22. A's roster is {b_public} — c_unlisted was forgotten and e_public severed.
 select is(
-  public.roster_count('a_public'),
+  public.buddy_count('a_public'),
   1,
-  '22. roster_count is public, callable by anon, and correct'
+  '22. buddy_count is public, callable by anon, and correct'
 );
 
 -- 23. ⚠️ 0, NOT NULL, FOR AN UNREACHABLE TRAINER — asserted so nobody "fixes" it
 --     later. 0 makes a private trainer indistinguishable from a public trainer
 --     with an empty roster; a null would itself announce "this one is private".
 select is(
-  public.roster_count('d_private'),
+  public.buddy_count('d_private'),
   0,
-  '23. roster_count returns 0 (not null) for a PRIVATE trainer'
+  '23. buddy_count returns 0 (not null) for a PRIVATE trainer'
 );
 
 -- 24. The return type IS the privacy enforcement: a scalar int cannot carry
 --     met_context, note or a timestamp no matter how the body is later edited.
 select is(
-  pg_get_function_result('public.roster_count(extensions.citext)'::regprocedure),
+  pg_get_function_result('public.buddy_count(extensions.citext)'::regprocedure),
   'integer',
-  '24. roster_count''s signature is exactly `returns int` — nothing wider'
+  '24. buddy_count''s signature is exactly `returns int` — nothing wider'
 );
 
 select * from finish();

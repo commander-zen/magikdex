@@ -145,20 +145,13 @@ export async function getPublicCredentials(handle) {
   };
 }
 
-// ── The binder (migration 026) ───────────────────────────────────────────────
-// NAMING SPLIT, ON PURPOSE. The product calls this the BINDER; the database calls
-// it my_roster() / roster_count(), because those shipped to production before the
-// rename. The wrappers below keep the database's names so a function is always
-// findable from the RPC it calls — a wrapper named differently from its endpoint
-// is a debugging trap at 2am.
-//
-// Renaming the SQL side is a small follow-up migration (create new, drop old) and
-// worth doing before anything external depends on roster_count — a QR code or a
-// printed card that hits that endpoint would pin the old name permanently.
-//
+// ── The buddy list (migrations 026 + 029) ────────────────────────────────────
 // Every call is handle-keyed and goes through a SECURITY DEFINER function. The
-// tables themselves are granted to nobody: the social graph is not a public
-// object and there is no read path to it other than your own roster.
+// tables are granted to nobody: the social graph is not a public object and
+// there is no read path to it other than your own list.
+//
+// 029 renamed these from connection/roster so the database says what the product
+// says. There is no naming split left to remember.
 //
 // ONE ROW PER PAIR, NEVER AN ENCOUNTER LOG. Re-saving someone UPDATES — it bumps
 // last_met_at and the count. It never appends. You can know you have played
@@ -167,18 +160,18 @@ export async function getPublicCredentials(handle) {
 // written down.
 //
 // Nothing here can tell you whether someone saved you back. Mutuality is
-// deliberately uncomputable — surfacing it would leak one bit about their roster.
+// deliberately uncomputable — surfacing it would leak one bit about their list.
 
-export async function myRoster() {
-  const { data, error } = await supabase.rpc("my_roster");
-  return { roster: Array.isArray(data) ? data : [], error: describeError(error) };
+export async function myBuddies() {
+  const { data, error } = await supabase.rpc("my_buddies");
+  return { buddies: Array.isArray(data) ? data : [], error: describeError(error) };
 }
 
 // The upsert lives server-side, which is what makes met_count trustworthy: a
 // client that could run its own would be able to set the counter to anything,
-// and roster_count publishes it.
-export async function saveConnection(handle, metContext) {
-  const { error } = await supabase.rpc("save_connection", {
+// and buddy_count publishes it.
+export async function addBuddy(handle, metContext) {
+  const { error } = await supabase.rpc("add_buddy", {
     p_handle: handle,
     p_met_context: metContext?.trim() || null,
     p_source: "manual",
@@ -186,15 +179,15 @@ export async function saveConnection(handle, metContext) {
   return { error: describeError(error) };
 }
 
-export async function setConnectionNote(handle, note) {
-  const { error } = await supabase.rpc("set_connection_note", {
+export async function setBuddyNote(handle, note) {
+  const { error } = await supabase.rpc("set_buddy_note", {
     p_handle: handle, p_note: note?.trim() || null,
   });
   return { error: describeError(error) };
 }
 
-export async function forgetConnection(handle) {
-  const { error } = await supabase.rpc("forget_connection", { p_handle: handle });
+export async function removeBuddy(handle) {
+  const { error } = await supabase.rpc("remove_buddy", { p_handle: handle });
   return { error: describeError(error) };
 }
 

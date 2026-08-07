@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import {
-  myRoster, saveConnection, setConnectionNote, forgetConnection, blockTrainer,
+  myBuddies, addBuddy, setBuddyNote, removeBuddy, blockTrainer,
   normalizeHandle, MET_CONTEXT_MAX, NOTE_MAX,
 } from "../lib/trainer.js";
 
@@ -22,7 +22,7 @@ const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em
 //     rather than appending, so this can never reconstruct a movement history
 //   · not mutual — nobody can see that you saved them, and you cannot see who
 //     saved you. "We both added each other" is uncomputable on purpose
-//   · not public — nobody's list is readable but its owner's. roster_count
+//   · not public — nobody&rsquo;s list is readable but its owner&rsquo;s. buddy_count
 //     publishes the SIZE and nothing else
 export default function BuddyList() {
   const [rows, setRows] = useState([]);
@@ -37,8 +37,8 @@ export default function BuddyList() {
 
   async function load() {
     try {
-      const { roster, error } = await myRoster();
-      setRows(roster);
+      const { buddies, error } = await myBuddies();
+      setRows(buddies);
       setLoadErr(error);
     } catch (e) {
       setLoadErr(e?.message || "couldn't reach the server");
@@ -52,7 +52,7 @@ export default function BuddyList() {
     const h = normalizeHandle(handle);
     if (!h || busy) return;
     setBusy(true); setAddErr(null);
-    const { error } = await saveConnection(h, where);
+    const { error } = await addBuddy(h, where);
     setBusy(false);
     if (error) { setAddErr(error); return; }
     setHandle(""); setWhere("");
@@ -223,7 +223,7 @@ function BuddyRow({ row, open, onToggle, onChanged }) {
               </span>
               <div style={{ display: "flex", gap: 8 }}>
                 <Btn
-                  onClick={() => run(() => confirm === "block" ? blockTrainer(row.handle) : forgetConnection(row.handle))}
+                  onClick={() => run(() => confirm === "block" ? blockTrainer(row.handle) : removeBuddy(row.handle))}
                   disabled={busy}
                   danger
                 >
@@ -234,7 +234,7 @@ function BuddyRow({ row, open, onToggle, onChanged }) {
             </div>
           ) : (
             <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-              <Btn onClick={() => run(() => setConnectionNote(row.handle, note))}
+              <Btn onClick={() => run(() => setBuddyNote(row.handle, note))}
                    disabled={busy || note === (row.note ?? "")} accent>save note</Btn>
               <Btn onClick={() => setConfirm("forget")} disabled={busy}>forget</Btn>
               <Btn onClick={() => setConfirm("block")} disabled={busy} danger>block</Btn>
