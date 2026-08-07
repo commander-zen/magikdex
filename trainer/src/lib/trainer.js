@@ -54,6 +54,15 @@ function describeError(error) {
     return "the database is behind this app — a trainer migration hasn't been applied";
   }
 
+  // 026's save_connection raises P0002 for BOTH a private trainer and a handle
+  // that never existed — identical on purpose, so the API is not an existence
+  // oracle. The copy has to stay vague for the same reason: saying "that person
+  // is private" would leak exactly what the error code refuses to.
+  if (code === "P0002" || /no reachable trainer|no trainer with/i.test(msg)) {
+    return "no card found for that handle";
+  }
+  if (/cannot save yourself/i.test(msg)) return "that's you";
+  if (/not permitted/i.test(msg)) return "can't add that trainer";
   if (code === "23505") return "that handle is taken";
   // The reserved-handle trigger raises check_violation and names the handle, so
   // match the word rather than the code — 23514 is also every other CHECK.
@@ -135,6 +144,57 @@ export async function getPublicCredentials(handle) {
     error: describeError(error),
   };
 }
+
+// ── The roster (migration 026) ───────────────────────────────────────────────
+// Every call is handle-keyed and goes through a SECURITY DEFINER function. The
+// tables themselves are granted to nobody: the social graph is not a public
+// object and there is no read path to it other than your own roster.
+//
+// ONE ROW PER PAIR, NEVER AN ENCOUNTER LOG. Re-saving someone UPDATES — it bumps
+// last_met_at and the count. It never appends. You can know you have played
+// someone six times, first in March and most recently Thursday; you cannot
+// recover where either of you was on the nights between, because that was never
+// written down.
+//
+// Nothing here can tell you whether someone saved you back. Mutuality is
+// deliberately uncomputable — surfacing it would leak one bit about their roster.
+
+export async function myRoster() {
+  const { data, error } = await supabase.rpc("my_roster");
+  return { roster: Array.isArray(data) ? data : [], error: describeError(error) };
+}
+
+// The upsert lives server-side, which is what makes met_count trustworthy: a
+// client that could run its own would be able to set the counter to anything,
+// and roster_count publishes it.
+export async function saveConnection(handle, metContext) {
+  const { error } = await supabase.rpc("save_connection", {
+    p_handle: handle,
+    p_met_context: metContext?.trim() || null,
+    p_source: "manual",
+  });
+  return { error: describeError(error) };
+}
+
+export async function setConnectionNote(handle, note) {
+  const { error } = await supabase.rpc("set_connection_note", {
+    p_handle: handle, p_note: note?.trim() || null,
+  });
+  return { error: describeError(error) };
+}
+
+export async function forgetConnection(handle) {
+  const { error } = await supabase.rpc("forget_connection", { p_handle: handle });
+  return { error: describeError(error) };
+}
+
+export async function blockTrainer(handle) {
+  const { error } = await supabase.rpc("block_trainer", { p_handle: handle });
+  return { error: describeError(error) };
+}
+
+export const MET_CONTEXT_MAX = 80;
+export const NOTE_MAX = 280;
 
 // ── Vocabularies ─────────────────────────────────────────────────────────────
 // These mirror the CHECK constraints in migration 025. The DATABASE is the

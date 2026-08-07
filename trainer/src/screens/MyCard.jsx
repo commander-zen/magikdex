@@ -2,6 +2,7 @@ import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import { supabase } from "../lib/supabase.js";
 import CardEditor from "./CardEditor.jsx";
+import Roster from "./Roster.jsx";
 import {
   getSession, getMyProfile, claimHandle, updateMyProfile, getPublicCard,
   normalizeHandle, handleProblem, VISIBILITY_CHOICES,
@@ -41,6 +42,7 @@ export default function MyCard() {
   const [busy, setBusy] = useState(false);
   const [peek, setPeek] = useState(null);
   const [peekBusy, setPeekBusy] = useState(false);
+  const [tab, setTab] = useState("card");
 
   async function refresh() {
     // try/finally so `loading` ALWAYS clears — a thrown failure must not leave a
@@ -252,6 +254,32 @@ export default function MyCard() {
               <span style={{ fontSize: 14, color: t.dim }}>{profile.display_name}</span>
             </div>
 
+            {/* Two things this app is: the card you hand out, and the people who
+                handed you theirs. Everything else is in service of those. */}
+            <div style={{ display: "flex", border: `1px solid ${t.muted}` }}>
+              {[["card", "MY CARD"], ["roster", "ROSTER"]].map(([v, lbl], i) => {
+                const on = tab === v;
+                return (
+                  <button
+                    key={v}
+                    onClick={() => setTab(v)}
+                    style={{
+                      flex: 1, minHeight: 44, cursor: "pointer",
+                      border: "none", borderLeft: i ? `1px solid ${t.muted}` : "none",
+                      background: on ? t.accent : "transparent",
+                      color: on ? t.base : t.dim,
+                      ...mono, fontSize: 11,
+                    }}
+                  >
+                    {lbl}
+                  </button>
+                );
+              })}
+            </div>
+
+            {tab === "card" ? (
+              <>
+
             <a href={`/t/${profile.handle}`}
                style={{ ...mono, fontSize: 11, color: t.dim, textDecoration: "none", borderBottom: `1px solid ${t.muted}`, paddingBottom: 6 }}>
               {location.host}/t/{profile.handle} →
@@ -335,6 +363,11 @@ export default function MyCard() {
                   ? `handle last changed ${String(profile.handle_changed_at).slice(0, 10)}`
                   : "handle has never been changed"}
               </span>
+            )}
+
+              </>
+            ) : (
+              <Roster />
             )}
 
             <button onClick={() => supabase.auth.signOut()} style={{ ...btn(false, false), marginTop: 6 }}>
