@@ -180,14 +180,22 @@ select is_empty(
 --     Reads prosrc (the raw body) rather than pg_get_functiondef, because
 --     pg_get_functiondef THROWS on aggregates — and scanning all of public hits
 --     pgTAP's own. prokind='f' is filtered too, belt and braces.
+--
+--     RETURNS VOID IS EXCLUDED, and that exclusion is the precise statement of
+--     the rule. 030's add_deck_grade counts credentials to enforce the
+--     four-badge cap and legitimately tripped the earlier version of this test.
+--     Counting INTERNALLY to make a decision is fine; what must never exist is a
+--     function that HANDS BACK a value derived from aggregating credentials.
+--     archive/018's trust_level() returned int — it would still be caught.
 select is_empty(
   $$ select p.proname from pg_proc p
      join pg_namespace n on n.oid = p.pronamespace
      where n.nspname in ('public','trainer')
        and p.prokind = 'f'
+       and p.prorettype <> 'void'::regtype
        and p.prosrc ~* 'trainer\.credential'
        and p.prosrc ~* '\y(sum|count|avg|max|min)\s*\(' $$,
-  '12. no function aggregates credentials into a score'
+  '12. no function returns a value aggregated from credentials'
 );
 
 -- ── Authenticated as a stranger ──────────────────────────────────────────────

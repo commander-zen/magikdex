@@ -196,6 +196,41 @@ export async function blockTrainer(handle) {
   return { error: describeError(error) };
 }
 
+// ── Deck grades (migration 030) ──────────────────────────────────────────────
+// You grade a deck on ScryCheck, then record the result here yourself. We never
+// touch their API — their rating, their site, their scale.
+//
+// issuer and method are set INSIDE the database function, not passed from here.
+// That is the security property: this client cannot mint a verified badge or
+// invent a voucher. It only supplies the deck name and the number you saw.
+export const SCRYCHECK_URL = "https://scrycheck.com/";
+export const MAX_GRADES = 4;
+export const DECK_NAME_MAX = 40;
+export const RATING_MAX = 12;
+
+export async function addDeckGrade(deck, rating) {
+  const { error } = await supabase.rpc("add_deck_grade", { p_deck: deck, p_rating: rating });
+  return { error: describeError(error) };
+}
+
+// Removal is a REVOCATION, never a delete — the row survives as an audit record
+// and stops being current.
+export async function revokeDeckGrade(id) {
+  const { error } = await supabase.rpc("revoke_deck_grade", { p_id: id });
+  return { error: describeError(error) };
+}
+
+// The owner's own grades, including ids so they can be revoked. RLS scopes this
+// to the caller; the public path (get_trainer_credentials) returns no ids.
+export async function myDeckGrades() {
+  const { data, error } = await supabase
+    .schema("trainer").from("credential")
+    .select("id, kind, issuer, method, payload, issued_at")
+    .is("revoked_at", null)
+    .order("issued_at", { ascending: false });
+  return { grades: Array.isArray(data) ? data : [], error: describeError(error) };
+}
+
 export const MET_CONTEXT_MAX = 80;
 export const NOTE_MAX = 280;
 

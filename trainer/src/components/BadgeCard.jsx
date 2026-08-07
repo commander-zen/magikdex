@@ -85,7 +85,7 @@ export default function BadgeCard({ card, credentials = [] }) {
               <SectionLabel>
                 badge case {graded === 0 ? "· nothing graded yet" : `· ${graded} graded`}
               </SectionLabel>
-              <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 8, marginBottom: 16 }}>
+              <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 8, marginBottom: 16 }}>
                 {credentials.map((cr, i) => (
                   <div key={i} style={{
                     aspectRatio: "1", border: `2px solid ${C.line}`, borderRadius: 12,
@@ -95,10 +95,10 @@ export default function BadgeCard({ card, credentials = [] }) {
                     <span style={{ position: "absolute", top: 6, left: 6, ...mono, fontSize: 10, fontWeight: 700, color: C.line }}>
                       {badgeTag(cr)}
                     </span>
-                    <span style={{ ...mono, fontSize: 8, color: C.label, lineHeight: 1.2 }}>{cr.issuer}</span>
+                    <span style={{ ...mono, fontSize: 8, color: C.label, lineHeight: 1.2 }}>{badgeLabel(cr)}</span>
                   </div>
                 ))}
-                {Array.from({ length: Math.max(0, 6 - credentials.length) }).map((_, i) => (
+                {Array.from({ length: Math.max(0, 4 - credentials.length) }).map((_, i) => (
                   <div key={`e${i}`} style={{
                     aspectRatio: "1", border: `2px dashed ${C.soft}`, borderRadius: 12,
                     display: "flex", alignItems: "center", justifyContent: "center",
@@ -200,10 +200,15 @@ function monthYear(iso) {
   return d.toLocaleDateString("en-US", { month: "short", year: "numeric" }).toLowerCase();
 }
 
+// The rating exactly as ScryCheck showed it. Never a bracket — this product's
+// power vocabulary is jank / casual / trash magic / cEDH, and brackets are a
+// different framework that naming here would import by the back door.
 function badgeTag(cr) {
-  const b = cr.payload?.bracket ?? cr.payload?.rank;
-  if (b != null) return `b${b}`;
-  if (cr.kind === "lgs_visit") return "lgs";
+  const r = cr.payload?.rating;
+  if (r != null && String(r).length) return String(r);
   if (cr.kind === "event_finish") return "evt";
   return "•";
+}
+function badgeLabel(cr) {
+  return cr.payload?.deck ?? cr.issuer;
 }

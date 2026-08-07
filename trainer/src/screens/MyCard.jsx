@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase.js";
 import CardTab, { Segmented } from "./CardTab.jsx";
 import PrivacyTab from "./PrivacyTab.jsx";
 import BuddyList from "./BuddyList.jsx";
+import GradesTab from "./GradesTab.jsx";
 import {
   getSession, getMyProfile, claimHandle, getPublicCredentials,
   normalizeHandle, handleProblem,
@@ -145,12 +146,13 @@ export default function MyCard() {
           <>
             <Segmented
               value={tab}
-              options={[["card", "CARD"], ["privacy", "PRIVACY"], ["buddies", "BUDDIES"]]}
+              options={[["card", "CARD"], ["grades", "GRADES"], ["buddies", "BUDDIES"], ["privacy", "PRIVACY"]]}
               onChange={setTab}
             />
 
             {tab === "card"    && <CardTab profile={profile} credentials={creds} onSaved={setProfile} />}
             {tab === "privacy" && <PrivacyTab profile={profile} onSaved={setProfile} />}
+            {tab === "grades"  && <GradesTab onChanged={refresh} />}
             {tab === "buddies" && <BuddyList />}
 
             {/* Sign-out belongs at the edge, not inline among the controls. */}
