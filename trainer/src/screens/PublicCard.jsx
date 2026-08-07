@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import BadgeCard from "../components/BadgeCard.jsx";
-import { getPublicCard, getPublicCredentials } from "../lib/trainer.js";
+import { getPublicCard, getPublicDecks } from "../lib/trainer.js";
 
 // /t/<handle> — what a stranger gets after a scan, a link, or the physical card.
 // No auth. Renders only what the two public RPCs return.
@@ -16,20 +16,22 @@ const page = {
 };
 
 export default function PublicCard({ handle }) {
-  const [s, setS] = useState({ loading: true, card: null, creds: [], error: null });
+  const [s, setS] = useState({ loading: true, card: null, decks: [], error: null });
 
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      setS({ loading: true, card: null, creds: [], error: null });
+      setS({ loading: true, card: null, decks: [], error: null });
       try {
         const { card, error } = await getPublicCard(handle);
         if (cancelled) return;
-        let creds = [];
-        if (card) creds = (await getPublicCredentials(handle)).credentials;
-        if (!cancelled) setS({ loading: false, card, creds, error });
+        // The decks fill the card's text box, so they load with it rather than
+        // after — a card that pops in half-empty reads as broken.
+        let decks = [];
+        if (card) decks = (await getPublicDecks(handle)).decks;
+        if (!cancelled) setS({ loading: false, card, decks, error });
       } catch (e) {
-        if (!cancelled) setS({ loading: false, card: null, creds: [], error: e?.message || "couldn't reach the server" });
+        if (!cancelled) setS({ loading: false, card: null, decks: [], error: e?.message || "couldn't reach the server" });
       }
     })();
     return () => { cancelled = true; };
@@ -60,7 +62,7 @@ export default function PublicCard({ handle }) {
 
   return (
     <div style={page}>
-      <BadgeCard card={s.card} credentials={s.creds} />
+      <BadgeCard card={s.card} decks={s.decks} />
       <span style={{ ...mono, fontSize: 10, color: "#6B6B6E", marginTop: 20 }}>tap the card to flip it.</span>
     </div>
   );

@@ -1,29 +1,28 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import BadgeCard from "../components/BadgeCard.jsx";
+import { searchCommanders } from "../lib/scryfall.js";
 import {
-  updateMyProfile,
-  PLAYSTYLE_CHOICES, PHILOSOPHY_CHOICES,
-  MAX_PLAYSTYLE, MAX_LEGENDS, LEGEND_MAX_LEN,
-  BIO_MAX, PRONOUNS_MAX, REGION_MAX, regionProblem,
+  updateMyProfile, setCommander, myDecks,
+  PHILOSOPHY_CHOICES, BIO_MAX, PRONOUNS_MAX, REGION_MAX, regionProblem,
 } from "../lib/trainer.js";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
 
-// Your card: LIVE PREVIEW on top, editor underneath.
+// Your card: LIVE PREVIEW on top, editor underneath. The preview renders from the
+// DRAFT using the same component the public page uses, so it is literally what a
+// stranger loads — no recall, no imagining, no separate check step.
 //
-// The preview renders from the DRAFT, not from the saved row, and uses the same
-// BadgeCard component the public page uses. So the thing you are looking at while
-// you type is literally what a stranger will load — no recall, no imagining, no
-// separate "check it" round trip.
-//
-// ONE SAVE MODEL across the whole app: nothing persists until you press save.
-// The previous version saved visibility on tap while everything else needed a
-// button, which taught two contradictory rules on one screen.
-export default function CardTab({ profile, credentials, onSaved }) {
+// One save model: nothing persists until you press save, and discard is always
+// available.
+export default function CardTab({ profile, onSaved }) {
   const [d, setD] = useState(() => fromProfile(profile));
+  const [decks, setDecks] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+
+  // The preview needs the real decks, since they fill the card's text box.
+  useEffect(() => { myDecks(profile.id).then(r => setDecks(r.decks)); }, [profile.id]);
 
   const clean = fromProfile(profile);
   const dirty = JSON.stringify(d) !== JSON.stringify(clean);
@@ -32,90 +31,67 @@ export default function CardTab({ profile, credentials, onSaved }) {
 
   const patch = next => { setErr(null); setD(p => ({ ...p, ...next })); };
 
-  function togglePlaystyle(v) {
-    const has = d.playstyle.includes(v);
-    if (!has && d.playstyle.length >= MAX_PLAYSTYLE) return;
-    patch({ playstyle: has ? d.playstyle.filter(x => x !== v) : [...d.playstyle, v] });
-  }
   function togglePhilosophy(v) {
     const has = d.philosophy.includes(v);
+    // No cap — all four is a legitimate answer.
     patch({ philosophy: has ? d.philosophy.filter(x => x !== v) : [...d.philosophy, v] });
-  }
-  function setLegend(i, value) {
-    const next = [...d.legends];
-    next[i] = value.slice(0, LEGEND_MAX_LEN);
-    patch({ legends: next });
   }
 
   async function save() {
     if (!canSave) return;
     setBusy(true); setErr(null);
     const { profile: p, error } = await updateMyProfile(profile.id, {
-      display_name:     d.display_name.trim() || profile.handle,
-      identity_mode:    d.identity_mode,
-      playstyle:        d.playstyle,
-      favorite_legends: d.legends.map(s => s.trim()).filter(Boolean),
-      philosophy:       d.philosophy,
-      pronouns:         d.pronouns.trim()    || null,
-      home_region:      d.home_region.trim() || null,
-      bio:              d.bio.trim()         || null,
+      display_name: d.display_name.trim() || profile.handle,
+      philosophy:   d.philosophy,
+      pronouns:     d.pronouns.trim()    || null,
+      home_region:  d.home_region.trim() || null,
+      bio:          d.bio.trim()         || null,
     });
     setBusy(false);
     if (error) { setErr(error); return; }
     onSaved?.(p);
   }
 
-  // The preview needs a card-shaped object. Draft fields override the saved row,
-  // so unsaved edits show immediately.
   const preview = {
     ...profile,
     display_name: d.display_name || profile.handle,
-    identity_mode: d.identity_mode,
-    playstyle: d.playstyle,
-    favorite_legends: d.legends.map(s => s.trim()).filter(Boolean),
-    philosophy: d.philosophy,
-    pronouns: d.pronouns.trim() || null,
-    home_region: d.home_region.trim() || null,
-    bio: d.bio.trim() || null,
+    philosophy:   d.philosophy,
+    pronouns:     d.pronouns.trim() || null,
+    home_region:  d.home_region.trim() || null,
+    bio:          d.bio.trim() || null,
   };
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <BadgeCard card={preview} credentials={credentials} />
+        <BadgeCard card={preview} decks={decks} />
       </div>
-
       {dirty && (
         <span style={{ ...mono, fontSize: 10, color: t.accent, textAlign: "center" }}>
           preview shows unsaved changes
         </span>
       )}
 
-      <Label>what represents you</Label>
-      <Segmented
-        value={d.identity_mode}
-        options={[["playstyle", "PLAYSTYLE"], ["legends", "LEGENDS"]]}
-        onChange={v => patch({ identity_mode: v })}
-      />
+      <CommanderPicker profile={profile} onSaved={onSaved} />
 
-      {d.identity_mode === "legends" ? (
-        <>
-          <Label>favourite legends · up to {MAX_LEGENDS}</Label>
-          {Array.from({ length: MAX_LEGENDS }).map((_, i) => (
-            <input key={i} value={d.legends[i] ?? ""} onChange={e => setLegend(i, e.target.value)}
-                   placeholder={i === 0 ? "Prossh, Skyraider of Kher" : "another legend"} style={input} />
-          ))}
-        </>
-      ) : (
-        <>
-          <Label>playstyle · {d.playstyle.length}/{MAX_PLAYSTYLE}</Label>
-          <Chips values={PLAYSTYLE_CHOICES} selected={d.playstyle}
-                 onToggle={togglePlaystyle} capped={d.playstyle.length >= MAX_PLAYSTYLE} />
-        </>
-      )}
-
-      <Label>philosophy</Label>
-      <Chips values={PHILOSOPHY_CHOICES} selected={d.philosophy} onToggle={togglePhilosophy} capped={false} />
+      {/* Type line. All four words always render on the card; this picks which are
+          lit. The card doubles as its own key that way — you can read what the
+          axes are and where this person sits, at the same time. */}
+      <Label>type line</Label>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
+        {PHILOSOPHY_CHOICES.map(v => {
+          const on = d.philosophy.includes(v);
+          return (
+            <button key={v} onClick={() => togglePhilosophy(v)} aria-pressed={on} style={{
+              ...mono, fontSize: 11, minHeight: 40, padding: "0 14px",
+              background: on ? t.accent : "transparent",
+              color: on ? t.base : t.white,
+              border: `1px solid ${on ? t.accent : t.muted}`,
+              borderRadius: 999, cursor: "pointer",
+            }}>{v === "cedh" ? "cEDH" : v.replace(/_/g, " ")}</button>
+          );
+        })}
+      </div>
 
       <Label>display name</Label>
       <input value={d.display_name} onChange={e => patch({ display_name: e.target.value.slice(0, 40) })}
@@ -128,9 +104,7 @@ export default function CardTab({ profile, credentials, onSaved }) {
       <Label>where you play</Label>
       <input value={d.home_region} onChange={e => patch({ home_region: e.target.value.slice(0, REGION_MAX) })}
              placeholder="Twin Cities" style={{ ...input, borderColor: regionErr ? t.red : t.muted }} />
-      {/* One of only two pieces of standing help left. It survives because the
-          rule is genuinely surprising: the column refuses coordinates outright. */}
-      {regionErr && <Hint tone="error">{regionErr}</Hint>}
+      {regionErr && <span style={{ ...mono, fontSize: 10, color: t.red, marginTop: -12 }}>{regionErr}</span>}
 
       <Label>bio · {d.bio.length}/{BIO_MAX}</Label>
       <textarea value={d.bio} onChange={e => patch({ bio: e.target.value.slice(0, BIO_MAX) })}
@@ -141,8 +115,6 @@ export default function CardTab({ profile, credentials, onSaved }) {
         <button onClick={save} disabled={!canSave} style={btn(true, !canSave)}>
           {busy ? "saving…" : dirty ? "save card" : "saved"}
         </button>
-        {/* User control and freedom: an editor with no exit but "save" traps you
-            in changes you have decided against. */}
         {dirty && (
           <button onClick={() => { setD(clean); setErr(null); }} disabled={busy} style={btn(false, busy)}>
             discard
@@ -155,19 +127,94 @@ export default function CardTab({ profile, credentials, onSaved }) {
   );
 }
 
+// The art box. A commander rather than a photo: no uploads, no storage, no
+// moderation queue, and no personal image on a public card. Across a table, "the
+// Prossh guy" also reads faster than a face.
+//
+// Saves immediately rather than joining the draft — picking art is a single
+// deliberate choice with its own confirmation (the card changes), not a field you
+// edit alongside four others.
+function CommanderPicker({ profile, onSaved }) {
+  const [q, setQ] = useState("");
+  const [hits, setHits] = useState([]);
+  const [open, setOpen] = useState(false);
+  const [busy, setBusy] = useState(false);
+
+  useEffect(() => {
+    if (!open || q.trim().length < 2) { setHits([]); return; }
+    // Debounced: a request per keystroke is rude to a free API that asks for
+    // roughly ten per second at most.
+    const id = setTimeout(async () => {
+      const { cards } = await searchCommanders(q);
+      setHits(cards);
+    }, 300);
+    return () => clearTimeout(id);
+  }, [q, open]);
+
+  async function pick(c) {
+    setBusy(true);
+    const { profile: p } = await setCommander(profile.id, c);
+    setBusy(false);
+    setOpen(false); setQ(""); setHits([]);
+    if (p) onSaved?.(p);
+  }
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+      <Label>signature commander</Label>
+      {!open ? (
+        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+          <span style={{ ...mono, fontSize: 12, color: profile.commander_name ? t.white : t.dim, flex: 1 }}>
+            {profile.commander_name ?? "none picked"}
+          </span>
+          <button onClick={() => setOpen(true)} style={{ ...btn(false, false), flex: "0 0 auto", padding: "0 16px" }}>
+            {profile.commander_name ? "change" : "pick one"}
+          </button>
+        </div>
+      ) : (
+        <>
+          <input value={q} onChange={e => setQ(e.target.value)} autoFocus
+                 placeholder="search a commander" autoCapitalize="off" spellCheck={false} style={input} />
+          <div style={{ display: "flex", flexDirection: "column", gap: 6, maxHeight: 260, overflowY: "auto" }}>
+            {hits.map(c => (
+              <button key={c.scryfall_id} onClick={() => pick(c)} disabled={busy}
+                      style={{
+                        display: "flex", alignItems: "center", gap: 10, textAlign: "left",
+                        background: "transparent", border: `1px solid ${t.border}`,
+                        padding: 6, cursor: "pointer", minHeight: 52,
+                      }}>
+                {c.art_url && (
+                  <img src={c.art_url} alt="" style={{ width: 56, height: 40, objectFit: "cover", flexShrink: 0 }} />
+                )}
+                <span style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+                  <span style={{ ...mono, fontSize: 11, color: t.white }}>{c.name}</span>
+                  <span style={{ ...mono, fontSize: 9, color: t.dim }}>art: {c.artist}</span>
+                </span>
+              </button>
+            ))}
+          </div>
+          <button onClick={() => { setOpen(false); setQ(""); }} style={btn(false, false)}>cancel</button>
+        </>
+      )}
+      {/* The Fan Content Policy is the permission this operates under, and Scryfall
+          asks that art be credited. Both are satisfied by the collector line on the
+          card; this just says so out loud. */}
+      <span style={{ ...mono, fontSize: 10, color: t.dim, lineHeight: 1.6 }}>
+        art from scryfall, credited on the card. unofficial fan content.
+      </span>
+    </div>
+  );
+}
+
 function fromProfile(p) {
   return {
-    display_name:  p.display_name ?? "",
-    identity_mode: p.identity_mode ?? "playstyle",
-    playstyle:     p.playstyle ?? [],
-    legends:       pad(p.favorite_legends ?? [], MAX_LEGENDS),
-    philosophy:    p.philosophy ?? [],
-    pronouns:      p.pronouns ?? "",
-    home_region:   p.home_region ?? "",
-    bio:           p.bio ?? "",
+    display_name: p.display_name ?? "",
+    philosophy:   p.philosophy ?? [],
+    pronouns:     p.pronouns ?? "",
+    home_region:  p.home_region ?? "",
+    bio:          p.bio ?? "",
   };
 }
-function pad(a, n) { const o = [...a]; while (o.length < n) o.push(""); return o.slice(0, n); }
 
 const input = {
   width: "100%", boxSizing: "border-box", minHeight: 46,
@@ -175,7 +222,7 @@ const input = {
   border: `1px solid ${t.muted}`, padding: "0 12px", borderRadius: 0, outline: "none",
 };
 const btn = (primary, disabled) => ({
-  minHeight: 48, flex: 1, background: "transparent",
+  minHeight: 46, flex: 1, background: "transparent",
   border: `1px solid ${disabled ? t.muted : primary ? t.accent : t.dim}`,
   color: disabled ? t.dim : primary ? t.accent : t.dim,
   ...mono, fontSize: 12,
@@ -185,13 +232,6 @@ const btn = (primary, disabled) => ({
 export function Label({ children }) {
   return (
     <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.18em", textTransform: "uppercase", color: t.dim }}>
-      {children}
-    </span>
-  );
-}
-export function Hint({ children, tone }) {
-  return (
-    <span style={{ ...mono, fontSize: 10, lineHeight: 1.6, marginTop: -12, color: tone === "error" ? t.red : t.dim }}>
       {children}
     </span>
   );
@@ -206,30 +246,8 @@ export function Segmented({ value, options, onChange }) {
             flex: 1, minHeight: 44, cursor: "pointer", border: "none",
             borderLeft: i ? `1px solid ${t.muted}` : "none",
             background: on ? t.accent : "transparent", color: on ? t.base : t.dim,
-            ...mono, fontSize: 11,
+            ...mono, fontSize: 10,
           }}>{lbl}</button>
-        );
-      })}
-    </div>
-  );
-}
-function Chips({ values, selected, onToggle, capped }) {
-  return (
-    <div style={{ display: "flex", flexWrap: "wrap", gap: 7 }}>
-      {values.map(v => {
-        const on = selected.includes(v);
-        // At the cap, unselected chips dim rather than vanish — the vocabulary is
-        // fixed and seeing all of it is the point.
-        const blocked = capped && !on;
-        return (
-          <button key={v} onClick={() => onToggle(v)} aria-pressed={on} style={{
-            ...mono, fontSize: 11, minHeight: 38, padding: "0 12px",
-            cursor: blocked ? "default" : "pointer",
-            background: on ? t.accent : "transparent",
-            color: on ? t.base : blocked ? t.muted : t.white,
-            border: `1px solid ${on ? t.accent : t.muted}`,
-            borderRadius: 999, opacity: blocked ? 0.45 : 1,
-          }}>{v.replace(/_/g, " ")}</button>
         );
       })}
     </div>

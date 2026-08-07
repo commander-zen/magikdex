@@ -234,6 +234,57 @@ export async function myDeckGrades() {
 export const MET_CONTEXT_MAX = 80;
 export const NOTE_MAX = 280;
 
+
+// ── The three decks + the commander (migration 031) ──────────────────────────
+// The card's text box is three decks you CHOSE, not your most recent — a card is
+// something you hand a stranger, not a log.
+//
+// The rating is self-reported and the ScryCheck link sits next to it, so a reader
+// verifies in one tap. That is why we neither scrape their page nor call their API.
+export const MAX_DECKS = 3;
+export const DECK_NAME_LEN = 40;
+
+export async function myDecks(userId) {
+  if (!userId) return { decks: [], error: null };
+  const { data, error } = await supabase
+    .schema("trainer").from("deck")
+    .select("*").eq("trainer_id", userId).order("position");
+  return { decks: Array.isArray(data) ? data : [], error: describeError(error) };
+}
+
+// Upsert on (trainer_id, position) so editing a slot in place does not need to
+// know whether a row is already there.
+export async function saveDeck(userId, position, patch) {
+  const { error } = await supabase
+    .schema("trainer").from("deck")
+    .upsert({ trainer_id: userId, position, ...patch },
+            { onConflict: "trainer_id,position" });
+  return { error: describeError(error) };
+}
+
+export async function clearDeck(userId, position) {
+  const { error } = await supabase
+    .schema("trainer").from("deck")
+    .delete().eq("trainer_id", userId).eq("position", position);
+  return { error: describeError(error) };
+}
+
+export async function getPublicDecks(handle) {
+  const { data, error } = await supabase.rpc("get_trainer_decks", { p_handle: handle });
+  return { decks: Array.isArray(data) ? data : [], error: describeError(error) };
+}
+
+// commander_scryfall_id is stored but never returned publicly — the card needs the
+// art and the credit, not the identifier.
+export async function setCommander(userId, c) {
+  return updateMyProfile(userId, {
+    commander_scryfall_id: c?.scryfall_id ?? null,
+    commander_name:        c?.name ?? null,
+    commander_art_url:     c?.art_url ?? null,
+    commander_artist:      c?.artist ?? null,
+  });
+}
+
 // ── Vocabularies ─────────────────────────────────────────────────────────────
 // These mirror the CHECK constraints in migration 025. The DATABASE is the
 // authority and rejects anything outside them regardless; these exist so the UI
@@ -266,6 +317,21 @@ export const REGION_MAX = 60;
 // a client could start writing lat/long into a table that also holds a person.
 // "St. Louis" and "Route 66" pass; "44.9778, -93.2650" does not.
 export const GEO_RE = /[-+]?[0-9]{1,3}\.[0-9]{3,}/;
+
+export function scrycheckProblem(url) {
+  const v = (url || "").trim();
+  if (!v) return null;
+  if (!/^https?:\/\//i.test(v)) return "needs to start with https://";
+  if (!/^https?:\/\/(www\.)?scrycheck\.com\//i.test(v)) return "that isn't a scrycheck.com link";
+  return null;
+}
+
+export function deckUrlProblem(url) {
+  const v = (url || "").trim();
+  if (!v) return null;
+  if (!/^https?:\/\//i.test(v)) return "needs to start with https://";
+  return null;
+}
 
 export function regionProblem(v) {
   if (!v) return null;

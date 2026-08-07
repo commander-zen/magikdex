@@ -4,9 +4,9 @@ import { supabase } from "../lib/supabase.js";
 import CardTab, { Segmented } from "./CardTab.jsx";
 import PrivacyTab from "./PrivacyTab.jsx";
 import BuddyList from "./BuddyList.jsx";
-import GradesTab from "./GradesTab.jsx";
+import DecksTab from "./DecksTab.jsx";
 import {
-  getSession, getMyProfile, claimHandle, getPublicCredentials,
+  getSession, getMyProfile, claimHandle,
   normalizeHandle, handleProblem,
 } from "../lib/trainer.js";
 
@@ -30,7 +30,6 @@ const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em
 export default function MyCard() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
-  const [creds, setCreds] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
   const [tab, setTab] = useState("card");
@@ -55,7 +54,6 @@ export default function MyCard() {
         const { profile: p, error } = await getMyProfile(s.userId);
         setProfile(p);
         setLoadErr(error);
-        if (p?.handle) setCreds((await getPublicCredentials(p.handle)).credentials);
       } else {
         setProfile(null);
       }
@@ -146,13 +144,13 @@ export default function MyCard() {
           <>
             <Segmented
               value={tab}
-              options={[["card", "CARD"], ["grades", "GRADES"], ["buddies", "BUDDIES"], ["privacy", "PRIVACY"]]}
+              options={[["card", "CARD"], ["decks", "DECKS"], ["buddies", "BUDDIES"], ["privacy", "PRIVACY"]]}
               onChange={setTab}
             />
 
-            {tab === "card"    && <CardTab profile={profile} credentials={creds} onSaved={setProfile} />}
+            {tab === "card"    && <CardTab profile={profile} onSaved={setProfile} />}
             {tab === "privacy" && <PrivacyTab profile={profile} onSaved={setProfile} />}
-            {tab === "grades"  && <GradesTab onChanged={refresh} />}
+            {tab === "decks"   && <DecksTab userId={profile.id} onChanged={refresh} />}
             {tab === "buddies" && <BuddyList />}
 
             {/* Sign-out belongs at the edge, not inline among the controls. */}
