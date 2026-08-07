@@ -17,7 +17,7 @@ begin;
 create extension if not exists pgtap with schema extensions;
 set local search_path = public, extensions;
 
-select plan(21);
+select plan(19);
 
 -- ── Fixtures ─────────────────────────────────────────────────────────────────
 -- Seeded as the session superuser, which bypasses RLS. Every assertion runs
@@ -139,21 +139,11 @@ select is_empty(
   '7. no public trainer view exists (nothing is enumerable)'
 );
 
--- 8. The podium resolves by handle — the join 023 could not make without
---    publishing a uuid.
-select results_eq(
-  $$ select "position", legend from public.get_trainer_party('publictrainer') $$,
-  $$ values (1,'Test Legend 1'::text),(2,'Test Legend 2'::text),
-            (3,'Test Legend 3'::text),(4,'Test Legend 4'::text),
-            (5,'Test Legend 5'::text) $$,
-  '8. get_trainer_party returns the party in position order'
-);
-
--- 9. A private trainer's party is not reachable.
-select is_empty(
-  $$ select "position" from public.get_trainer_party('privatetrainer') $$,
-  '9. get_trainer_party returns nothing for a PRIVATE trainer'
-);
+-- 8-9 REMOVED. They asserted get_trainer_party, which 031 replaced with
+-- get_trainer_decks when the card's text box moved off magikdex's `decks` table
+-- and onto trainer.deck (Moxfield/Archidekt URLs). Equivalent coverage lives in
+-- 031's suite, against the table that actually backs the card now — duplicating
+-- it here would just be two places to update.
 
 -- 10. Credentials come back INDIVIDUALLY, with their own issuer and date.
 select results_eq(
