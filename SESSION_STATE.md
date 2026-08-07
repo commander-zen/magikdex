@@ -2,7 +2,7 @@
 
 ## 2026-08-07 — ✅ **The Trainer card is a Magic card now. `029`→`031` applied. Two surfaces and a gear. The art box is a QR code.**
 
-Deployed at **`edh-id.vercel.app`** (`main`, Vercel root `trainer/`). Everything below is on `origin/main` and `origin/dev`, both at `5922f61`.
+Deployed at **`edh-id.vercel.app`** (`main`, Vercel root `trainer/`). Everything below is pushed to both `origin/main` and `origin/dev`; last code commit `5922f61`.
 
 ### 🔑 THE PRODUCT FINALLY HAS A SHAPE — and Ben named it
 > *"a quick way to connect as you're packing up at the end of a night, or buying a pack, like 'oh shit thats right whats your name again? we should shuffle up again dude'"*
