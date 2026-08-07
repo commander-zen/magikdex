@@ -28,13 +28,26 @@ const C = {
 const slab = { fontFamily: "'Zilla Slab', serif" };
 const mono = { fontFamily: "'Noto Sans Mono', monospace" };
 
-export default function BadgeCard({ card, decks = [], width = 340 }) {
+// Everything inside the card is sized in `cqw` — percentages of the CARD's own
+// width — so one renderer works at any size. Numbers below are still written as
+// the pixels they were designed at, on a 340px-wide card; u() converts.
+const BASIS = 340;
+const u = n => `${((n * 100) / BASIS).toFixed(3)}cqw`;
+
+// `width` omitted means "fill the space you're given" — the hero case. Pass a
+// number only for a deliberately small copy, like the editor's preview.
+//
+// The width MUST be an inline style, never part of the <style> block: class names
+// are global, and two mounted cards would fight over `.tc-scene`. (They did. The
+// off-screen settings preview was quietly shrinking the real card.)
+export default function BadgeCard({ card, decks = [], width = null }) {
   const [flipped, setFlipped] = useState(false);
 
   return (
     <>
       <style>{`
-        .tc-scene { width: ${width}px; max-width: 100%; perspective: 1800px; }
+        .tc-scene { max-width: 100%; perspective: 1800px;
+          container-type: inline-size; }
         /* 63mm x 88mm. The proportion is the point — it has to sit in a deck box
            next to real cards without looking wrong. */
         .tc-card { position: relative; width: 100%; aspect-ratio: 63 / 88;
@@ -43,17 +56,17 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
         .tc-card.flipped { transform: rotateY(180deg); }
         .tc-face { position: absolute; inset: 0;
           -webkit-backface-visibility: hidden; backface-visibility: hidden;
-          background: ${C.edge}; border-radius: 15px; padding: 9px;
+          background: ${C.edge}; border-radius: ${u(15)}; padding: ${u(9)};
           box-shadow: 0 16px 34px rgba(0,0,0,.55);
           display: flex; flex-direction: column; }
         .tc-face.back { transform: rotateY(180deg); }
         .tc-inner { flex: 1; min-height: 0; background: ${C.frame};
-          border-radius: 8px; overflow: hidden;
+          border-radius: ${u(8)}; overflow: hidden;
           display: flex; flex-direction: column; }
         @media (prefers-reduced-motion: reduce) { .tc-card { transition: none; } }
       `}</style>
 
-      <div className="tc-scene">
+      <div className="tc-scene" style={{ width: width ? `${width}px` : "100%" }}>
         <div
           className={`tc-card${flipped ? " flipped" : ""}`}
           onClick={() => setFlipped(f => !f)}
@@ -69,7 +82,7 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
               {/* Title bar — screen name only. No mana cost: the Magic card is a
                   model for size and rhythm here, not a system to reimplement. */}
               <Bar>
-                <span style={{ ...slab, fontSize: 17, fontWeight: 600, color: C.ink }}>
+                <span style={{ ...slab, fontSize: u(17), fontWeight: 600, color: C.ink }}>
                   @{card.handle}
                 </span>
               </Bar>
@@ -104,14 +117,14 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
                   read what the axes are and where this person sits, at once. Lit
                   means claimed. */}
               <Bar tight>
-                <span style={{ display: "flex", flexWrap: "wrap", gap: 4, alignItems: "baseline" }}>
+                <span style={{ display: "flex", flexWrap: "wrap", gap: u(4), alignItems: "baseline" }}>
                   {PHILOSOPHY_CHOICES.map((v, i) => {
                     const on = card.philosophy?.includes(v);
                     return (
-                      <span key={v} style={{ display: "flex", alignItems: "baseline", gap: 4 }}>
-                        {i > 0 && <span style={{ ...mono, fontSize: 9, color: C.line }}>//</span>}
+                      <span key={v} style={{ display: "flex", alignItems: "baseline", gap: u(4) }}>
+                        {i > 0 && <span style={{ ...mono, fontSize: u(9), color: C.line }}>//</span>}
                         <span style={{
-                          ...slab, fontSize: 12,
+                          ...slab, fontSize: u(12),
                           fontWeight: on ? 700 : 400,
                           color: on ? C.accent : C.faint,
                         }}>
@@ -125,11 +138,11 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
 
               {/* Text box — the three decks. */}
               <div style={{
-                flex: 1, minHeight: 0, background: C.panel, padding: "8px 10px",
-                display: "flex", flexDirection: "column", gap: 6, overflowY: "auto",
+                flex: 1, minHeight: 0, background: C.panel, padding: `${u(8)} ${u(10)}`,
+                display: "flex", flexDirection: "column", gap: u(6), overflowY: "auto",
               }}>
                 {decks.length === 0 ? (
-                  <span style={{ ...mono, fontSize: 10, color: C.faint, lineHeight: 1.6 }}>
+                  <span style={{ ...mono, fontSize: u(10), color: C.faint, lineHeight: 1.6 }}>
                     no decks listed yet
                   </span>
                 ) : decks.map(d => <DeckRow key={d.position} deck={d} />)}
@@ -138,9 +151,9 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
               {/* Collector line — the artist credit lives here, exactly where a
                   real card puts it. Scryfall asks for it and the frame wants it. */}
               <div style={{
-                flex: "0 0 auto", background: C.edge, padding: "5px 10px",
-                display: "flex", justifyContent: "space-between", gap: 8,
-                ...mono, fontSize: 8, color: C.faint,
+                flex: "0 0 auto", background: C.edge, padding: `${u(5)} ${u(10)}`,
+                display: "flex", justifyContent: "space-between", gap: u(8),
+                ...mono, fontSize: u(8), color: C.faint,
               }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {card.display_name}
@@ -156,14 +169,14 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
           <div className="tc-face back">
             <div className="tc-inner">
               <Bar>
-                <span style={{ ...slab, fontSize: 15, fontWeight: 600, color: C.ink }}>
+                <span style={{ ...slab, fontSize: u(15), fontWeight: 600, color: C.ink }}>
                   {card.display_name}
                 </span>
               </Bar>
 
               <div style={{
-                flex: 1, minHeight: 0, background: C.panel, padding: "12px 12px",
-                display: "flex", flexDirection: "column", gap: 12, overflowY: "auto",
+                flex: 1, minHeight: 0, background: C.panel, padding: u(12),
+                display: "flex", flexDirection: "column", gap: u(12), overflowY: "auto",
               }}>
                 {card.pronouns   && <Field label="pronouns">{card.pronouns}</Field>}
                 {card.home_region && <Field label="plays around">{card.home_region}</Field>}
@@ -174,13 +187,13 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
                   </Field>
                 )}
                 {!card.pronouns && !card.home_region && !card.bio && !card.commander_name && (
-                  <span style={{ ...mono, fontSize: 10, color: C.faint }}>nothing on the back yet</span>
+                  <span style={{ ...mono, fontSize: u(10), color: C.faint }}>nothing on the back yet</span>
                 )}
               </div>
 
               <div style={{
-                flex: "0 0 auto", background: C.edge, padding: "5px 10px",
-                ...mono, fontSize: 8, color: C.faint,
+                flex: "0 0 auto", background: C.edge, padding: `${u(5)} ${u(10)}`,
+                ...mono, fontSize: u(8), color: C.faint,
                 display: "flex", justifyContent: "space-between",
               }}>
                 <span>@{card.handle}</span>
@@ -203,7 +216,8 @@ function QrPanel({ handle }) {
 
   useEffect(() => {
     let cancelled = false;
-    QRCode.toDataURL(url, { margin: 1, width: 320, errorCorrectionLevel: "M" })
+    // 640 so it stays crisp on a 3x screen at the size it now renders.
+    QRCode.toDataURL(url, { margin: 1, width: 640, errorCorrectionLevel: "M" })
       .then(d => { if (!cancelled) setSrc(d); })
       .catch(() => { /* the typed URL below is the fallback */ });
     return () => { cancelled = true; };
@@ -212,21 +226,24 @@ function QrPanel({ handle }) {
   return (
     <div style={{
       position: "relative", display: "flex", flexDirection: "column",
-      alignItems: "center", gap: 4,
+      alignItems: "center", gap: u(5),
     }}>
+      {/* Sized to nearly fill the art box: this is the thing a phone camera has to
+          find across a table, so it gets the room decoration used to take. */}
       <div style={{
-        background: "#fff", padding: 6, borderRadius: 4,
-        width: 104, height: 104, display: "flex", alignItems: "center", justifyContent: "center",
+        background: "#fff", padding: u(6), borderRadius: u(4),
+        width: u(150), height: u(150),
+        display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         {src
           ? <img src={src} alt={`QR code for ${url}`} style={{ width: "100%", height: "100%", display: "block" }} />
-          : <span style={{ ...mono, fontSize: 8, color: "#888" }}>…</span>}
+          : <span style={{ ...mono, fontSize: u(8), color: "#888" }}>…</span>}
       </div>
       {/* Readable fallback: a scan that fails at 11pm in bad light still leaves
           something a person can type. */}
       <span style={{
-        ...mono, fontSize: 7, color: C.ink, background: "rgba(10,10,12,.72)",
-        padding: "2px 5px", borderRadius: 3, letterSpacing: "0.02em",
+        ...mono, fontSize: u(8), color: C.ink, background: "rgba(10,10,12,.72)",
+        padding: `${u(2)} ${u(5)}`, borderRadius: u(3), letterSpacing: "0.02em",
       }}>
         {shortUrl(handle)}
       </span>
@@ -247,8 +264,8 @@ function Bar({ children, tight }) {
   return (
     <div style={{
       flex: "0 0 auto", background: C.bar,
-      padding: tight ? "5px 10px" : "7px 10px",
-      display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8,
+      padding: tight ? `${u(5)} ${u(10)}` : `${u(7)} ${u(10)}`,
+      display: "flex", alignItems: "center", justifyContent: "space-between", gap: u(8),
     }}>
       {children}
     </div>
@@ -261,19 +278,19 @@ function Bar({ children, tight }) {
 function DeckRow({ deck }) {
   const stop = e => e.stopPropagation(); // the card flips on click; links must not
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: 8 }}>
-        <span style={{ ...slab, fontSize: 13, color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: u(3) }}>
+      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "baseline", gap: u(8) }}>
+        <span style={{ ...slab, fontSize: u(13), color: C.ink, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
           {deck.name}
         </span>
         {deck.rating && (
-          <span style={{ ...mono, fontSize: 12, color: C.accent, flexShrink: 0 }}>{deck.rating}</span>
+          <span style={{ ...mono, fontSize: u(12), color: C.accent, flexShrink: 0 }}>{deck.rating}</span>
         )}
       </div>
-      <div style={{ display: "flex", gap: 8, alignItems: "baseline" }}>
+      <div style={{ display: "flex", gap: u(8), alignItems: "baseline" }}>
         {deck.deck_url && (
           <a href={deck.deck_url} target="_blank" rel="noopener noreferrer" onClick={stop}
-             style={{ ...mono, fontSize: 8, color: C.dim, textDecoration: "none" }}>
+             style={{ ...mono, fontSize: u(8), color: C.dim, textDecoration: "none" }}>
             {hostLabel(deck.deck_url)} ↗
           </a>
         )}
@@ -281,7 +298,7 @@ function DeckRow({ deck }) {
             checks it in one tap, which is why we never needed to scrape it. */}
         {deck.scrycheck_url && (
           <a href={deck.scrycheck_url} target="_blank" rel="noopener noreferrer" onClick={stop}
-             style={{ ...mono, fontSize: 8, color: C.accent, textDecoration: "none" }}>
+             style={{ ...mono, fontSize: u(8), color: C.accent, textDecoration: "none" }}>
             scrycheck ↗
           </a>
         )}
@@ -292,11 +309,11 @@ function DeckRow({ deck }) {
 
 function Field({ label, children }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-      <span style={{ ...mono, fontSize: 8, letterSpacing: "0.16em", textTransform: "uppercase", color: C.faint }}>
+    <div style={{ display: "flex", flexDirection: "column", gap: u(4) }}>
+      <span style={{ ...mono, fontSize: u(8), letterSpacing: "0.16em", textTransform: "uppercase", color: C.faint }}>
         {label}
       </span>
-      <span style={{ ...mono, fontSize: 11, color: C.ink }}>{children}</span>
+      <span style={{ ...mono, fontSize: u(11), color: C.ink }}>{children}</span>
     </div>
   );
 }
