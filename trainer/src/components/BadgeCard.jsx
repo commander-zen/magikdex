@@ -1,4 +1,5 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
+import QRCode from "qrcode";
 import { PHILOSOPHY_CHOICES } from "../lib/trainer.js";
 
 // The trainer card, built on the Magic frame — because it will live in a deck box
@@ -73,24 +74,30 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
                 </span>
               </Bar>
 
-              {/* Art box */}
+              {/* THE ART BOX IS THE QR CODE.
+                  The card's job is "scan this so we can play again", and this is
+                  the largest real estate on it — decoration was the wrong tenant.
+                  Commander art stays as a dimmed wash behind, which also fixes the
+                  confusion that art in a card frame reads as "a card OF that
+                  commander", making the deck rows below look like they belonged to
+                  it.
+
+                  GENERATED ON DEVICE. A QR web service would mean every user's
+                  card URL travelling to a third party just to draw a square. */}
               <div style={{
                 flex: "0 0 43%", position: "relative", overflow: "hidden",
                 borderTop: `1px solid ${C.edge}`, borderBottom: `1px solid ${C.edge}`,
                 background: C.panel,
+                display: "flex", alignItems: "center", justifyContent: "center",
               }}>
-                {card.commander_art_url ? (
+                {card.commander_art_url && (
                   <img src={card.commander_art_url} alt=""
-                       style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} />
-                ) : (
-                  <div style={{
-                    width: "100%", height: "100%",
-                    display: "flex", alignItems: "center", justifyContent: "center",
-                    ...mono, fontSize: 10, color: C.faint, textAlign: "center", padding: 16,
-                  }}>
-                    pick a signature commander
-                  </div>
+                       style={{
+                         position: "absolute", inset: 0, width: "100%", height: "100%",
+                         objectFit: "cover", opacity: 0.28,
+                       }} />
                 )}
+                <QrPanel handle={card.handle} />
               </div>
 
               {/* Type line — ALWAYS all four words. It doubles as the key: you can
@@ -185,6 +192,55 @@ export default function BadgeCard({ card, decks = [], width = 340 }) {
       </div>
     </>
   );
+}
+
+// A light panel with a quiet zone around the code: QR wants dark modules on a
+// light field, and printing it straight onto artwork is how you get a code that
+// will not scan.
+function QrPanel({ handle }) {
+  const [src, setSrc] = useState(null);
+  const url = cardUrl(handle);
+
+  useEffect(() => {
+    let cancelled = false;
+    QRCode.toDataURL(url, { margin: 1, width: 320, errorCorrectionLevel: "M" })
+      .then(d => { if (!cancelled) setSrc(d); })
+      .catch(() => { /* the typed URL below is the fallback */ });
+    return () => { cancelled = true; };
+  }, [url]);
+
+  return (
+    <div style={{
+      position: "relative", display: "flex", flexDirection: "column",
+      alignItems: "center", gap: 4,
+    }}>
+      <div style={{
+        background: "#fff", padding: 6, borderRadius: 4,
+        width: 104, height: 104, display: "flex", alignItems: "center", justifyContent: "center",
+      }}>
+        {src
+          ? <img src={src} alt={`QR code for ${url}`} style={{ width: "100%", height: "100%", display: "block" }} />
+          : <span style={{ ...mono, fontSize: 8, color: "#888" }}>…</span>}
+      </div>
+      {/* Readable fallback: a scan that fails at 11pm in bad light still leaves
+          something a person can type. */}
+      <span style={{
+        ...mono, fontSize: 7, color: C.ink, background: "rgba(10,10,12,.72)",
+        padding: "2px 5px", borderRadius: 3, letterSpacing: "0.02em",
+      }}>
+        {shortUrl(handle)}
+      </span>
+    </div>
+  );
+}
+
+function cardUrl(handle) {
+  const origin = typeof location !== "undefined" ? location.origin : "";
+  return `${origin}/t/${handle}`;
+}
+function shortUrl(handle) {
+  const host = typeof location !== "undefined" ? location.host : "";
+  return `${host}/t/${handle}`;
 }
 
 function Bar({ children, tight }) {
