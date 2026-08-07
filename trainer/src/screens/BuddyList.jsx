@@ -7,24 +7,24 @@ import {
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
 
-// Your binder — the cards of people you have played and swapped with.
+// Your buddy list — the people you've played and swapped cards with.
 //
-// This is the actual product; the card is the token it passes around. The name
-// is deliberate: in Magic a binder is where cards worth keeping go, so your card
-// ending up in someone else’s binder is the exchange, described from the other
-// side. ("roster" was the first name and carries slang this product wants no
-// part of.) The whole
-// thing exists because of a specific failure: the game already happened, it was
-// good, and there is no handle on the other player afterward.
+// This is the actual product; the card is the token it passes around. It exists
+// for a specific failure: the game already happened, it was good, and there is no
+// handle on the other player afterward.
+//
+// THE NAME IS THE MODEL. This is a Y2K AIM buddy list, not a card collection.
+// "Roster" carries slang the product wants no part of; "binder" framed people as
+// cards you own, which is the artifact metaphor rather than the social one.
 //
 // WHAT IT DELIBERATELY IS NOT:
 //   · not an encounter log — one row per person, re-saving updates a counter
 //     rather than appending, so this can never reconstruct a movement history
 //   · not mutual — nobody can see that you saved them, and you cannot see who
 //     saved you. "We both added each other" is uncomputable on purpose
-//   · not public — no roster is readable by anyone but its owner. roster_count
+//   · not public — nobody's list is readable but its owner's. roster_count
 //     publishes the SIZE and nothing else
-export default function Binder() {
+export default function BuddyList() {
   const [rows, setRows] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
@@ -77,7 +77,7 @@ export default function Binder() {
         </div>
       )}
 
-      <span style={cap}>add someone you played</span>
+      <span style={cap}>add a buddy</span>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ ...mono, fontSize: 16, color: t.dim }}>@</span>
         <input
@@ -105,7 +105,7 @@ export default function Binder() {
           opacity: busy || !handle ? 0.55 : 1,
         }}
       >
-        {busy ? "saving…" : "keep their card"}
+        {busy ? "saving…" : "add buddy"}
       </button>
       {addErr && <span style={{ ...mono, fontSize: 11, color: t.red, lineHeight: 1.7 }}>{addErr}</span>}
       {/* Saving is unilateral and silent — no request, no approval, no
@@ -118,7 +118,7 @@ export default function Binder() {
 
       <div style={{ borderTop: `1px solid ${t.border}`, paddingTop: 18, display: "flex", flexDirection: "column", gap: 10 }}>
         <span style={cap}>
-          your binder{rows.length ? ` · ${rows.length}` : ""}
+          your buddy list{rows.length ? ` · ${rows.length}` : ""}
         </span>
 
         {loading ? (
@@ -129,7 +129,7 @@ export default function Binder() {
             forget their name.
           </span>
         ) : rows.map(r => (
-          <BinderRow
+          <BuddyRow
             key={r.handle}
             row={r}
             open={openKey === r.handle}
@@ -142,10 +142,11 @@ export default function Binder() {
   );
 }
 
-function BinderRow({ row, open, onToggle, onChanged }) {
+function BuddyRow({ row, open, onToggle, onChanged }) {
   const [note, setNote] = useState(row.note ?? "");
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
+  const [confirm, setConfirm] = useState(null); // null | 'forget' | 'block'
 
   async function run(fn) {
     setBusy(true); setErr(null);
@@ -208,14 +209,37 @@ function BinderRow({ row, open, onToggle, onChanged }) {
               borderRadius: 0, outline: "none", resize: "vertical", lineHeight: 1.6,
             }}
           />
-          <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-            <Btn onClick={() => run(() => setConnectionNote(row.handle, note))}
-                 disabled={busy || note === (row.note ?? "")} accent>save note</Btn>
-            <Btn onClick={() => run(() => forgetConnection(row.handle))} disabled={busy}>forget</Btn>
-            {/* Blocking severs the edge in BOTH directions and stops a new one
-                forming — which deleting a row alone cannot do. */}
-            <Btn onClick={() => run(() => blockTrainer(row.handle))} disabled={busy} danger>block</Btn>
-          </div>
+          {/* CONFIRM BEFORE DESTROYING. Both of these were single unconfirmed
+              taps sitting next to "save note" at equal visual weight. Forget
+              deletes the record of a game you played; block additionally severs
+              the edge in BOTH directions and prevents a new one, which deleting a
+              row alone cannot undo. */}
+          {confirm ? (
+            <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
+              <span style={{ ...mono, fontSize: 11, color: t.white, lineHeight: 1.6 }}>
+                {confirm === "block"
+                  ? `block @${row.handle}? they're removed from your list, you're removed from theirs, and neither of you can add the other again.`
+                  : `forget @${row.handle}? your note and the dates go with it.`}
+              </span>
+              <div style={{ display: "flex", gap: 8 }}>
+                <Btn
+                  onClick={() => run(() => confirm === "block" ? blockTrainer(row.handle) : forgetConnection(row.handle))}
+                  disabled={busy}
+                  danger
+                >
+                  {busy ? "…" : confirm === "block" ? "yes, block" : "yes, forget"}
+                </Btn>
+                <Btn onClick={() => setConfirm(null)} disabled={busy}>keep</Btn>
+              </div>
+            </div>
+          ) : (
+            <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
+              <Btn onClick={() => run(() => setConnectionNote(row.handle, note))}
+                   disabled={busy || note === (row.note ?? "")} accent>save note</Btn>
+              <Btn onClick={() => setConfirm("forget")} disabled={busy}>forget</Btn>
+              <Btn onClick={() => setConfirm("block")} disabled={busy} danger>block</Btn>
+            </div>
+          )}
           {err && <span style={{ ...mono, fontSize: 11, color: t.red }}>{err}</span>}
         </div>
       )}
