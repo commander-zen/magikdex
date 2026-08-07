@@ -1,5 +1,69 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-07 — ✅ **The Trainer card is a Magic card now. `029`→`031` applied. Two surfaces and a gear. The art box is a QR code.**
+
+Deployed at **`edh-id.vercel.app`** (`main`, Vercel root `trainer/`). Everything below is on `origin/main` and `origin/dev`, both at `5922f61`.
+
+### 🔑 THE PRODUCT FINALLY HAS A SHAPE — and Ben named it
+> *"a quick way to connect as you're packing up at the end of a night, or buying a pack, like 'oh shit thats right whats your name again? we should shuffle up again dude'"*
+
+That sentence is the spec. It killed several features by making them obviously irrelevant, and it's why the card is **built on the Magic card frame at true 63:88** — it will live in a deck box and get pulled out next to real cards. Title bar, art box, type line, text box, collector line.
+
+Stated values, to hold future decisions against: **open source, honest, free, user data always safe.** A lightweight directory of who a player is, shareable with the homies.
+
+### ✅ "roster" → "buddy list" — `029`, applied
+The model is **AIM, not MTG**. "Roster" carries a Gen Z meaning this product wants no part of.
+`trainer.connection`→`buddy`, `save_connection`→`add_buddy`, `set_connection_note`→`set_buddy_note`, `forget_connection`→`remove_buddy`, `my_roster`→`my_buddies`, `roster_count`→`buddy_count`. The policy was **renamed, not dropped and recreated** — no unprotected window.
+
+⚠️ **Postgres stores function bodies as TEXT, resolved at call time.** Renaming a table silently breaks every function that names it until each is recreated. That's most of what `029` is.
+
+### ⚠️ PROCESS FAILURE — a product decision made without asking
+Claude renamed "roster" → **"binder"** unilaterally and shipped it. Ben's words: *"you really took that rename and shipped it straight away and made a product decision for me. not my favorite thing you've ever done."* He chose "buddy list." **Naming is product. Ask.** (Second instance of this pattern this week — see the black-screen entry for the first.)
+
+### ✅ UX restructure against NNG — then again, harder
+Ben: *"its a mess of text boxes and reminders."* First pass: three surfaces, live preview, one save model. Then he cut deeper — *"i want everything that's not the card // buddies to be in a settings wheel like magikdex."*
+
+**Two surfaces and a gear.** `CARD` and `BUDDIES` are the only tabs, because they're the only two things you open the app to *look at*. Card fields, decks, privacy and sign-out are all **configuration** and live in `SettingsSheet.jsx` behind ⚙ — same sheet shape as magikdex, deliberately. Four peer tabs implied four destinations of equal standing; two were things you look at and two were things you set up once.
+
+Also: **"private profile"**, never "card no longer shared." The change is the other player making their profile private — it isn't a mark against you, and the old copy read as a targeted exclusion.
+
+### ✅ `031_trainer_decks` — the card's text box
+`trainer.deck`: three **user-selected** slots (`unique (trainer_id, position)`, position 1–3). *A card is something you hand a stranger, not a log of what you did last.* Name, deck URL (moxfield/archidekt/magikdex), ScryCheck URL, and a rating. Commander columns added to `trainer.profile` for art + artist. `get_trainer_party` dropped; `get_trainer_decks(handle)` added.
+
+**ScryCheck: no API, no scraping.** Ben's call — *"scrycheck is the grading tool its not mine but its my favorite... i dont want to hit their API tho i want to send people to the site its a great site."* The rating is **self-reported and the link beside it is the receipt**, checkable in one tap. Nothing to break, no permission needed, and it sends them traffic.
+
+`030_deck_grades` was applied earlier the same day and is now **largely superseded** by `031`'s `deck.rating`.
+
+### ✅ THE ART BOX IS THE QR CODE
+Ben's objection to commander art there was exact: art inside a card frame reads as *a card OF that commander*, which made the deck rows below look like they belonged to Meren. Art is now a **dimmed wash (opacity .28) behind the code**.
+
+The QR encodes `/t/<handle>` and is **generated on device** via the `qrcode` package. A QR web service would send every user's card URL to a third party just to draw a square — for an app whose whole posture is that nothing about a person leaks, that would be a quiet contradiction. White panel with a quiet zone (dark modules need a light field), and the URL printed underneath: a scan that fails at 11pm in bad light still leaves something a person can type.
+
+### 🔎 THE BUG WORTH REMEMBERING — global class names in a per-instance `<style>`
+Ben: *"gooD but why so tiny?"* The hero card was rendering at ~230px, not the 340 it asked for.
+
+`BadgeCard` injected **`.tc-scene { width: ${width}px }`** into a `<style>` block. **Class names are global.** Two BadgeCards are always mounted — the hero, plus the live preview inside `SettingsSheet`, which is a portal that stays mounted and merely translates off-screen. The sheet's copy renders *second*, so its `width: 230px` won for both. **The real card had been wearing the preview's size.**
+
+Fix (`5922f61`): width is an **inline style, per instance**; the `<style>` block is now identical for every card so duplicates are harmless. Beyond that, the card is **fluid** and everything inside is sized in **`cqw`** against the card's own width — one renderer at any size, instead of internals nailed to a 340px basis. The preview now scales its type down rather than showing 17px title text on a 230px card. QR bumped to ~44% of card width and rendered at 640px for 3x screens.
+
+**Generalise it:** a component that injects CSS with fixed class names is a singleton whether or not it was written as one. Anything instance-specific belongs in an inline style.
+
+Verified at DOM level: public card 343w × 479h, ratio **1.397** (63:88 = 1.397 ✓), QR 139px, title 17.15px, no horizontal overflow. Mounting a second 230px card leaves the hero at 343 — the collision is gone. Build clean. **Screenshots still impossible** — the Browser pane doesn't composite here.
+
+### Database
+`001`→`031` all applied to prod. Local suite **92/92** (`024`:9, `025`:19, `026`:24, `027`:12, `028`:7, `030`:11, `031`:10) via `bash supabase/local/run-tests.sh`.
+
+`@zen` is public: He/him, Convoke.gg, all four philosophies, commander Meren of Clan Nel Toth (art: Mark Winters), one deck "Ral Monsoon Mage" rated 9.7.
+
+### 🎯 NEXT
+1. **Device pass on the resized card** — does the QR actually scan at that physical size, and do images render inside a 3D-transformed element? Neither is verifiable in this environment.
+2. **Send the ScryCheck email** — drafted, Ben sends. It's a nicer email now: no API, no scraping, just "I link to you and credit you."
+3. **Open source prep** — LICENSE, plus a pass over git history for anything that shouldn't be public.
+4. **`@testbot` still sits private in production** (`8a3579cd-eac8-406d-aa68-73d1ccc8abf8`). Remove when done testing.
+5. Add `e.name`/`e.message` to both crash reporters — Safari stacks omit the message. **Still open from 2026-08-06.**
+6. **Not built:** the buddy-add QR *scanner*. The card shows a QR; nothing reads one. Needs Ben's call before building.
+7. **Deliberately dead, cleanup is a separate decision:** `trainer.party_slot`, `030`'s credential badge functions, `playstyle` / `favorite_legends` columns (30-value taxonomy, no UI).
+
 ## 2026-08-06 (night) — ✅ **BLACK SCREEN SOLVED. magikdex is back. Trainer is now its own app.**
 
 ### 🔴 THE BUG — `ReviewScreen` temporal dead zone
