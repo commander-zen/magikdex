@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { t } from "../theme.js";
 import { updateMyProfile, getPublicCard, VISIBILITY_CHOICES } from "../lib/trainer.js";
-import { Label } from "./CardTab.jsx";
+import { Label } from "./CardFields.jsx";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
 

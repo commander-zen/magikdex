@@ -15,7 +15,7 @@ const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em
 //
 // One save model: nothing persists until you press save, and discard is always
 // available.
-export default function CardTab({ profile, onSaved }) {
+export default function CardFields({ profile, onSaved }) {
   const [d, setD] = useState(() => fromProfile(profile));
   const [decks, setDecks] = useState([]);
   const [busy, setBusy] = useState(false);
@@ -63,8 +63,11 @@ export default function CardTab({ profile, onSaved }) {
 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+      {/* A compact preview, kept even though the editor now lives in a sheet:
+          editing blind and imagining the result was the worst finding in the UX
+          audit, and moving the form should not reintroduce it. */}
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <BadgeCard card={preview} decks={decks} />
+        <BadgeCard card={preview} decks={decks} width={230} />
       </div>
       {dirty && (
         <span style={{ ...mono, fontSize: 10, color: t.accent, textAlign: "center" }}>

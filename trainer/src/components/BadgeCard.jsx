@@ -27,13 +27,13 @@ const C = {
 const slab = { fontFamily: "'Zilla Slab', serif" };
 const mono = { fontFamily: "'Noto Sans Mono', monospace" };
 
-export default function BadgeCard({ card, decks = [] }) {
+export default function BadgeCard({ card, decks = [], width = 340 }) {
   const [flipped, setFlipped] = useState(false);
 
   return (
     <>
       <style>{`
-        .tc-scene { width: 340px; max-width: 100%; perspective: 1800px; }
+        .tc-scene { width: ${width}px; max-width: 100%; perspective: 1800px; }
         /* 63mm x 88mm. The proportion is the point — it has to sit in a deck box
            next to real cards without looking wrong. */
         .tc-card { position: relative; width: 100%; aspect-ratio: 63 / 88;

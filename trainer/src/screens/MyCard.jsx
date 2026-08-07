@@ -1,24 +1,24 @@
 import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import { supabase } from "../lib/supabase.js";
-import CardTab, { Segmented } from "./CardTab.jsx";
-import PrivacyTab from "./PrivacyTab.jsx";
+import BadgeCard from "../components/BadgeCard.jsx";
 import BuddyList from "./BuddyList.jsx";
-import DecksTab from "./DecksTab.jsx";
+import SettingsSheet from "./SettingsSheet.jsx";
+import { Segmented } from "./CardFields.jsx";
 import {
-  getSession, getMyProfile, claimHandle,
+  getSession, getMyProfile, claimHandle, myDecks,
   normalizeHandle, handleProblem,
 } from "../lib/trainer.js";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
 
-// Shell only: auth, screen-name claim, and which of the three surfaces is showing.
+// TWO SURFACES AND A GEAR.
 //
-// THREE SURFACES, NOT ONE SCROLL. The previous version stacked identity, privacy,
-// a verification tool, a 30-chip picker, four text inputs, a rate-limit notice and
-// sign-out into a single column with no hierarchy. Those are three different
-// decisions — what my card says, who can see it, who my people are — so they get
-// three places.
+// You open this app to look at your card or to look at your people. Everything
+// else — editing fields, listing decks, privacy, signing out — is configuration,
+// and configuration goes behind the gear. Four peer tabs implied four
+// destinations of equal standing; two of them were things you look at and two were
+// things you set up once.
 //
 // EMAIL-ONLY SIGN-IN. Migration 028 enforces the same rule in the database, so
 // this is the UI agreeing with the schema rather than guarding it: 027 reserves a
@@ -30,9 +30,11 @@ const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em
 export default function MyCard() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
+  const [decks, setDecks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
   const [tab, setTab] = useState("card");
+  const [settingsOpen, setSettingsOpen] = useState(false);
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -54,6 +56,9 @@ export default function MyCard() {
         const { profile: p, error } = await getMyProfile(s.userId);
         setProfile(p);
         setLoadErr(error);
+        // The decks fill the card's text box, so the card is not complete without
+        // them — they load with it, not after.
+        if (p) setDecks((await myDecks(s.userId)).decks);
       } else {
         setProfile(null);
       }
@@ -101,8 +106,8 @@ export default function MyCard() {
     if (error) {
       // A unique violation might mean somebody else has it — or that it is
       // already YOURS and this form should not have been on screen. Re-read
-      // before believing the error; a real collision still surfaces, because then
-      // the re-read comes back empty.
+      // before believing the error; a real collision still surfaces, because the
+      // re-read comes back empty.
       const { profile: existing } = await getMyProfile(session.userId);
       setBusy(false);
       if (existing) { setProfile(existing); setErr(null); return; }
@@ -116,13 +121,22 @@ export default function MyCard() {
 
   return (
     <div style={{ minHeight: "100dvh", background: t.base, display: "flex", justifyContent: "center" }}>
-      <div style={{ width: "100%", maxWidth: 460, padding: "24px 20px 48px", display: "flex", flexDirection: "column", gap: 18 }}>
+      <div style={{ width: "100%", maxWidth: 460, padding: "22px 20px 44px", display: "flex", flexDirection: "column", gap: 16 }}>
 
-        <div style={{ display: "flex", alignItems: "baseline", justifyContent: "space-between" }}>
+        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
           <span style={{ fontSize: 9, fontWeight: 500, letterSpacing: "0.18em", textTransform: "uppercase", color: t.dim }}>
             trainer
           </span>
-          {profile && <span style={{ ...mono, fontSize: 11, color: t.accent }}>@{profile.handle}</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 4 }}>
+            {profile && <span style={{ ...mono, fontSize: 11, color: t.accent }}>@{profile.handle}</span>}
+            {session?.userId && (
+              <button onClick={() => setSettingsOpen(true)} aria-label="Settings" style={{
+                width: 44, height: 44, display: "flex", alignItems: "center", justifyContent: "center",
+                background: "transparent", border: "none", padding: 0, marginRight: -10,
+                color: `${t.white}80`, cursor: "pointer", fontSize: 19,
+              }}>⚙</button>
+            )}
+          </div>
         </div>
 
         {loadErr && (
@@ -144,29 +158,33 @@ export default function MyCard() {
           <>
             <Segmented
               value={tab}
-              options={[["card", "CARD"], ["decks", "DECKS"], ["buddies", "BUDDIES"], ["privacy", "PRIVACY"]]}
+              options={[["card", "CARD"], ["buddies", "BUDDIES"]]}
               onChange={setTab}
             />
 
-            {tab === "card"    && <CardTab profile={profile} onSaved={setProfile} />}
-            {tab === "privacy" && <PrivacyTab profile={profile} onSaved={setProfile} />}
-            {tab === "decks"   && <DecksTab userId={profile.id} onChanged={refresh} />}
-            {tab === "buddies" && <BuddyList />}
-
-            {/* Sign-out belongs at the edge, not inline among the controls. */}
-            <div style={{
-              borderTop: `1px solid ${t.border}`, paddingTop: 14,
-              display: "flex", justifyContent: "space-between", alignItems: "center",
-            }}>
-              <span style={{ ...mono, fontSize: 10, color: t.dim }}>{session.email}</span>
-              <button onClick={() => supabase.auth.signOut()} style={{
-                background: "transparent", border: "none", color: t.dim,
-                ...mono, fontSize: 10, cursor: "pointer", padding: 6,
-              }}>sign out</button>
-            </div>
+            {tab === "card" ? (
+              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
+                <BadgeCard card={profile} decks={decks} />
+                <span style={{ ...mono, fontSize: 10, color: t.dim }}>
+                  {location.host}/t/{profile.handle}
+                </span>
+              </div>
+            ) : (
+              <BuddyList />
+            )}
           </>
         )}
       </div>
+
+      <SettingsSheet
+        open={settingsOpen}
+        onClose={() => setSettingsOpen(false)}
+        profile={profile}
+        session={session}
+        // Re-read rather than trusting the patch we sent: the database may have
+        // normalised or rejected part of it, and the decks may have changed too.
+        onSaved={() => refresh()}
+      />
     </div>
   );
 }
@@ -226,8 +244,8 @@ function Claim({ handle, setHandle, displayName, setDisplayName, normalized, pro
               style={btn(true, busy || !!problem || !normalized)}>
         {busy ? "claiming…" : "claim it"}
       </button>
-      {/* One of only two pieces of standing help left in the app. It survives
-          because the rule is genuinely surprising AND irreversible. */}
+      {/* One of only two pieces of standing help in the app. It survives because
+          the rule is genuinely surprising AND irreversible. */}
       <span style={{ ...mono, fontSize: 10, color: t.dim, lineHeight: 1.6 }}>
         you can only change this once every 30 days. your card starts private.
       </span>
