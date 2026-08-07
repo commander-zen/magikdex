@@ -117,6 +117,25 @@ export async function getPublicCard(handle) {
   };
 }
 
+// Credentials for a public card, INDIVIDUALLY. One row per claim, each carrying
+// its own issuer, method and date.
+//
+// There is no aggregate version of this and there must never be one. The database
+// has no function that sums or ranks credentials — an earlier draft shipped a
+// trust_level() that scored them (venue=4, api=2, self=1), it was removed, and a
+// test now fails if anything like it reappears. A graded deck shows its own
+// bracket and its own date; it does not contribute to a number.
+//
+// Expired and revoked credentials are filtered server-side, so anything returned
+// here is currently valid.
+export async function getPublicCredentials(handle) {
+  const { data, error } = await supabase.rpc("get_trainer_credentials", { p_handle: handle });
+  return {
+    credentials: Array.isArray(data) ? data : [],
+    error: describeError(error),
+  };
+}
+
 export const VISIBILITY_CHOICES = [
   // Copy states the CONSEQUENCE, not the setting name. "unlisted" means nothing
   // to someone deciding whether to be findable.
