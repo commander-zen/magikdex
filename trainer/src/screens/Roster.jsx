@@ -160,9 +160,20 @@ function RosterRow({ row, open, onToggle, onChanged }) {
           <span style={{ ...mono, fontSize: 13, color: t.accent }}>@{row.handle}</span>
           {/* Card fields are NULL when they've gone private since you met. You
               keep your own record of the encounter; their card is theirs to
-              withdraw. Visibility is evaluated at read time, never frozen. */}
+              withdraw. Visibility is evaluated at read time, never frozen.
+
+              COPY MATTERS HERE. This said "card no longer shared" — passive voice
+              plus "no longer", which describes the RELATIONSHIP and implies an
+              action taken toward the reader. It reads as being cut off by someone
+              you played a good game with.
+
+              "private profile" describes THEIR STATE instead, which is both
+              kinder and more accurate: reachable is false only when visibility is
+              private, and that is a setting about everyone, not a decision about
+              you. Copy about other people should state what is true of them, not
+              imply something about your standing with them. */}
           <span style={{ fontSize: 12, color: row.reachable ? t.white : t.dim }}>
-            {row.reachable ? row.display_name : "card no longer shared"}
+            {row.reachable ? row.display_name : "private profile"}
           </span>
         </span>
         <span style={{ ...dim, textAlign: "right", flexShrink: 0 }}>
