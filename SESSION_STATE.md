@@ -50,6 +50,20 @@ Fix (`5922f61`): width is an **inline style, per instance**; the `<style>` block
 
 Verified at DOM level: public card 343w × 479h, ratio **1.397** (63:88 = 1.397 ✓), QR 139px, title 17.15px, no horizontal overflow. Mounting a second 230px card leaves the hero at 343 — the collision is gone. Build clean. **Screenshots still impossible** — the Browser pane doesn't composite here.
 
+### ✅ The card is installable (`fe19b06`)
+Ben's problem, verbatim: *"if you save it to the photo album it goes away // disappears after a while because of more photos and shit."* Correct — a screenshot is the wrong storage. **The answer is an app icon, not an image.**
+
+There was **no manifest and no icons at all**, so "Add to Home Screen" gave a blurry auto-screenshot icon and reopened in a Safari tab with browser chrome. Nobody keeps that. Now: `manifest.webmanifest` (standalone, portrait), 192/512/maskable-512/apple-touch-180, and the iOS meta set — **iOS ignores the manifest's icons and display mode and reads `apple-touch-icon` + `apple-mobile-web-app-*` instead**, and `apple-touch-icon` **must be a PNG**; Safari won't take the SVG.
+
+Icons are **generated geometry, no text** (`scratchpad/make-trainer-icons.js`, sharp → PNG): the icon is the card — 63:88 frame, title bar, QR block, four-philosophy type line. Text in an icon is illegible at 32px, and this has to sit next to magikdex without being mistaken for it.
+
+Also added `og:`/`twitter:` tags — the card link gets texted to people, and it previewed as a bare URL, which reads like something you shouldn't tap.
+
+⚠️ `vercel.json` has a catch-all SPA rewrite. It doesn't swallow the icons because **Vercel checks the filesystem before `rewrites`** — verified all five assets 200 with correct content types.
+
+### 🔬 HOW TO TEST THE QR ON ONE PHONE
+Ben: *"i havent tried the QR code test yet because i dont know how tbh."* A phone can't scan its own screen, so: **screenshot the card → open it in Photos → iOS detects the code in the image and offers the link.** That proves encoding and module clarity. It does **not** prove across-the-table camera distance — that still needs a second phone.
+
 ### Database
 `001`→`031` all applied to prod. Local suite **92/92** (`024`:9, `025`:19, `026`:24, `027`:12, `028`:7, `030`:11, `031`:10) via `bash supabase/local/run-tests.sh`.
 
