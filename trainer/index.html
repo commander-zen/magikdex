@@ -3,8 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
-    <title>trainer</title>
+    <title>trainer card</title>
     <meta name="theme-color" content="#08090c" />
+    <meta name="description" content="Your Commander screen name, decks, and a QR code to hand someone. Free, open source, yours." />
+
+    <!-- INSTALLABLE. Without a manifest, "Add to Home Screen" gives you a blurry
+         auto-screenshot for an icon and reopens in a Safari tab with browser
+         chrome — which is not something anyone keeps on a home screen. With one,
+         it gets a real icon and launches standalone, straight to your card. -->
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+
+    <!-- iOS ignores the manifest's icons and display mode; it reads these instead,
+         and apple-touch-icon MUST be a PNG (Safari won't take the SVG). -->
+    <link rel="apple-touch-icon" href="/apple-touch-icon.png" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-title" content="trainer" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
+
+    <!-- The card gets texted to people. Without these the link previews as a bare
+         URL, which reads like something you shouldn't tap. -->
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content="trainer card" />
+    <meta property="og:description" content="A Commander player's screen name, decks, and how to find them again." />
+    <meta property="og:image" content="/icon-512.png" />
+    <meta name="twitter:card" content="summary" />
     <link rel="preconnect" href="https://fonts.googleapis.com" />
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
     <link href="https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@500;600;700&family=Noto+Sans:wght@300;400;500;600&family=Noto+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
