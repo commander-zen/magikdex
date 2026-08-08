@@ -2,7 +2,7 @@ import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import {
   myBuddies, addBuddy, setBuddyNote, removeBuddy, blockTrainer,
-  normalizeHandle, MET_CONTEXT_MAX, NOTE_MAX,
+  normalizeHandle, MET_VENUE_MAX, NOTE_MAX, MET_MODE_CHOICES,
 } from "../lib/trainer.js";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
@@ -31,6 +31,11 @@ export default function BuddyList() {
 
   const [handle, setHandle] = useState("");
   const [where, setWhere] = useState("");
+  // Defaults to today, because the overwhelming case is adding someone you just
+  // played. Editable because the other case — "I finally remembered to write down
+  // that game from March" — is the reason the field exists at all.
+  const [when, setWhen] = useState(today);
+  const [mode, setMode] = useState("in_person");
   const [busy, setBusy] = useState(false);
   const [addErr, setAddErr] = useState(null);
   const [openKey, setOpenKey] = useState(null);
@@ -52,10 +57,10 @@ export default function BuddyList() {
     const h = normalizeHandle(handle);
     if (!h || busy) return;
     setBusy(true); setAddErr(null);
-    const { error } = await addBuddy(h, where);
+    const { error } = await addBuddy(h, { venue: where, metOn: when, metMode: mode });
     setBusy(false);
     if (error) { setAddErr(error); return; }
-    setHandle(""); setWhere("");
+    setHandle(""); setWhere(""); setWhen(today()); setMode("in_person");
     load();
   }
 
@@ -87,12 +92,43 @@ export default function BuddyList() {
           style={input}
         />
       </div>
+      {/* WHERE WE MET, past tense — a fact about a night that already happened.
+          Not to be confused with their "usually found at", which is theirs to
+          maintain and changes when they change shops. Conflating the two would
+          silently rewrite your record of a game every time they moved. */}
       <input
         value={where}
-        onChange={e => setWhere(e.target.value.slice(0, MET_CONTEXT_MAX))}
+        onChange={e => setWhere(e.target.value.slice(0, MET_VENUE_MAX))}
         placeholder="where — optional (e.g. Gnome Games commander night)"
         style={input}
       />
+
+      <div style={{ display: "flex", gap: 8 }}>
+        {/* DATE ONLY. The column is `date`, so there is no time of day to send
+            even if this control offered one — 032 dropped the precision rather
+            than hiding it. "We played on the 14th" is the entire use. */}
+        <input
+          type="date"
+          value={when}
+          onChange={e => setWhen(e.target.value)}
+          aria-label="date met"
+          style={{ ...input, flex: 1, minWidth: 0 }}
+        />
+        <div style={{ display: "flex", border: `1px solid ${t.muted}`, flex: 1 }}>
+          {MET_MODE_CHOICES.map(([v, lbl], i) => {
+            const on = mode === v;
+            return (
+              <button key={v} onClick={() => setMode(v)} aria-pressed={on} style={{
+                flex: 1, minHeight: 46, cursor: "pointer", border: "none",
+                borderLeft: i ? `1px solid ${t.muted}` : "none",
+                background: on ? t.accent : "transparent",
+                color: on ? t.base : t.dim, ...mono, fontSize: 10,
+              }}>{lbl}</button>
+            );
+          })}
+        </div>
+      </div>
+
       <button
         onClick={add}
         disabled={busy || !handle}
@@ -186,7 +222,28 @@ function BuddyRow({ row, open, onToggle, onChanged }) {
         </span>
       </div>
 
-      {row.met_context && <span style={dim}>{row.met_context}</span>}
+      {/* Where you met, and whether you were in the same room. Both are your own
+          record of that night and survive them going private. */}
+      {(row.met_venue || row.met_mode === "online") && (
+        <span style={dim}>
+          {row.met_mode === "online" ? "online" : "in person"}
+          {row.met_venue ? ` · ${row.met_venue}` : ""}
+        </span>
+      )}
+
+      {/* THE DIRECTORY, SUCH AS IT IS. Where they say to find them, and whether
+          they're up for a game — visible to you because you already met them and
+          saved them yourself. There is no way to ask this question across all
+          trainers; that surface does not exist in the database and adding it
+          would be a migration plus a privacy decision, not a screen. */}
+      {row.reachable && row.ready_to_pod && (
+        <span style={{ ...mono, fontSize: 10, color: t.accent }}>
+          ◆ ready to pod up{row.ready_note ? ` · ${row.ready_note}` : ""}
+        </span>
+      )}
+      {row.reachable && row.usually_found_at && (
+        <span style={dim}>usually at {row.usually_found_at}</span>
+      )}
 
       {open && (
         <div style={{ display: "flex", flexDirection: "column", gap: 8, paddingTop: 4 }}>
@@ -267,8 +324,25 @@ function Btn({ children, onClick, disabled, accent, danger }) {
   );
 }
 
-function shortDate(iso) {
-  const d = new Date(iso);
-  if (Number.isNaN(d.getTime())) return "";
-  return d.toLocaleDateString("en-US", { month: "short", day: "numeric" }).toLowerCase();
+// Today as "YYYY-MM-DD" in the USER'S timezone — which is what <input type="date">
+// expects and what the `date` column stores. `toISOString().slice(0,10)` is the
+// obvious one-liner and it is WRONG: it converts to UTC first, so anyone west of
+// Greenwich adding a buddy after their evening game gets tomorrow's date on it.
+function today() {
+  const d = new Date();
+  const pad = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
+}
+
+// 032 made these columns `date`, so what arrives is "2026-03-14" and not a
+// timestamp. `new Date("2026-03-14")` parses that as UTC MIDNIGHT, which renders
+// as the 13th for every user in the Americas — the same off-by-one as above, from
+// the other direction. Splitting the string keeps it a plain calendar date, which
+// is all it ever was.
+function shortDate(ymd) {
+  const [y, m, d] = String(ymd ?? "").split("-").map(Number);
+  if (!y || !m || !d) return "";
+  return new Date(y, m - 1, d)
+    .toLocaleDateString("en-US", { month: "short", day: "numeric" })
+    .toLowerCase();
 }

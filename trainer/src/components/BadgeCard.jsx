@@ -194,15 +194,37 @@ export default function BadgeCard({ card, decks = [], width = null, flat = false
                 flex: 1, minHeight: 0, background: C.panel, padding: u(12),
                 display: "flex", flexDirection: "column", gap: u(12), overflowY: "auto",
               }}>
+                {/* Availability first — it is the only field here that is about
+                    RIGHT NOW, and burying it under three standing facts would
+                    make the reader work for the one thing that decays.
+
+                    IT ONLY RENDERS ON SCREEN. The back of the card is omitted
+                    entirely when `flat`, which is the print path, so a paper card
+                    can never carry a frozen "ready to pod up" that stopped being
+                    true the night it came out of the printer. Worth stating,
+                    because the first instinct on seeing this field is to put it
+                    on the front, where print WOULD pick it up. */}
+                {card.ready_to_pod && (
+                  <Field label="right now">
+                    <span style={{ color: C.accent }}>
+                      ready to pod up{card.ready_note ? ` · ${card.ready_note}` : ""}
+                    </span>
+                  </Field>
+                )}
                 {card.pronouns   && <Field label="pronouns">{card.pronouns}</Field>}
                 {card.home_region && <Field label="plays around">{card.home_region}</Field>}
+                {/* "plays around" is a region; this is the standing answer to
+                    "where do I find you again?" — a shop and a night, or a
+                    Discord. Two different questions, two different fields. */}
+                {card.usually_found_at && <Field label="found at">{card.usually_found_at}</Field>}
                 {card.commander_name && <Field label="signature">{card.commander_name}</Field>}
                 {card.bio && (
                   <Field label="about">
                     <span style={{ lineHeight: 1.65 }}>{card.bio}</span>
                   </Field>
                 )}
-                {!card.pronouns && !card.home_region && !card.bio && !card.commander_name && (
+                {!card.pronouns && !card.home_region && !card.usually_found_at &&
+                 !card.bio && !card.commander_name && !card.ready_to_pod && (
                   <span style={{ ...mono, fontSize: u(10), color: C.faint }}>nothing on the back yet</span>
                 )}
               </div>

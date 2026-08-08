@@ -170,11 +170,21 @@ export async function myBuddies() {
 // The upsert lives server-side, which is what makes met_count trustworthy: a
 // client that could run its own would be able to set the counter to anything,
 // and buddy_count publishes it.
-export async function addBuddy(handle, metContext) {
+//
+// 032 widened this: a venue, a DATE (no time of day — the column is `date`, so
+// there is nothing finer to send) and in-person/online. metOn is a plain
+// "YYYY-MM-DD" string, which is what <input type="date"> already gives us and
+// what Postgres wants; building a Date object here would only introduce a
+// timezone that then has to be removed again.
+//
+// Sending null for metOn means "today", decided server-side by current_date.
+export async function addBuddy(handle, { venue, metOn, metMode } = {}) {
   const { error } = await supabase.rpc("add_buddy", {
     p_handle: handle,
-    p_met_context: metContext?.trim() || null,
+    p_met_venue: venue?.trim() || null,
     p_source: "manual",
+    p_met_on: metOn || null,
+    p_met_mode: metMode || "in_person",
   });
   return { error: describeError(error) };
 }
@@ -231,8 +241,52 @@ export async function myDeckGrades() {
   return { grades: Array.isArray(data) ? data : [], error: describeError(error) };
 }
 
-export const MET_CONTEXT_MAX = 80;
+// 032 renamed met_context to met_venue in the database. The constant follows,
+// rather than leaving the client saying "context" about a column called venue —
+// that divergence is the tax 029 was written to stop paying.
+export const MET_VENUE_MAX = 80;
 export const NOTE_MAX = 280;
+
+// ── Where to find you, and whether you're free (migration 032) ───────────────
+// THREE FIELDS, THREE DIFFERENT TENSES, and keeping them apart is the design:
+//
+//   usually_found_at  FORWARD.  "here is where to find me" — profile-level, and
+//                               the thing that stops someone dissolving into a
+//                               Discord server after one good game.
+//   met_venue         BACKWARD. "here is where we crossed paths" — per buddy, a
+//                               fact about a night that already happened. It must
+//                               not change when they move.
+//   ready_to_pod      NOW.      "I'm up for a game."
+//
+// ready_to_pod IS MANUAL AND NEVER EXPIRES. There is no last-seen, no timeout and
+// no background job that clears it, in the client or the database. That is on
+// purpose: anything that expires it has to know when you were last active, and
+// that is a presence system — the one thing this schema has spent four migrations
+// refusing to record. The cost is that a stale flag lies; the answer is making it
+// one tap to turn off, which is the toggle in Settings.
+export const FOUND_AT_MAX = 80;
+export const READY_NOTE_MAX = 60;
+
+export const MET_MODE_CHOICES = [
+  ["in_person", "IN PERSON"],
+  ["online",    "ONLINE"],
+];
+
+// Same CHECK as home_region — see GEO_RE below. Both new location fields carry it
+// because a free-text "where am I" column next to a person is the geo backdoor.
+export function foundAtProblem(v) {
+  if (!v) return null;
+  if (v.length > FOUND_AT_MAX) return `${FOUND_AT_MAX} characters max`;
+  if (GEO_RE.test(v)) return "no coordinates — use a place or server name";
+  return null;
+}
+
+export function readyNoteProblem(v) {
+  if (!v) return null;
+  if (v.length > READY_NOTE_MAX) return `${READY_NOTE_MAX} characters max`;
+  if (GEO_RE.test(v)) return "no coordinates — use a place name";
+  return null;
+}
 
 
 // ── The three decks + the commander (migration 031) ──────────────────────────

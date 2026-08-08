@@ -6,8 +6,8 @@ import BuddyList from "./BuddyList.jsx";
 import SettingsSheet from "./SettingsSheet.jsx";
 import { Segmented } from "./CardFields.jsx";
 import {
-  getSession, getMyProfile, claimHandle, myDecks,
-  normalizeHandle, handleProblem,
+  getSession, getMyProfile, claimHandle, myDecks, updateMyProfile,
+  normalizeHandle, handleProblem, readyNoteProblem, READY_NOTE_MAX,
 } from "../lib/trainer.js";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
@@ -168,6 +168,7 @@ export default function MyCard() {
                 <span style={{ ...mono, fontSize: 10, color: t.dim }}>
                   {location.host}/t/{profile.handle}
                 </span>
+                <ReadyToggle profile={profile} onSaved={refresh} />
               </div>
             ) : (
               <BuddyList />
@@ -185,6 +186,93 @@ export default function MyCard() {
         // normalised or rejected part of it, and the decks may have changed too.
         onSaved={() => refresh()}
       />
+    </div>
+  );
+}
+
+// "ready to pod up" — ON THE CARD TAB, NOT BEHIND THE GEAR.
+//
+// The gear holds things you set up once. This is the opposite: a two-second
+// answer about tonight, flipped while you are packing up, and burying it three
+// taps deep would mean nobody ever turns it on — or worse, nobody ever turns it
+// off. It sits under the card because it is a fact about you right now, the same
+// way the card is.
+//
+// SAVES IMMEDIATELY, no draft and no save button. Matching the CommanderPicker
+// rather than the CardFields form: a toggle whose effect you can see has nothing
+// to confirm.
+//
+// IT NEVER EXPIRES ON ITS OWN. No timeout, no last-seen, no background job —
+// anything that clears this automatically has to know when you were last active,
+// and that is a presence system. So the honest copy says how it actually behaves
+// ("stays on until you turn it off") instead of implying it lapses tonight.
+function ReadyToggle({ profile, onSaved }) {
+  const [note, setNote] = useState(profile.ready_note ?? "");
+  const [busy, setBusy] = useState(false);
+  const [err, setErr] = useState(null);
+
+  const on = !!profile.ready_to_pod;
+  const noteErr = readyNoteProblem(note);
+  const noteDirty = note !== (profile.ready_note ?? "");
+
+  async function write(patch) {
+    setBusy(true); setErr(null);
+    const { profile: p, error } = await updateMyProfile(profile.id, patch);
+    setBusy(false);
+    if (error) { setErr(error); return; }
+    onSaved?.(p);
+  }
+
+  return (
+    <div style={{
+      width: "100%", border: `1px solid ${on ? t.accent : t.border}`,
+      padding: 12, display: "flex", flexDirection: "column", gap: 10,
+    }}>
+      <button
+        onClick={() => write({ ready_to_pod: !on })}
+        disabled={busy}
+        aria-pressed={on}
+        style={{
+          minHeight: 46, background: "transparent",
+          border: `1px solid ${busy ? t.muted : on ? t.accent : t.dim}`,
+          color: busy ? t.dim : on ? t.accent : t.white,
+          ...mono, fontSize: 12, cursor: busy ? "default" : "pointer",
+          opacity: busy ? 0.55 : 1,
+        }}
+      >
+        {busy ? "…" : on ? "◆ ready to pod up" : "◇ not right now"}
+      </button>
+
+      {/* Free text, deliberately. A dropdown of formats would be matchable, and
+          matchable is one step from ranked — which is the thing this product has
+          removed twice already. */}
+      {on && (
+        <>
+          <input
+            value={note}
+            onChange={e => { setErr(null); setNote(e.target.value.slice(0, READY_NOTE_MAX)); }}
+            placeholder="looking for: cEDH · casual only tonight"
+            style={{
+              width: "100%", boxSizing: "border-box", minHeight: 44,
+              background: "transparent", color: t.white, ...mono, fontSize: 12,
+              border: `1px solid ${noteErr ? t.red : t.muted}`,
+              padding: "0 12px", borderRadius: 0, outline: "none",
+            }}
+          />
+          {noteErr && <span style={{ ...mono, fontSize: 10, color: t.red }}>{noteErr}</span>}
+          {noteDirty && !noteErr && (
+            <button onClick={() => write({ ready_note: note.trim() || null })} disabled={busy}
+                    style={btn(true, busy)}>save note</button>
+          )}
+        </>
+      )}
+
+      <span style={{ ...mono, fontSize: 10, color: t.dim, lineHeight: 1.6 }}>
+        {on
+          ? "shows on your card and to your buddies. stays on until you turn it off."
+          : "flip this when you're up for a game."}
+      </span>
+      {err && <span style={{ ...mono, fontSize: 11, color: t.red, lineHeight: 1.7 }}>{err}</span>}
     </div>
   );
 }

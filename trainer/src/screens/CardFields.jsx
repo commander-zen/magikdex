@@ -5,6 +5,7 @@ import { searchCommanders } from "../lib/scryfall.js";
 import {
   updateMyProfile, setCommander, myDecks,
   PHILOSOPHY_CHOICES, BIO_MAX, PRONOUNS_MAX, REGION_MAX, regionProblem,
+  FOUND_AT_MAX, foundAtProblem,
 } from "../lib/trainer.js";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
@@ -27,7 +28,8 @@ export default function CardFields({ profile, onSaved }) {
   const clean = fromProfile(profile);
   const dirty = JSON.stringify(d) !== JSON.stringify(clean);
   const regionErr = regionProblem(d.home_region);
-  const canSave = dirty && !busy && !regionErr;
+  const foundErr = foundAtProblem(d.usually_found_at);
+  const canSave = dirty && !busy && !regionErr && !foundErr;
 
   const patch = next => { setErr(null); setD(p => ({ ...p, ...next })); };
 
@@ -45,6 +47,7 @@ export default function CardFields({ profile, onSaved }) {
       philosophy:   d.philosophy,
       pronouns:     d.pronouns.trim()    || null,
       home_region:  d.home_region.trim() || null,
+      usually_found_at: d.usually_found_at.trim() || null,
       bio:          d.bio.trim()         || null,
     });
     setBusy(false);
@@ -58,6 +61,7 @@ export default function CardFields({ profile, onSaved }) {
     philosophy:   d.philosophy,
     pronouns:     d.pronouns.trim() || null,
     home_region:  d.home_region.trim() || null,
+    usually_found_at: d.usually_found_at.trim() || null,
     bio:          d.bio.trim() || null,
   };
 
@@ -108,6 +112,25 @@ export default function CardFields({ profile, onSaved }) {
       <input value={d.home_region} onChange={e => patch({ home_region: e.target.value.slice(0, REGION_MAX) })}
              placeholder="Twin Cities" style={{ ...input, borderColor: regionErr ? t.red : t.muted }} />
       {regionErr && <span style={{ ...mono, fontSize: 10, color: t.red, marginTop: -12 }}>{regionErr}</span>}
+
+      {/* FORWARD-LOOKING, and that is the whole distinction. "where you play" is
+          your region; this is the standing answer to "so where do I find you
+          again?" — the question that goes unanswered when someone dissolves into
+          a Discord server after one good game.
+
+          It is NOT where you met any particular person. That fact belongs to the
+          buddy row and must not change when you move shops.
+
+          Free text on purpose: no venue database, and autocompleting against
+          shops you have already typed is a later step. A dropdown of real venues
+          would need a list of real venues, which is a much bigger decision than
+          this field is asking for. */}
+      <Label>usually found at</Label>
+      <input value={d.usually_found_at}
+             onChange={e => patch({ usually_found_at: e.target.value.slice(0, FOUND_AT_MAX) })}
+             placeholder="Games Corner, Thursdays · SpellTable / Discord"
+             style={{ ...input, borderColor: foundErr ? t.red : t.muted }} />
+      {foundErr && <span style={{ ...mono, fontSize: 10, color: t.red, marginTop: -12 }}>{foundErr}</span>}
 
       <Label>bio · {d.bio.length}/{BIO_MAX}</Label>
       <textarea value={d.bio} onChange={e => patch({ bio: e.target.value.slice(0, BIO_MAX) })}
@@ -215,6 +238,7 @@ function fromProfile(p) {
     philosophy:   p.philosophy ?? [],
     pronouns:     p.pronouns ?? "",
     home_region:  p.home_region ?? "",
+    usually_found_at: p.usually_found_at ?? "",
     bio:          p.bio ?? "",
   };
 }

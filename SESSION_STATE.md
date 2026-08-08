@@ -1,5 +1,53 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-07 (later) — ⏳ **`032` written: where to find you, when we met, and are you free. NOT APPLIED, NOT RUN.**
+
+Ben's ask: you meet someone at a pod once and lose them into a Discord server. `026` solved "I forgot their name"; it did not solve "I have their handle and still no idea where they actually are."
+
+### ✅ Written — `032_trainer_directory.sql` + `tests/032_trainer_directory_rls.sql` (29 assertions)
+
+**Three fields, three tenses, deliberately not one field:**
+- `profile.usually_found_at` — FORWARD. "here's where to find me." Free text, ≤80, **carries `home_region`'s no-geo CHECK**.
+- `buddy.met_context` → **renamed** `met_venue` — BACKWARD. A fact about a night that already happened; must not change when they move shops. Renamed, not duplicated.
+- `profile.ready_to_pod` (bool) + `ready_note` (free text ≤60) — NOW.
+
+**Also:** `buddy.met_mode` enum (`in_person`/`online`), kept **orthogonal to `source`** — `source` is *how the edge was created*, mode is *where you were*. Fusing them rebuilds the cross-product mistake `025` avoids in `credential.kind`/`method`.
+
+### ⚠️ `first_met_at` / `last_met_at`: **timestamptz → date. Destructive, irreversible, Ben confirmed.**
+Time of day is dropped from every existing row. Consistent with `026`'s own rule — *not redacted, not access-controlled, **never recorded***. Date-only at the API with timestamps still in the table would have been the weaker version of the same promise.
+
+**Existing rows shift by up to one day.** The cast is pinned to UTC because no timezone was ever stored; an 11pm US Central game was written as 05:00 UTC and will read as the next day. Unfixable — the information required does not exist. Prod holds a handful of rows.
+
+### 🔒 RLS review — **no policy added, changed or dropped**, and that is a conclusion, not an oversight
+1. The three new `profile` columns fall under existing `profile_select_own`/`profile_update_own` unchanged.
+2. ⚠️ **`authenticated` holds a TABLE-LEVEL update grant on `trainer.profile` (`025`). Table grants are column-blind** — every new column is client-writable via raw PostgREST, not just through this app's UI. Correct for three self-declared fields; would NOT be correct for anything attested, which is why `credential` has no write grant.
+3. `trainer.buddy` is still granted to **no client role**. Policies exist, privileges don't; all access is SECURITY DEFINER. `add_buddy` re-checks `trainer_id = auth.uid()` in its own body — definer bypasses the policy, so the body is the real enforcement.
+4. **The new publication surface is `get_trainer_card`'s column list**, which is the privacy boundary (definer, not RLS). Three columns added, each a decision, all visibility-gated at read time.
+
+### 🚫 Still no directory in the `025` sense
+`025` states in writing that browsing trainers is structurally impossible. **`032` adds no view, no list-all, no enumeration.** `ready_to_pod` is readable exactly two ways, both of which already required knowing the person: `get_trainer_card(handle)`, and `my_buddies()` — people *you* saved. The "directory" is a directory of people you have personally met. Widening it is a separate migration with a separate privacy decision.
+
+**No scores.** `ready_to_pod` is a boolean, `ready_note` is free text. `my_buddies` still orders by `last_met_at desc` — recency of *your own* meeting, not a property of the other person — and deliberately **not** ready-first. Assertion 28 fails if a score/rank/level/match column ever appears.
+
+### Client — builds clean, boots clean, **runtime-unverified**
+`trainer.js` (`addBuddy` takes `{venue, metOn, metMode}`; `MET_CONTEXT_MAX`→`MET_VENUE_MAX`; `foundAtProblem`/`readyNoteProblem`), `CardFields` (usually-found-at, behind the gear — a standing setting), `MyCard` (**`ReadyToggle` on the card tab, NOT behind the gear** — a two-second answer about tonight; burying it three taps deep means nobody turns it on, or worse nobody turns it off), `BuddyList` (date picker + in-person/online + ready/found-at display), `BadgeCard` (back of card).
+
+Two date bugs pre-empted: `toISOString().slice(0,10)` gives *tomorrow* west of Greenwich, and `new Date("2026-03-14")` renders as the 13th in the Americas. Both avoided; see the comments in `BuddyList.jsx`.
+
+### ⚠️ Known Issues / new findings
+- **`032` and its suite have NEVER BEEN RUN.** This machine has no psql, no Docker, no Supabase CLI. It is reviewed SQL, not verified SQL. Both file headers now say so. **Run the suite before applying**; treat a first run as debugging the tests too — the catalog assertions (5, 6, 16, 28, 29) lean on pgTAP/`pg_catalog` output formats that are easy to get subtly wrong when you can't execute them.
+- **`026`'s header says "NOT APPLIED" and that is stale.** `029` rewrote its objects and *is* applied against them, so `026` is in prod. Docs bug, not a schema bug.
+- **The prompt that started this session was wrong about the repo**: it named "OHANA monorepo", "Trainer Badge", "Table List", and migrations `018`/`022`/`023`. Actual: this repo, the trainer card, the **buddy list** (`029` renamed it), and archived migrations. Corrected before any code was written.
+- `ready_to_pod` **never expires** — no timeout, no last-seen, no job. Deliberate: anything that clears it automatically needs to know when you were last active, which is a presence system. Cost accepted: a stale flag lies.
+- The **printed** card cannot carry a frozen "ready to pod up" — the back face is omitted entirely when `flat`. Holds today; would break the moment anyone moves the field to the front.
+
+### 🎯 NEXT on this thread
+1. **Run `tests/032_trainer_directory_rls.sql`**, then apply `032`. Nothing below matters until this is green.
+2. Verify the four new client surfaces against a real session — none were exercised at runtime.
+3. Fix `026`'s stale "NOT APPLIED" header.
+
+---
+
 ## 2026-08-07 — ✅ **The Trainer card is a Magic card now. `029`→`031` applied. Two surfaces and a gear. The art box is a QR code.**
 
 Deployed at **`edh-id.vercel.app`** (`main`, Vercel root `trainer/`). Everything below is pushed to both `origin/main` and `origin/dev`; last code commit `5922f61`.
@@ -608,7 +656,9 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-07**): **Device pass on the Trainer card at `edh-id.vercel.app`** — sizing is confirmed good by Ben; what's left is the physical stuff this environment cannot check, since the Browser pane does not composite and there are no screenshots: (1) **does the QR actually scan** (method below), (2) **do images render inside the 3D-transformed card**, and (3) **print a sheet from `/print`** — does it come out at true 63×88mm, does it sleeve, does the printed QR scan? Nothing else should be built on top of the card until those answers exist.
+Priority (**2026-08-07, later**): **Run `magikdex/supabase/tests/032_trainer_directory_rls.sql` (29 assertions), then apply `032_trainer_directory.sql`.** It is the first migration in this repo written *without* being replayed — no psql, no Docker, no Supabase CLI on that machine — so it is reviewed SQL, not verified SQL. Watch the `alter column ... type date` block (destructive, and the step most likely to trip over the column default) and the drop-then-create of `add_buddy` / `get_trainer_card` / `my_buddies` (their grants have to come back). The client half builds and boots clean but **none of the four new surfaces has been exercised against a real session**. Nothing else on the `032` thread should proceed until the suite is green.
+
+Priority (SUPERSEDED, **2026-08-07**): **Device pass on the Trainer card at `edh-id.vercel.app`** — sizing is confirmed good by Ben; what's left is the physical stuff this environment cannot check, since the Browser pane does not composite and there are no screenshots: (1) **does the QR actually scan** (method below), (2) **do images render inside the 3D-transformed card**, and (3) **print a sheet from `/print`** — does it come out at true 63×88mm, does it sleeve, does the printed QR scan? Nothing else should be built on top of the card until those answers exist.
 
 **Also needs one look:** "Add to Home Screen" on iOS now that the manifest and icons exist — real icon, opens standalone.
 
