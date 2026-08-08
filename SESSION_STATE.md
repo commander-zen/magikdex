@@ -61,6 +61,22 @@ Also added `og:`/`twitter:` tags — the card link gets texted to people, and it
 
 ⚠️ `vercel.json` has a catch-all SPA rewrite. It doesn't swallow the icons because **Vercel checks the filesystem before `rewrites`** — verified all five assets 200 with correct content types.
 
+### ✅ `/print` — print it, cut it, sleeve it (`b050a2a`)
+Ben asked for a physical card and **explicitly declined the premium/shipping version in the same breath**: *"no easy and frictionless is our motto so just something people can print if they want or save to their home screen."* A page that prints is frictionless; an order form is not. **Don't revive a paid tier without him raising it.**
+
+**Third hand-parsed route.** 1 or 9 per sheet (both cases are real — one for yourself, a sheet to hand out), cards edge to edge so one cut serves two, dashed cut guides.
+
+🔑 **This is the payoff from the cqw refactor.** Give the frame `width="63mm"` and every font, pad and gap inside resolves to physical units, because they're all percentages of the card's own width. **One renderer, no separate print stylesheet to drift out of sync with the screen one.**
+
+Three things that would each have broken it:
+- **`print-color-adjust: exact`** — without it browsers strip background colours and the card prints as a white rectangle with a QR floating in it.
+- **`BadgeCard flat`** — front only, no 3D scene. `backface-visibility` is not reliably honoured in print, so the back would print *over* the front. Also squares the outer edge, because that edge is where the scissors go.
+- **Backticks in a CSS comment inside a template literal** closed the string and failed the build. Obvious in hindsight; cost a build cycle.
+
+Verified: `@page` rule parsed (malformed ones are dropped silently), all five print-media rules present, 63mm = 238.1px and 88mm = 332.6px (exactly 63:88), 3×3 clears both Letter **and** A4 at 5mm margins.
+
+⚠️ **Unverified here:** the actual printed output, and the flat card rendered at 63mm with a real profile — this browser has no session, and the pane can't composite. Needs Ben + a printer. The print dialog's **"background graphics" is off by default** and the page says so, because that one setting makes the output blank.
+
 ### 🔬 HOW TO TEST THE QR ON ONE PHONE
 Ben: *"i havent tried the QR code test yet because i dont know how tbh."* A phone can't scan its own screen, so: **screenshot the card → open it in Photos → iOS detects the code in the image and offers the link.** That proves encoding and module clarity. It does **not** prove across-the-table camera distance — that still needs a second phone.
 
@@ -592,7 +608,9 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-07**): **Device pass on the resized Trainer card at `edh-id.vercel.app`.** Two things this environment cannot verify — the Browser pane does not composite, so there are no screenshots: (1) **does the QR actually scan** at its physical size on the card, and (2) **do images render inside the 3D-transformed card** (the flip). Ben has confirmed the flip itself works on device. Nothing else should be built on top of the card until those two answers exist.
+Priority (**2026-08-07**): **Device pass on the Trainer card at `edh-id.vercel.app`** — sizing is confirmed good by Ben; what's left is the physical stuff this environment cannot check, since the Browser pane does not composite and there are no screenshots: (1) **does the QR actually scan** (method below), (2) **do images render inside the 3D-transformed card**, and (3) **print a sheet from `/print`** — does it come out at true 63×88mm, does it sleeve, does the printed QR scan? Nothing else should be built on top of the card until those answers exist.
+
+**Also needs one look:** "Add to Home Screen" on iOS now that the manifest and icons exist — real icon, opens standalone.
 
 Then, in order: **send the ScryCheck email** (drafted — Ben sends, not Claude) → **open-source prep** (LICENSE + a pass over git history for anything that shouldn't be public) → **remove `@testbot`** from prod (`8a3579cd-eac8-406d-aa68-73d1ccc8abf8`, currently private) → **add `e.name`/`e.message` to both crash reporters** (Safari's `error.stack` omits the message; open since 2026-08-06).
 
