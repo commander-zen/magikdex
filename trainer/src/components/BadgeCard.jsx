@@ -378,7 +378,7 @@ function DeckRow({ deck }) {
 // only be COPIED, and rendering it as a dead link would be a small lie that costs
 // somebody a failed tap at exactly the wrong moment.
 function LinkRow({ link }) {
-  const [copied, setCopied] = useState(false);
+  const [status, setStatus] = useState(null);   // null | 'ok' | 'blocked'
   const stop = e => e.stopPropagation(); // the card flips on click; rows must not
 
   if (link.kind === "handle") {
@@ -386,11 +386,15 @@ function LinkRow({ link }) {
       <button
         onClick={e => {
           stop(e);
-          navigator.clipboard?.writeText(link.value)
-            .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); })
-            // A clipboard write can be refused (insecure context, permissions).
-            // The value is on screen either way, so a failure is not a dead end.
-            .catch(() => {});
+          const done = s => { setStatus(s); setTimeout(() => setStatus(null), 1600); };
+          // A clipboard write is refusable — verified NotAllowedError in a real
+          // browser, and QR scans often land in an in-app browser where it is.
+          // REPORT THE FAILURE rather than swallowing it: a tap that does nothing
+          // reads as a broken card. The username stays on screen either way, so
+          // "blocked" tells them to select it by hand rather than tap again.
+          Promise.resolve(navigator.clipboard?.writeText(link.value))
+            .then(() => done("ok"))
+            .catch(() => done("blocked"));
         }}
         style={{
           display: "flex", justifyContent: "space-between", alignItems: "baseline",
@@ -398,9 +402,18 @@ function LinkRow({ link }) {
           textAlign: "left", cursor: "pointer", width: "100%",
         }}
       >
-        <span style={{ ...mono, fontSize: u(10), color: C.dim }}>{link.label}</span>
-        <span style={{ ...mono, fontSize: u(10), color: copied ? C.accent : C.ink }}>
-          {copied ? "copied" : link.value}
+        {/* On 'blocked' the LABEL carries the message and the VALUE stays put —
+            telling someone to select it while replacing it with the words "select
+            it" leaves nothing to select. */}
+        <span style={{ ...mono, fontSize: u(10), color: C.dim }}>
+          {status === "blocked" ? "copy it by hand" : link.label}
+        </span>
+        <span style={{
+          ...mono, fontSize: u(10),
+          color: status === "ok" ? C.accent : C.ink,
+          userSelect: "text",
+        }}>
+          {status === "ok" ? "copied" : link.value}
         </span>
       </button>
     );

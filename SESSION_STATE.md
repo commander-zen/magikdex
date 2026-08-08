@@ -1,5 +1,30 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-08 (later) — ✅ **The scan finally does something. `/t/<handle>` has an add/save block. No migration.**
+
+Until now a QR scan rendered a card and offered **nothing to tap**. This closes it.
+
+**Two paths, deliberately unequal in what they ask:**
+- **Has a card** → one tap, `add @handle`, no confirm step. If already saved: `◆ @zen is on your buddy list · met N×` plus a secondary **"we played again"** (re-adding is a real event — `met_count` means it — so it stays available without being the primary control).
+- **No account (the NORMAL case, not the edge case)** → asks for nothing. *"you don't need an account to keep this."* → share sheet / copy → **the URL revealed in a selected read-only input** → *"share → add to home screen. their discord and decks are on the back of the card."* → a quiet "make your own card".
+
+**Why the signed-out path asks for nothing:** 028 requires a real email account and 027 pins the handle to one change per 30 days, so signing up means choosing your permanent gamertag while somebody waits at a table at 11pm. Nobody does that. **The buddy list is the upgrade, never the toll gate** — and `add_buddy` takes a handle, so the connection closes from either side, later, from anywhere.
+
+`my_buddies()` is checked BEFORE offering the button, because `add_buddy` is an upsert that bumps `met_count` — an accidental double-tap would otherwise silently claim you played someone twice.
+
+### 🚨 A DEAD CONTROL, CAUGHT IN TESTING — worth internalising
+The first version of "save this card" attempted share → clipboard and **swallowed the failure**. Verified live in-browser: `NotAllowedError: Write permission denied`. So on refusal the single most important button, for the single most likely visitor, **did nothing at all** — tap, no response, card looks broken.
+
+**This is not exotic.** A QR scan frequently opens inside Instagram's or Discord's in-app browser, where clipboard permissions are restricted.
+
+**Fix: the fallback is not an error message, it's the URL itself** — revealed in a `readOnly` input that selects on tap, requiring no permission at all. Re-tested under the same refusal: URL revealed, selectable, no console errors. The same swallow was in `BadgeCard`'s Discord copy row and is fixed there too (label flips to "copy it by hand" while the username **stays on screen** — an earlier attempt replaced the value with the words "select it", leaving nothing to select).
+
+**Standing lesson: never `.catch(() => {})` on a user-facing action.** A silent failure on a primary control is worse than no control.
+
+### ⚠️ Known Issues
+- **Only the signed-out path was exercised.** `can_add` / `buddy` / `no_card` / `me` all require a session and were not run — they are read from code, not observed. **Ben should scan his own card from a signed-in phone and from a signed-out one.**
+- Still open: the `anon` EXECUTE grants (un-ruled-on since 2026-08-07), and `start_url` = `/` so an installed app opens the shell rather than your card.
+
 ## 2026-08-08 — ✅ **`033` APPLIED AND DEPLOYED: the back is a linktree, the decks came off the front, and the `032` regression is fixed. 18/18 green.**
 
 **Live and verified** at `edh-id.vercel.app/t/zen` on bundle `index-BMRlu5B3.js` (`8956d3b`, pushed `2abb729..8956d3b`):
@@ -730,7 +755,11 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-08**): **Build the add/save block on `/t/<handle>`.** It is the last thing between the QR and the product working. Today a scan renders a card and offers **nothing to tap** — and the signup path is the worst thing to hand someone at a table, because 028 requires a real email account and 027 pins the handle to one change per 30 days, so a stranger has to choose their permanent gamertag while you wait. Agreed shape: **signed in with a card → one tap `add @handle`; not signed in → make the URL stick with ZERO account** (add to home screen / share sheet / contact card), with a quiet "make your own card" underneath for later, at home. The buddy list should be the upgrade, never the toll gate.
+Priority (**2026-08-08, later**): **Scan your own card from a phone — signed in, and signed out.** The add/save block on `/t/<handle>` is live, but **only the signed-out path was ever exercised**; `can_add`, `buddy`, `no_card` and `me` are read from code, not observed. The signed-out path was tested under a *refused clipboard* and correctly falls back to revealing the URL — but the share sheet itself (`navigator.share`) has never run, because this environment has no such API. That is the control a real phone will actually use.
+
+Then, in order: **Ben's call on the `anon` EXECUTE grants** (open since 2026-08-07 — every trainer RPC in `public` is granted EXECUTE to anon; not a live hole, but the grant layer has never done its half) → **`start_url` is `/`**, so an installed app opens the app shell rather than your card, and "one tap, bam" is not true yet → **add real links** via gear → "find me", since the `FIND ME` block on the card back has never rendered with data.
+
+Priority (SUPERSEDED, **2026-08-08**): **Build the add/save block on `/t/<handle>`.** It is the last thing between the QR and the product working. Today a scan renders a card and offers **nothing to tap** — and the signup path is the worst thing to hand someone at a table, because 028 requires a real email account and 027 pins the handle to one change per 30 days, so a stranger has to choose their permanent gamertag while you wait. Agreed shape: **signed in with a card → one tap `add @handle`; not signed in → make the URL stick with ZERO account** (add to home screen / share sheet / contact card), with a quiet "make your own card" underneath for later, at home. The buddy list should be the upgrade, never the toll gate.
 
 Context for whoever picks this up: `033` shipped the linktree, so a scanned card can now carry a Discord and a Moxfield — which *mitigates* the blocker (someone can reach you with no account) but does not solve it.
 
