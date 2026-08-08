@@ -1,6 +1,15 @@
 # SESSION_STATE — MTG DNA
 
-## 2026-08-08 — ⏳ **`033` written: the back is a linktree, the decks come off the front, and a `032` regression is fixed. 18/18 green, NOT APPLIED.**
+## 2026-08-08 — ✅ **`033` APPLIED AND DEPLOYED: the back is a linktree, the decks came off the front, and the `032` regression is fixed. 18/18 green.**
+
+**Live and verified** at `edh-id.vercel.app/t/zen` on bundle `index-BMRlu5B3.js` (`8956d3b`, pushed `2abb729..8956d3b`):
+- FRONT: `@zen` → QR → `jank // casual // trash magic // cEDH` → `zen · art: Mark Winters`. **No decks.**
+- BACK: `RIGHT NOW: ready to pod up` → pronouns → plays around → `SIGNATURE: Meren of Clan Nel Toth` → **`DECKS: Ral Monsoon Mage 9.7 moxfield↗ scrycheck↗`**. No `FIND ME` block yet — 0 links exist, which is the correct empty state.
+- No console errors. **The artist credit is back**, which was the regression.
+
+⚠️ **Watch for a stale bundle when verifying a deploy.** The first check after pushing showed the NEW database (`art: Mark Winters`) through the OLD client (decks still on the front) and looked like the edit hadn't applied. It had; Vercel was still building. **Check the asset hash before believing a deploy verification** — `curl -s <url> | grep -o 'index-[A-Za-z0-9_-]*\.js'` against the hash `vite build` printed.
+
+⚠️ **Screenshots still do not work here** — the Browser pane does not composite. Verification is `get_page_text` + `read_console_messages` + the asset hash. Do not promise a visual check.
 
 ### 🔑 Ben stated the product properly, and it reframes everything
 > the front is static — handle, QR code, and how the user enjoys the game (jank, casual, trash magic, cEDH) — so it can print and live in a deck box. **the back can scroll and is basically a linktree but for EDH, because it will never be printed.**
@@ -27,15 +36,14 @@ Live since 2026-08-07: no commander art wash behind the QR, no "signature" on th
 Front is now handle → **QR at `u(215)`, up from `u(150)`, filling the whole middle** → philosophy → collector line. Nothing on it changes. Back gained `decks` (relocated) and a `find me` link list; `LinksTab.jsx` is the editor, in the gear under "find me". `PrintSheet` stopped fetching decks — dead after the move.
 
 ### ⚠️ Known Issues
-- **`033` NOT APPLIED.** The harness blocks the production write (it allows rolled-back rehearsals only), so Ben pastes it. **The commander regression stays live until he does.**
-- **Push is held** until `033` lands — the client calls `get_trainer_links`, which does not exist in prod yet.
+- **Claude cannot perform the production DB write.** The harness allows rolled-back rehearsals but blocks the real apply, both for `032` and `033`. **Working pattern: Claude writes + proves the migration against prod inside `BEGIN…ROLLBACK`, Ben pastes it, Claude verifies and pushes.** Don't re-litigate this each session.
 - **The `anon` EXECUTE grant finding from 2026-08-07 is still unfixed and still un-ruled-on.** Re-flagged in `033`'s footer.
 - `trainer.link` and `trainer.deck` are two tables rendered as one list. A deck is arguably a link with a rating; merging is defensible but is its own decision, not a side effect of this.
 - **The scanner-has-no-account blocker is NOT solved** — it is *mitigated*: a scanned card can now carry a Discord and a Moxfield, so someone can reach you with zero account. `/t/<handle>` still has nothing to tap.
 
 ### 🎯 NEXT
-1. **Ben pastes `033`** → then push.
-2. The add/save block on `/t/<handle>` — the actual fix for the scanner blocker.
+1. **The add/save block on `/t/<handle>`** — the actual fix for the scanner blocker. A scan still lands on a card with **nothing to tap**, and the signup path demands a permanent handle at the table (028 requires a real account, 027 allows one handle change per 30 days). Shape agreed: if signed in → one-tap `add @handle`; if not → make the URL stick with zero account (home screen / share / contact), and a quiet "make your own" underneath.
+2. **Ben adds his real links** (Discord, Moxfield, socials) via gear → "find me". The `FIND ME` block on the back is unexercised — 0 rows exist, so it has never rendered with data.
 3. Ben's call on the `anon` grants.
 4. Home-screen landing: `start_url` is `/`, so an installed app opens the app shell, not your card. "One tap, bam" isn't true yet.
 
@@ -722,9 +730,9 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-08**): **Paste `magikdex/supabase/migrations/033_trainer_links.sql` into the Supabase SQL editor, then tell Claude to push.** Its suite is green (18/18, run against prod inside a rolled-back transaction) but the harness blocks Claude from performing the production write itself. **Half of `033` is a regression fix**: `032` dropped `commander_name` / `commander_art_url` / `commander_artist` from `get_trainer_card`, so every public card has been missing its commander art and its **Scryfall artist credit** since 2026-08-07. That stays broken until `033` is applied. The client push is held behind it because the new card back calls `get_trainer_links`, which does not exist in prod yet.
+Priority (**2026-08-08**): **Build the add/save block on `/t/<handle>`.** It is the last thing between the QR and the product working. Today a scan renders a card and offers **nothing to tap** — and the signup path is the worst thing to hand someone at a table, because 028 requires a real email account and 027 pins the handle to one change per 30 days, so a stranger has to choose their permanent gamertag while you wait. Agreed shape: **signed in with a card → one tap `add @handle`; not signed in → make the URL stick with ZERO account** (add to home screen / share sheet / contact card), with a quiet "make your own card" underneath for later, at home. The buddy list should be the upgrade, never the toll gate.
 
-Then: **the add/save block on `/t/<handle>`** — the real fix for the scanner blocker (a scan currently lands on a card with nothing to tap, and the signup path demands a permanent handle at the table).
+Context for whoever picks this up: `033` shipped the linktree, so a scanned card can now carry a Discord and a Moxfield — which *mitigates* the blocker (someone can reach you with no account) but does not solve it.
 
 Priority (SUPERSEDED, **2026-08-07, later**): **Decide what to do about the `anon` EXECUTE grants.** Every trainer RPC in `public` — `add_buddy`, `my_buddies`, `set_buddy_note`, `remove_buddy`, `block_trainer` — is granted EXECUTE to `anon`, and has been since `026`. Cause is Supabase's `alter default privileges in schema public grant execute on functions to anon, …`; the `revoke … from public` line in four migrations does not undo it, because `PUBLIC` and `anon` are different grantees. **Not a live hole** (verified: anon gets 0 rows from `my_buddies()`, and the write paths raise 42501), but the second layer has been missing for six migrations, and `026`'s assertion #3 passes on the function body rather than the grant, so it would never have caught this. Fix is ~7 revokes plus a corrected assertion. **Written up, not built — needs Ben's call.**
 
