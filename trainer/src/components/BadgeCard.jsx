@@ -35,12 +35,17 @@ const BASIS = 340;
 const u = n => `${((n * 100) / BASIS).toFixed(3)}cqw`;
 
 // `width` omitted means "fill the space you're given" — the hero case. Pass a
-// number only for a deliberately small copy, like the editor's preview.
+// number for a deliberately small copy (the editor's preview), or any CSS length
+// string — `"63mm"` is how the print sheet gets a true-size card, and because the
+// internals are in cqw they scale to physical units for free.
 //
 // The width MUST be an inline style, never part of the <style> block: class names
 // are global, and two mounted cards would fight over `.tc-scene`. (They did. The
 // off-screen settings preview was quietly shrinking the real card.)
-export default function BadgeCard({ card, decks = [], width = null }) {
+//
+// `flat` renders the front only, with no 3D scene: for print, where a transform
+// is a liability and there is nothing to tap.
+export default function BadgeCard({ card, decks = [], width = null, flat = false }) {
   const [flipped, setFlipped] = useState(false);
 
   return (
@@ -54,6 +59,10 @@ export default function BadgeCard({ card, decks = [], width = null }) {
           transform-style: preserve-3d;
           transition: transform .7s cubic-bezier(.2,.9,.25,1); cursor: pointer; }
         .tc-card.flipped { transform: rotateY(180deg); }
+        /* Print: no transform, no transition, and a square outer edge — that edge
+           is the cut line, so it must be where the scissors go. */
+        .tc-card.flat { transform-style: flat; transition: none; cursor: default; }
+        .tc-card.flat > .tc-face { border-radius: 0; box-shadow: none; }
         .tc-face { position: absolute; inset: 0;
           -webkit-backface-visibility: hidden; backface-visibility: hidden;
           background: ${C.edge}; border-radius: ${u(15)}; padding: ${u(9)};
@@ -66,13 +75,16 @@ export default function BadgeCard({ card, decks = [], width = null }) {
         @media (prefers-reduced-motion: reduce) { .tc-card { transition: none; } }
       `}</style>
 
-      <div className="tc-scene" style={{ width: width ? `${width}px` : "100%" }}>
+      <div className="tc-scene" style={{
+        width: width == null ? "100%" : typeof width === "number" ? `${width}px` : width,
+      }}>
         <div
-          className={`tc-card${flipped ? " flipped" : ""}`}
-          onClick={() => setFlipped(f => !f)}
-          role="button" tabIndex={0}
-          aria-label={flipped ? "Show front of card" : "Show back of card"}
-          onKeyDown={e => {
+          className={`tc-card${flipped ? " flipped" : ""}${flat ? " flat" : ""}`}
+          onClick={flat ? undefined : () => setFlipped(f => !f)}
+          role={flat ? undefined : "button"}
+          tabIndex={flat ? undefined : 0}
+          aria-label={flat ? undefined : flipped ? "Show front of card" : "Show back of card"}
+          onKeyDown={flat ? undefined : e => {
             if (e.key === "Enter" || e.key === " ") { e.preventDefault(); setFlipped(f => !f); }
           }}
         >
@@ -166,6 +178,10 @@ export default function BadgeCard({ card, decks = [], width = null }) {
           </div>
 
           {/* ── BACK ──────────────────────────────────────────────────────── */}
+          {/* Omitted entirely when flat: `backface-visibility` is not reliably
+              honoured in print, and a second absolutely-positioned face would
+              print straight over the front. */}
+          {!flat && (
           <div className="tc-face back">
             <div className="tc-inner">
               <Bar>
@@ -201,6 +217,7 @@ export default function BadgeCard({ card, decks = [], width = null }) {
               </div>
             </div>
           </div>
+          )}
         </div>
       </div>
     </>

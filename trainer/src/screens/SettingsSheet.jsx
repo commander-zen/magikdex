@@ -76,6 +76,21 @@ export default function SettingsSheet({ open, onClose, profile, session, onSaved
                 <Section title="who can see it">
                   <PrivacyTab profile={profile} onSaved={onSaved} />
                 </Section>
+
+                {/* Two ways to have the card on you when someone asks, which is the
+                    only moment it matters. Both are free and neither needs us. */}
+                <Section title="keep it on you">
+                  <a href="/print" style={rowLink}>print &amp; sleeve it ↗</a>
+                  <span style={{ ...mono, fontSize: 10, color: t.dim, lineHeight: 1.7 }}>
+                    prints at real card size — 63&thinsp;×&thinsp;88&nbsp;mm — so it fits a
+                    sleeve and rides in your deck box.
+                  </span>
+                  <span style={{ ...mono, fontSize: 10, color: t.dim, lineHeight: 1.7 }}>
+                    or add it to your home screen: <strong>share&nbsp;→ add to home
+                    screen</strong>. it opens straight to your card, no browser.
+                    better than a screenshot, which sinks under your camera roll.
+                  </span>
+                </Section>
               </>
             )}
 
@@ -127,4 +142,9 @@ function Section({ title, children }) {
 const cap = {
   fontSize: 9, fontWeight: 500, letterSpacing: "0.18em",
   textTransform: "uppercase", color: t.dim,
+};
+const rowLink = {
+  ...mono, fontSize: 11, color: t.accent, textDecoration: "none",
+  border: `1px solid ${t.muted}`, minHeight: 44,
+  display: "flex", alignItems: "center", justifyContent: "center",
 };
