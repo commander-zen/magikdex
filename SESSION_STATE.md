@@ -1,6 +1,6 @@
 # SESSION_STATE — MTG DNA
 
-## 2026-08-07 (later) — ⏳ **`032` written: where to find you, when we met, and are you free. NOT APPLIED, NOT RUN.**
+## 2026-08-07 (later) — ✅ **`032` APPLIED: where to find you, when we met, and are you free. 29/29 green. Plus a real grant finding that predates it.**
 
 Ben's ask: you meet someone at a pod once and lose them into a Discord server. `026` solved "I forgot their name"; it did not solve "I have their handle and still no idea where they actually are."
 
@@ -34,16 +34,43 @@ Time of day is dropped from every existing row. Consistent with `026`'s own rule
 
 Two date bugs pre-empted: `toISOString().slice(0,10)` gives *tomorrow* west of Greenwich, and `new Date("2026-03-14")` renders as the 13th in the Americas. Both avoided; see the comments in `BuddyList.jsx`.
 
-### ⚠️ Known Issues / new findings
-- **`032` and its suite have NEVER BEEN RUN.** This machine has no psql, no Docker, no Supabase CLI. It is reviewed SQL, not verified SQL. Both file headers now say so. **Run the suite before applying**; treat a first run as debugging the tests too — the catalog assertions (5, 6, 16, 28, 29) lean on pgTAP/`pg_catalog` output formats that are easy to get subtly wrong when you can't execute them.
+### ✅ Applied and verified against production
+Ben pasted `032` into the Supabase SQL editor. Confirmed live: `first_met_at`/`last_met_at` are `date`, `met_context` → `met_venue`, `met_mode` present, `profile` carries all three new columns, `add_buddy` has the 5-arg signature and **the old 3-arg is gone**. The 1 buddy row and 2 profiles survived. Nobody was opted into `ready_to_pod`.
+
+**The suite ran green before it was applied: 29/29.** Composed `032` + the 29 assertions into one `BEGIN…ROLLBACK` against the real database (the suite asserts the post-`032` schema, so both had to run together), plus a separate rolled-back dry run of the migration alone. pgTAP 1.3.3 was available and its install rolled back with everything else. Method: `pip install "psycopg[binary]"` + a runner reading `SUPABASE_DB_URL` from `magikdex/.env` — **there is no psql, Docker or Supabase CLI on this machine, but there is a working DB connection**; worth remembering next session rather than re-deriving.
+
+**The narrowing cost nothing here.** The one existing row was `2026-08-07 15:56:40+00` → `2026-08-07`. Mid-morning Central, so no day shift. The ±1 day hazard is real for rows written late at night and remains documented in `032`.
+
+### 🚨 NEW FINDING — **every trainer RPC in `public` is granted EXECUTE to `anon`, and has been since `026`**
+Not caused by `032`. Verified on the live database:
+
+```
+add_buddy      acl={postgres=X/postgres,anon=X/postgres,authenticated=X/postgres,service_role=X/postgres}
+my_buddies     acl={…,anon=X/postgres,…}
+set_buddy_note acl={…,anon=X/postgres,…}
+remove_buddy   acl={…,anon=X/postgres,…}
+block_trainer  acl={…,anon=X/postgres,…}
+```
+
+**Cause:** `pg_default_acl` carries `schema=public objtype=f acl={…anon=X/postgres…}` — Supabase runs `alter default privileges in schema public grant execute on functions to anon, authenticated, service_role`. **`025`'s header warns about exactly this for TABLES and it applies to FUNCTIONS too.** Every trainer RPC lives in `public` deliberately, so PostgREST can see it — which means every one inherits the grant.
+
+**`revoke all on function … from public` does NOT undo it.** `PUBLIC` (the pseudo-role) and `anon` (a real role) are different grantees. That revoke line appears in `026`, `029`, `031` and `032` and has never done what its comment claims.
+
+**Not a live hole — verified, not assumed.** `anon` calling `my_buddies()` returns **0 rows** (`trainer_id = auth.uid()` is NULL → no match), and the write functions all `raise 42501` when `auth.uid()` is null. The bodies defend. But the intended two layers have been one layer for six migrations.
+
+⚠️ **`026`'s assertion #3 ("anon cannot call add_buddy") passes on the function body's exception, not on the grant** — it has been measuring the wrong thing the whole time and would not have caught this.
+
+**Fix is one line per function** (`revoke execute on function … from anon;`), ideally plus `alter default privileges in schema public revoke execute on functions from anon`. **Not written** — it is outside `032`'s epic and Ben has not asked for it. Needs his call.
+
+### ⚠️ Known Issues / other findings
 - **`026`'s header says "NOT APPLIED" and that is stale.** `029` rewrote its objects and *is* applied against them, so `026` is in prod. Docs bug, not a schema bug.
 - **The prompt that started this session was wrong about the repo**: it named "OHANA monorepo", "Trainer Badge", "Table List", and migrations `018`/`022`/`023`. Actual: this repo, the trainer card, the **buddy list** (`029` renamed it), and archived migrations. Corrected before any code was written.
 - `ready_to_pod` **never expires** — no timeout, no last-seen, no job. Deliberate: anything that clears it automatically needs to know when you were last active, which is a presence system. Cost accepted: a stale flag lies.
 - The **printed** card cannot carry a frozen "ready to pod up" — the back face is omitted entirely when `flat`. Holds today; would break the moment anyone moves the field to the front.
 
 ### 🎯 NEXT on this thread
-1. **Run `tests/032_trainer_directory_rls.sql`**, then apply `032`. Nothing below matters until this is green.
-2. Verify the four new client surfaces against a real session — none were exercised at runtime.
+1. **Ben's call on the `anon` EXECUTE grants** — see the finding above. One migration, ~7 revokes, plus a fix to `026`'s assertion #3 so the test actually measures the grant.
+2. **Verify the four new client surfaces against a real session** — `ReadyToggle`, the found-at field, the buddy date/mode picker, and the card back. The client builds and boots clean but **none was exercised at runtime**; the migration is live now, so this is finally possible.
 3. Fix `026`'s stale "NOT APPLIED" header.
 
 ---
@@ -656,7 +683,9 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-07, later**): **Run `magikdex/supabase/tests/032_trainer_directory_rls.sql` (29 assertions), then apply `032_trainer_directory.sql`.** It is the first migration in this repo written *without* being replayed — no psql, no Docker, no Supabase CLI on that machine — so it is reviewed SQL, not verified SQL. Watch the `alter column ... type date` block (destructive, and the step most likely to trip over the column default) and the drop-then-create of `add_buddy` / `get_trainer_card` / `my_buddies` (their grants have to come back). The client half builds and boots clean but **none of the four new surfaces has been exercised against a real session**. Nothing else on the `032` thread should proceed until the suite is green.
+Priority (**2026-08-07, later**): **Decide what to do about the `anon` EXECUTE grants.** Every trainer RPC in `public` — `add_buddy`, `my_buddies`, `set_buddy_note`, `remove_buddy`, `block_trainer` — is granted EXECUTE to `anon`, and has been since `026`. Cause is Supabase's `alter default privileges in schema public grant execute on functions to anon, …`; the `revoke … from public` line in four migrations does not undo it, because `PUBLIC` and `anon` are different grantees. **Not a live hole** (verified: anon gets 0 rows from `my_buddies()`, and the write paths raise 42501), but the second layer has been missing for six migrations, and `026`'s assertion #3 passes on the function body rather than the grant, so it would never have caught this. Fix is ~7 revokes plus a corrected assertion. **Written up, not built — needs Ben's call.**
+
+Then: **exercise the four new `032` client surfaces against a real signed-in session** (`ReadyToggle` on the card tab, usually-found-at in the editor, the buddy date/mode picker, the card back). The migration is live and the client is deployed, but none of it has been used by an actual human yet.
 
 Priority (SUPERSEDED, **2026-08-07**): **Device pass on the Trainer card at `edh-id.vercel.app`** — sizing is confirmed good by Ben; what's left is the physical stuff this environment cannot check, since the Browser pane does not composite and there are no screenshots: (1) **does the QR actually scan** (method below), (2) **do images render inside the 3D-transformed card**, and (3) **print a sheet from `/print`** — does it come out at true 63×88mm, does it sleeve, does the printed QR scan? Nothing else should be built on top of the card until those answers exist.
 

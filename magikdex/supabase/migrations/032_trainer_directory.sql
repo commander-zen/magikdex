@@ -1,20 +1,32 @@
 -- 032_trainer_directory.sql — where to find you, where we met, and are you free
 --
--- ⚠️ NOT APPLIED, AND NOT YET RUN ANYWHERE. Written for review only.
+-- ✅ APPLIED TO PRODUCTION 2026-08-07 (project iduoct…). Verified before and
+-- after:
 --
--- Unlike 025-031, this file has NOT been replayed against a real Postgres: the
--- machine it was written on has no psql, no Docker and no Supabase CLI, so there
--- was nothing to run it in. It is reviewed SQL, not verified SQL, and the
--- difference matters most in the two places below.
+--   BEFORE — the migration was dry-run against the live schema inside a
+--     BEGIN/ROLLBACK, then composed WITH its suite into a second rolled-back
+--     transaction (the suite asserts the post-032 schema, so both had to run
+--     together). 29/29 ok, including the destructive date narrowing.
 --
--- BEFORE APPLYING, run supabase/tests/032_trainer_directory_rls.sql (29
--- assertions) against a fresh 001 → 024 → … → 031 → 032 replay, or paste it into
--- the hosted SQL editor where it seeds, asserts and rolls back. Watch
--- specifically for:
---   · the `alter column ... type date` block, which is the destructive step and
---     the one most likely to trip over the column default;
---   · the drop-then-create of add_buddy, get_trainer_card and my_buddies, whose
---     grants have to come back afterwards.
+--   AFTER — catalog check: both date columns are `date`, met_venue exists and
+--     met_context is gone, met_mode is present, profile carries all three new
+--     columns, add_buddy has the 5-arg signature and the 3-arg one is gone. The
+--     existing buddy row and both profiles survived. No profile was opted into
+--     ready_to_pod.
+--
+-- THE NARROWING COST NOTHING ON THIS DATA. The single existing row read
+-- 2026-08-07 15:56:40+00 and became 2026-08-07 — mid-morning US Central, so no
+-- day shift. The ±1 day hazard documented below is real for rows written late at
+-- night; it simply did not bite anything that already existed.
+--
+-- ⚠️ SEPARATE FINDING, NOT CAUSED BY THIS FILE: the `revoke all on function …
+-- from public` lines below (inherited from 026/029/031) do NOT remove anon's
+-- EXECUTE grant. Supabase sets `alter default privileges in schema public grant
+-- execute on functions to anon, authenticated, service_role`, and PUBLIC the
+-- pseudo-role is not anon the role. Every trainer RPC in `public` has carried an
+-- anon EXECUTE grant since 026. Not a live hole — the bodies raise 42501 when
+-- auth.uid() is null and my_buddies matches no rows — but the grant layer has
+-- never done its half. See SESSION_STATE; the fix is its own migration.
 --
 -- ── The failure this closes ──────────────────────────────────────────────────
 -- 026 solved "I met someone good and lost their name." What it did not solve is

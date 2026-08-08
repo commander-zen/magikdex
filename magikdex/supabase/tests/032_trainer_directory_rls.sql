@@ -1,11 +1,17 @@
 -- 032_trainer_directory_rls.sql — tests for usually_found_at, met dates and
 -- ready_to_pod (032)
 --
--- ⚠️ THIS SUITE HAS NEVER BEEN RUN. It was written alongside 032 on a machine
--- with no psql, no Docker and no Supabase CLI. Treat a first run as debugging the
--- TESTS as much as the migration — the catalog assertions (5, 6, 16, 28, 29) lean
--- on pgTAP and pg_catalog output formats that are easy to get subtly wrong when
--- you cannot execute them.
+-- ✅ RUN AGAINST PRODUCTION 2026-08-07, BEFORE 032 WAS APPLIED: 29/29 ok. The
+-- migration and this file were composed into one BEGIN/ROLLBACK — this suite
+-- asserts the POST-032 schema, so it cannot run on its own against a database
+-- that does not have 032 yet.
+--
+-- ⚠️ ASSERTION 3 IN THE 026 SUITE IS KNOWN-WEAK, and this file inherits the
+-- pattern. "anon cannot call add_buddy" passes because the function BODY raises
+-- 42501 when auth.uid() is null — not because anon lacks EXECUTE. anon does in
+-- fact hold EXECUTE on every trainer RPC (Supabase default privileges on schema
+-- public; see 032's header). A test that means to assert a GRANT has to read
+-- has_function_privilege, not call the function.
 --
 -- HOW TO RUN (local): supabase/local/00_supabase_shim.sql for the harness, then
 --   001 → 024 → 025 → 026 → 027 → 028 → 029 → 030 → 031 → 032 → this file.
