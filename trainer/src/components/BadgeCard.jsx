@@ -45,7 +45,13 @@ const u = n => `${((n * 100) / BASIS).toFixed(3)}cqw`;
 //
 // `flat` renders the front only, with no 3D scene: for print, where a transform
 // is a liability and there is nothing to tap.
-export default function BadgeCard({ card, decks = [], width = null, flat = false }) {
+// THE TWO FACES HAVE DIFFERENT JOBS. Front is STATIC: handle, QR, how you enjoy
+// the game. It prints once and rides in a deck box, so nothing that changes may
+// live on it — which is why the decks moved to the back in 033. A deck list is the
+// thing about a player that changes most, and a printed card carrying one is stale
+// the next time they brew. Back SCROLLS, holds everything mutable, and is never
+// printed (it isn't rendered at all when `flat`).
+export default function BadgeCard({ card, decks = [], links = [], width = null, flat = false }) {
   const [flipped, setFlipped] = useState(false);
 
   return (
@@ -109,8 +115,13 @@ export default function BadgeCard({ card, decks = [], width = null, flat = false
 
                   GENERATED ON DEVICE. A QR web service would mean every user's
                   card URL travelling to a third party just to draw a square. */}
+              {/* `flex: 1` — the QR now takes ALL the room the deck rows used to
+                  occupy. That is the point of moving them: this square is the
+                  card's entire function, it is what a phone camera has to find
+                  across a table in bad light, and it was sharing the face with a
+                  list that changes every time you brew. */}
               <div style={{
-                flex: "0 0 43%", position: "relative", overflow: "hidden",
+                flex: 1, minHeight: 0, position: "relative", overflow: "hidden",
                 borderTop: `1px solid ${C.edge}`, borderBottom: `1px solid ${C.edge}`,
                 background: C.panel,
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -148,17 +159,8 @@ export default function BadgeCard({ card, decks = [], width = null, flat = false
                 </span>
               </Bar>
 
-              {/* Text box — the three decks. */}
-              <div style={{
-                flex: 1, minHeight: 0, background: C.panel, padding: `${u(8)} ${u(10)}`,
-                display: "flex", flexDirection: "column", gap: u(6), overflowY: "auto",
-              }}>
-                {decks.length === 0 ? (
-                  <span style={{ ...mono, fontSize: u(10), color: C.faint, lineHeight: 1.6 }}>
-                    no decks listed yet
-                  </span>
-                ) : decks.map(d => <DeckRow key={d.position} deck={d} />)}
-              </div>
+              {/* No text box. The decks that filled it live on the back now — see
+                  the note at the top of this file. */}
 
               {/* Collector line — the artist credit lives here, exactly where a
                   real card puts it. Scryfall asks for it and the frame wants it. */}
@@ -223,8 +225,32 @@ export default function BadgeCard({ card, decks = [], width = null, flat = false
                     <span style={{ lineHeight: 1.65 }}>{card.bio}</span>
                   </Field>
                 )}
+
+                {/* The decks, relocated from the front. Still the three you CHOSE
+                    rather than your most recent — but here they can change without
+                    making a printed card wrong. */}
+                {decks.length > 0 && (
+                  <Field label="decks">
+                    <span style={{ display: "flex", flexDirection: "column", gap: u(7) }}>
+                      {decks.map(d => <DeckRow key={d.position} deck={d} />)}
+                    </span>
+                  </Field>
+                )}
+
+                {/* The linktree. Everything you'd hand someone at the table anyway
+                    — Discord, Moxfield, socials — so a person who scans this can
+                    reach you WITHOUT making an account of their own. */}
+                {links.length > 0 && (
+                  <Field label="find me">
+                    <span style={{ display: "flex", flexDirection: "column", gap: u(6) }}>
+                      {links.map(l => <LinkRow key={l.position} link={l} />)}
+                    </span>
+                  </Field>
+                )}
+
                 {!card.pronouns && !card.home_region && !card.usually_found_at &&
-                 !card.bio && !card.commander_name && !card.ready_to_pod && (
+                 !card.bio && !card.commander_name && !card.ready_to_pod &&
+                 decks.length === 0 && links.length === 0 && (
                   <span style={{ ...mono, fontSize: u(10), color: C.faint }}>nothing on the back yet</span>
                 )}
               </div>
@@ -267,11 +293,13 @@ function QrPanel({ handle }) {
       position: "relative", display: "flex", flexDirection: "column",
       alignItems: "center", gap: u(5),
     }}>
-      {/* Sized to nearly fill the art box: this is the thing a phone camera has to
-          find across a table, so it gets the room decoration used to take. */}
+      {/* Sized to nearly fill the art box, which since 033 is the whole middle of
+          the card. This is the thing a phone camera has to find across a table in
+          bad light — it gets the room the deck rows used to take, and a bigger
+          code is a code that scans on the first try. */}
       <div style={{
-        background: "#fff", padding: u(6), borderRadius: u(4),
-        width: u(150), height: u(150),
+        background: "#fff", padding: u(8), borderRadius: u(4),
+        width: u(215), height: u(215),
         display: "flex", alignItems: "center", justifyContent: "center",
       }}>
         {src
@@ -343,6 +371,52 @@ function DeckRow({ deck }) {
         )}
       </div>
     </div>
+  );
+}
+
+// A linktree row. Two shapes, because a Discord username is not a URL — it can
+// only be COPIED, and rendering it as a dead link would be a small lie that costs
+// somebody a failed tap at exactly the wrong moment.
+function LinkRow({ link }) {
+  const [copied, setCopied] = useState(false);
+  const stop = e => e.stopPropagation(); // the card flips on click; rows must not
+
+  if (link.kind === "handle") {
+    return (
+      <button
+        onClick={e => {
+          stop(e);
+          navigator.clipboard?.writeText(link.value)
+            .then(() => { setCopied(true); setTimeout(() => setCopied(false), 1400); })
+            // A clipboard write can be refused (insecure context, permissions).
+            // The value is on screen either way, so a failure is not a dead end.
+            .catch(() => {});
+        }}
+        style={{
+          display: "flex", justifyContent: "space-between", alignItems: "baseline",
+          gap: u(8), background: "transparent", border: "none", padding: 0,
+          textAlign: "left", cursor: "pointer", width: "100%",
+        }}
+      >
+        <span style={{ ...mono, fontSize: u(10), color: C.dim }}>{link.label}</span>
+        <span style={{ ...mono, fontSize: u(10), color: copied ? C.accent : C.ink }}>
+          {copied ? "copied" : link.value}
+        </span>
+      </button>
+    );
+  }
+
+  return (
+    <a href={link.value} target="_blank" rel="noopener noreferrer" onClick={stop}
+       style={{
+         display: "flex", justifyContent: "space-between", alignItems: "baseline",
+         gap: u(8), textDecoration: "none",
+       }}>
+      <span style={{ ...mono, fontSize: u(10), color: C.dim }}>{link.label}</span>
+      <span style={{ ...mono, fontSize: u(10), color: C.accent }}>
+        {hostLabel(link.value)} ↗
+      </span>
+    </a>
   );
 }
 

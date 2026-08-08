@@ -1,5 +1,44 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-08 — ⏳ **`033` written: the back is a linktree, the decks come off the front, and a `032` regression is fixed. 18/18 green, NOT APPLIED.**
+
+### 🔑 Ben stated the product properly, and it reframes everything
+> the front is static — handle, QR code, and how the user enjoys the game (jank, casual, trash magic, cEDH) — so it can print and live in a deck box. **the back can scroll and is basically a linktree but for EDH, because it will never be printed.**
+
+Purpose, in his words: **kill the pregame bracket conversation** (which he thinks has failed). You show a card, they scan it, they read everything you'd have told them at the table anyway — socials, Discord, Moxfield — and add you if the game was good. *"postgame scan and add in 2 seconds then review later. its a system in good faith."*
+
+⚠️ **I was wrong last session** when I called `usually_found_at` and `ready_to_pod` "past the MVP." Playing again IS the product; they're the mechanism, not decoration. Corrected and recorded.
+
+### 🚨 `032` SHIPPED A REGRESSION — fixed in `033`
+`032` dropped and recreated `get_trainer_card` to add three columns, rebuilt the RETURNS TABLE list from **025's** shape, and silently lost the three **031** added in between: `commander_name`, `commander_art_url`, `commander_artist`.
+
+Live since 2026-08-07: no commander art wash behind the QR, no "signature" on the back, and the collector line fell back to `magikdex` instead of naming the artist — **a Scryfall attribution silently missing from every public card.** Verified against prod: @zen has all three stored, none reached the payload.
+
+**Why nothing caught it:** `032`'s assertion 16 guards against columns being ADDED (no uuid). Nothing guarded against columns being REMOVED. `033`'s assertion 1 now **pins the full signature** as a string, so the next drop-and-recreate fails loudly. **General lesson: `create or replace` cannot change OUT columns, so every payload change is a DROP, and a DROP starts from a blank page. Diff against the CURRENT signature, never against whichever migration is open in the editor.**
+
+### ✅ `033_trainer_links.sql` + `tests/033_trainer_links_rls.sql` — **18/18, rolled back**
+- `trainer.link` — `position` 1-12, `label` ≤24, `kind` enum (`url`|`handle`), `value` ≤300. **Cap is 12, not 3, because the back scrolls and never prints.** `url` rows must match `^https?://`; `handle` rows have no shape check (a Discord username has no shape worth asserting).
+- **No no-geo CHECK here, deliberately** — that guard exists for LOCATION fields; this is a contact destination, and the regex would reject legitimate URLs for no privacy gain.
+- `get_trainer_links(handle)` — visibility-gated, no uuid, anon-callable.
+- `get_trainer_card` restored to the **union of 025 + 031 + 032**.
+- RLS matches `trainer.deck` exactly: table granted to `authenticated` only, `link_own` policy on `trainer_id = auth.uid()`, public path is the definer function. Verified: owner sees only their own, cannot write to another's card, links cascade on account delete.
+
+### Client — builds clean, **runtime-unverified**
+Front is now handle → **QR at `u(215)`, up from `u(150)`, filling the whole middle** → philosophy → collector line. Nothing on it changes. Back gained `decks` (relocated) and a `find me` link list; `LinksTab.jsx` is the editor, in the gear under "find me". `PrintSheet` stopped fetching decks — dead after the move.
+
+### ⚠️ Known Issues
+- **`033` NOT APPLIED.** The harness blocks the production write (it allows rolled-back rehearsals only), so Ben pastes it. **The commander regression stays live until he does.**
+- **Push is held** until `033` lands — the client calls `get_trainer_links`, which does not exist in prod yet.
+- **The `anon` EXECUTE grant finding from 2026-08-07 is still unfixed and still un-ruled-on.** Re-flagged in `033`'s footer.
+- `trainer.link` and `trainer.deck` are two tables rendered as one list. A deck is arguably a link with a rating; merging is defensible but is its own decision, not a side effect of this.
+- **The scanner-has-no-account blocker is NOT solved** — it is *mitigated*: a scanned card can now carry a Discord and a Moxfield, so someone can reach you with zero account. `/t/<handle>` still has nothing to tap.
+
+### 🎯 NEXT
+1. **Ben pastes `033`** → then push.
+2. The add/save block on `/t/<handle>` — the actual fix for the scanner blocker.
+3. Ben's call on the `anon` grants.
+4. Home-screen landing: `start_url` is `/`, so an installed app opens the app shell, not your card. "One tap, bam" isn't true yet.
+
 ## 2026-08-07 (later) — ✅ **`032` APPLIED: where to find you, when we met, and are you free. 29/29 green. Plus a real grant finding that predates it.**
 
 Ben's ask: you meet someone at a pod once and lose them into a Discord server. `026` solved "I forgot their name"; it did not solve "I have their handle and still no idea where they actually are."
@@ -683,7 +722,11 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-07, later**): **Decide what to do about the `anon` EXECUTE grants.** Every trainer RPC in `public` — `add_buddy`, `my_buddies`, `set_buddy_note`, `remove_buddy`, `block_trainer` — is granted EXECUTE to `anon`, and has been since `026`. Cause is Supabase's `alter default privileges in schema public grant execute on functions to anon, …`; the `revoke … from public` line in four migrations does not undo it, because `PUBLIC` and `anon` are different grantees. **Not a live hole** (verified: anon gets 0 rows from `my_buddies()`, and the write paths raise 42501), but the second layer has been missing for six migrations, and `026`'s assertion #3 passes on the function body rather than the grant, so it would never have caught this. Fix is ~7 revokes plus a corrected assertion. **Written up, not built — needs Ben's call.**
+Priority (**2026-08-08**): **Paste `magikdex/supabase/migrations/033_trainer_links.sql` into the Supabase SQL editor, then tell Claude to push.** Its suite is green (18/18, run against prod inside a rolled-back transaction) but the harness blocks Claude from performing the production write itself. **Half of `033` is a regression fix**: `032` dropped `commander_name` / `commander_art_url` / `commander_artist` from `get_trainer_card`, so every public card has been missing its commander art and its **Scryfall artist credit** since 2026-08-07. That stays broken until `033` is applied. The client push is held behind it because the new card back calls `get_trainer_links`, which does not exist in prod yet.
+
+Then: **the add/save block on `/t/<handle>`** — the real fix for the scanner blocker (a scan currently lands on a card with nothing to tap, and the signup path demands a permanent handle at the table).
+
+Priority (SUPERSEDED, **2026-08-07, later**): **Decide what to do about the `anon` EXECUTE grants.** Every trainer RPC in `public` — `add_buddy`, `my_buddies`, `set_buddy_note`, `remove_buddy`, `block_trainer` — is granted EXECUTE to `anon`, and has been since `026`. Cause is Supabase's `alter default privileges in schema public grant execute on functions to anon, …`; the `revoke … from public` line in four migrations does not undo it, because `PUBLIC` and `anon` are different grantees. **Not a live hole** (verified: anon gets 0 rows from `my_buddies()`, and the write paths raise 42501), but the second layer has been missing for six migrations, and `026`'s assertion #3 passes on the function body rather than the grant, so it would never have caught this. Fix is ~7 revokes plus a corrected assertion. **Written up, not built — needs Ben's call.**
 
 Then: **exercise the four new `032` client surfaces against a real signed-in session** (`ReadyToggle` on the card tab, usually-found-at in the editor, the buddy date/mode picker, the card back). The migration is live and the client is deployed, but none of it has been used by an actual human yet.
 

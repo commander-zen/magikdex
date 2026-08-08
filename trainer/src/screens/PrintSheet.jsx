@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import BadgeCard from "../components/BadgeCard.jsx";
-import { getSession, getMyProfile, myDecks } from "../lib/trainer.js";
+import { getSession, getMyProfile } from "../lib/trainer.js";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
 
@@ -19,7 +19,6 @@ const COUNTS = [1, 9];
 
 export default function PrintSheet() {
   const [profile, setProfile] = useState(null);
-  const [decks, setDecks] = useState([]);
   const [state, setState] = useState("loading");   // loading | ready | signedout | error
   const [err, setErr] = useState(null);
   const [count, setCount] = useState(9);
@@ -33,7 +32,6 @@ export default function PrintSheet() {
         if (error) { setErr(error); setState("error"); return; }
         if (!p) { setState("signedout"); return; }
         setProfile(p);
-        setDecks((await myDecks(s.userId)).decks);
         setState("ready");
       } catch (e) {
         setErr(e?.message || "couldn't reach the server"); setState("error");
@@ -136,7 +134,7 @@ export default function PrintSheet() {
           <div className="print-sheet" style={{ padding: "0 12px 40px" }}>
             {Array.from({ length: count }, (_, i) => (
               <div className="print-cell" key={i}>
-                <BadgeCard card={profile} decks={decks} width="63mm" flat />
+                <BadgeCard card={profile} width="63mm" flat />
               </div>
             ))}
           </div>

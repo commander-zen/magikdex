@@ -6,7 +6,7 @@ import BuddyList from "./BuddyList.jsx";
 import SettingsSheet from "./SettingsSheet.jsx";
 import { Segmented } from "./CardFields.jsx";
 import {
-  getSession, getMyProfile, claimHandle, myDecks, updateMyProfile,
+  getSession, getMyProfile, claimHandle, myDecks, myLinks, updateMyProfile,
   normalizeHandle, handleProblem, readyNoteProblem, READY_NOTE_MAX,
 } from "../lib/trainer.js";
 
@@ -31,6 +31,7 @@ export default function MyCard() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [decks, setDecks] = useState([]);
+  const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
   const [tab, setTab] = useState("card");
@@ -56,9 +57,13 @@ export default function MyCard() {
         const { profile: p, error } = await getMyProfile(s.userId);
         setProfile(p);
         setLoadErr(error);
-        // The decks fill the card's text box, so the card is not complete without
-        // them — they load with it, not after.
-        if (p) setDecks((await myDecks(s.userId)).decks);
+        // Decks and links both render on the card's BACK, so the card is not
+        // complete without them — they load with it, not after. In parallel:
+        // they are independent reads and serialising them is a visible wait.
+        if (p) {
+          const [d, l] = await Promise.all([myDecks(s.userId), myLinks(s.userId)]);
+          setDecks(d.decks); setLinks(l.links);
+        }
       } else {
         setProfile(null);
       }
@@ -164,7 +169,7 @@ export default function MyCard() {
 
             {tab === "card" ? (
               <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-                <BadgeCard card={profile} decks={decks} />
+                <BadgeCard card={profile} decks={decks} links={links} />
                 <span style={{ ...mono, fontSize: 10, color: t.dim }}>
                   {location.host}/t/{profile.handle}
                 </span>

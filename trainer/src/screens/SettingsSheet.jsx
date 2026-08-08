@@ -3,6 +3,7 @@ import { t } from "../theme.js";
 import { supabase } from "../lib/supabase.js";
 import CardFields from "./CardFields.jsx";
 import DecksTab from "./DecksTab.jsx";
+import LinksTab from "./LinksTab.jsx";
 import PrivacyTab from "./PrivacyTab.jsx";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
@@ -71,6 +72,10 @@ export default function SettingsSheet({ open, onClose, profile, session, onSaved
 
                 <Section title="decks">
                   <DecksTab userId={profile.id} onChanged={onSaved ? () => onSaved(profile) : undefined} />
+                </Section>
+
+                <Section title="find me">
+                  <LinksTab userId={profile.id} onChanged={onSaved ? () => onSaved(profile) : undefined} />
                 </Section>
 
                 <Section title="who can see it">

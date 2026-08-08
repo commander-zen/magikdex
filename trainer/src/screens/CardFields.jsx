@@ -3,7 +3,7 @@ import { t } from "../theme.js";
 import BadgeCard from "../components/BadgeCard.jsx";
 import { searchCommanders } from "../lib/scryfall.js";
 import {
-  updateMyProfile, setCommander, myDecks,
+  updateMyProfile, setCommander, myDecks, myLinks,
   PHILOSOPHY_CHOICES, BIO_MAX, PRONOUNS_MAX, REGION_MAX, regionProblem,
   FOUND_AT_MAX, foundAtProblem,
 } from "../lib/trainer.js";
@@ -19,11 +19,16 @@ const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em
 export default function CardFields({ profile, onSaved }) {
   const [d, setD] = useState(() => fromProfile(profile));
   const [decks, setDecks] = useState([]);
+  const [links, setLinks] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
 
-  // The preview needs the real decks, since they fill the card's text box.
-  useEffect(() => { myDecks(profile.id).then(r => setDecks(r.decks)); }, [profile.id]);
+  // The preview needs the real decks and links — since 033 both render on the
+  // card's back, and a preview missing them is not the card a stranger loads.
+  useEffect(() => {
+    myDecks(profile.id).then(r => setDecks(r.decks));
+    myLinks(profile.id).then(r => setLinks(r.links));
+  }, [profile.id]);
 
   const clean = fromProfile(profile);
   const dirty = JSON.stringify(d) !== JSON.stringify(clean);
@@ -71,7 +76,7 @@ export default function CardFields({ profile, onSaved }) {
           editing blind and imagining the result was the worst finding in the UX
           audit, and moving the form should not reintroduce it. */}
       <div style={{ display: "flex", justifyContent: "center" }}>
-        <BadgeCard card={preview} decks={decks} width={230} />
+        <BadgeCard card={preview} decks={decks} links={links} width={230} />
       </div>
       {dirty && (
         <span style={{ ...mono, fontSize: 10, color: t.accent, textAlign: "center" }}>

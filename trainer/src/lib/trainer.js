@@ -328,6 +328,70 @@ export async function getPublicDecks(handle) {
   return { decks: Array.isArray(data) ? data : [], error: describeError(error) };
 }
 
+// ── The linktree on the back (migration 033) ─────────────────────────────────
+// THE TWO FACES HAVE DIFFERENT JOBS, and it is the whole layout rule:
+//
+//   FRONT — static. Handle, QR, and how you enjoy the game. It prints once, goes
+//     in a deck box, and has to still be true months later. Nothing that changes
+//     may live here — which is why the decks MOVED OFF it in 033. A deck list is
+//     the thing about a player that changes most; a printed card carrying one is
+//     stale the next time they brew.
+//
+//   BACK — scrolls, and is never printed (the back face is not rendered when
+//     `flat`). Everything mutable lives here: links, decks, ready-to-pod,
+//     usually-found-at.
+//
+// A link is a label plus a destination. `kind` exists for the one case that is
+// not a URL — a Discord username, which can only be copied, not followed.
+export const MAX_LINKS = 12;
+export const LINK_LABEL_MAX = 24;
+export const LINK_VALUE_MAX = 300;
+
+export const LINK_KIND_CHOICES = [
+  ["url",    "LINK"],
+  ["handle", "USERNAME"],
+];
+
+// Mirrors link_url_shape. A 'handle' has no shape requirement on purpose:
+// guessing one would reject somebody's real Discord.
+export function linkValueProblem(kind, value) {
+  const v = (value || "").trim();
+  if (!v) return null;
+  if (v.length > LINK_VALUE_MAX) return `${LINK_VALUE_MAX} characters max`;
+  if (kind === "url" && !/^https?:\/\//i.test(v)) return "needs to start with https://";
+  return null;
+}
+
+export async function myLinks(userId) {
+  if (!userId) return { links: [], error: null };
+  const { data, error } = await supabase
+    .schema("trainer").from("link")
+    .select("*").eq("trainer_id", userId).order("position");
+  return { links: Array.isArray(data) ? data : [], error: describeError(error) };
+}
+
+// Upsert on (trainer_id, position), same as saveDeck — editing a slot in place
+// does not need to know whether a row is already there.
+export async function saveLink(userId, position, patch) {
+  const { error } = await supabase
+    .schema("trainer").from("link")
+    .upsert({ trainer_id: userId, position, ...patch },
+            { onConflict: "trainer_id,position" });
+  return { error: describeError(error) };
+}
+
+export async function clearLink(userId, position) {
+  const { error } = await supabase
+    .schema("trainer").from("link")
+    .delete().eq("trainer_id", userId).eq("position", position);
+  return { error: describeError(error) };
+}
+
+export async function getPublicLinks(handle) {
+  const { data, error } = await supabase.rpc("get_trainer_links", { p_handle: handle });
+  return { links: Array.isArray(data) ? data : [], error: describeError(error) };
+}
+
 // commander_scryfall_id is stored but never returned publicly — the card needs the
 // art and the credit, not the identifier.
 export async function setCommander(userId, c) {
