@@ -1,5 +1,23 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-08 (later still) — 🚨 **THE QR HAD A 1-MODULE QUIET ZONE. Ben's screenshot wouldn't scan. Fixed.**
+
+Ben: *"i took a screenshot and i cant scan it. did we make the QR code too big?"*
+
+**Not the size — the quiet zone.** A QR needs **4 modules of blank space on every side** or scanners cannot locate it. It shipped as `margin: 1`.
+
+**Measured, not guessed** (canvas pixel analysis of the rendered PNG): the code is **29×29 modules** (version 3, byte mode, EC M) for `https://edh-id.vercel.app/t/zen`. At `margin: 1` the PNG was 31×31 — **1 module of quiet zone**, plus ~1.2 modules from the white panel's 8px padding ≈ **2.2 total against a spec of 4** — and it sits on a near-black card frame, which is the worst possible surround for a thin quiet zone. The card looks perfect and will not scan. **This was present since the QR shipped; the `032`/`033` size increase did not cause it.**
+
+**Second, smaller defect, which the size change DID cause:** the source PNG was 640px with a comment claiming "640 so it stays crisp on a 3x screen at the size it now renders" — written when it rendered at `u(150)`. `033` moved it to `u(215)`, so on a large phone at 3x it needed ~750px and was being **upscaled**. Soft edges, which a screenshot then bakes in permanently. My own comment went stale and I didn't notice.
+
+**Fix:** `margin: 1 → 4`, `width: 640 → 1024`.
+
+**Verified after** (same canvas measurement): quiet zone **4.01 modules left / 3.97 right**; source 1024px vs 603 device px at 3x, no longer upscaled; **5.43 CSS px per module** on a 375px viewport; **1.07 mm per module** printed at 63 mm. All three surfaces — screen, screenshot, print — are comfortably above what a phone camera needs.
+
+**Trade accepted:** at `margin: 4` the payload is 37 modules instead of 31, so each module is ~16% smaller inside the same box. A correct quiet zone beats fatter modules — a scanner that cannot *locate* a code never gets as far as reading it. Moving the decks off the front is what bought the room to afford this.
+
+⚠️ **NOT ACTUALLY SCAN-TESTED — there is no camera in this environment.** The fix is spec compliance plus resolution, both measured. **Ben must re-test with a real phone.** If it still fails, the next hypothesis to rule out is the card's 3D context (`perspective: 1800px` + `transform-style: preserve-3d` on `.tc-card`), which can cause some browsers to rasterise the layer softly even at `rotateY(0)`. Cheap test: `/print` renders `flat` with no 3D scene at all — **if the printed sheet scans and the on-screen card doesn't, it's the transform.**
+
 ## 2026-08-08 (later) — ✅ **The scan finally does something. `/t/<handle>` has an add/save block. No migration.**
 
 Until now a QR scan rendered a card and offered **nothing to tap**. This closes it.
@@ -755,7 +773,9 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-08, later**): **Scan your own card from a phone — signed in, and signed out.** The add/save block on `/t/<handle>` is live, but **only the signed-out path was ever exercised**; `can_add`, `buddy`, `no_card` and `me` are read from code, not observed. The signed-out path was tested under a *refused clipboard* and correctly falls back to revealing the URL — but the share sheet itself (`navigator.share`) has never run, because this environment has no such API. That is the control a real phone will actually use.
+Priority (**2026-08-08, later still**): **RE-TEST THE QR ON A REAL PHONE.** It shipped with a 1-module quiet zone against a spec of 4 — measured, not guessed — which is why Ben's screenshot would not scan. Fixed to `margin: 4` / `width: 1024` and verified by canvas pixel analysis (4.01 modules of quiet zone, no upscaling at 3x, 1.07 mm per module in print), but **there is no camera in this environment, so nobody has actually scanned it.** If it still fails, rule out the card's 3D context next — `/print` renders `flat` with no transform, so if the printed sheet scans and the screen card doesn't, it's `preserve-3d`.
+
+Then: **scan your own card from a phone — signed in, and signed out.** The add/save block on `/t/<handle>` is live, but **only the signed-out path was ever exercised**; `can_add`, `buddy`, `no_card` and `me` are read from code, not observed. The signed-out path was tested under a *refused clipboard* and correctly falls back to revealing the URL — but the share sheet itself (`navigator.share`) has never run, because this environment has no such API. That is the control a real phone will actually use.
 
 Then, in order: **Ben's call on the `anon` EXECUTE grants** (open since 2026-08-07 — every trainer RPC in `public` is granted EXECUTE to anon; not a live hole, but the grant layer has never done its half) → **`start_url` is `/`**, so an installed app opens the app shell rather than your card, and "one tap, bam" is not true yet → **add real links** via gear → "find me", since the `FIND ME` block on the card back has never rendered with data.
 

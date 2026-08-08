@@ -281,8 +281,24 @@ function QrPanel({ handle }) {
 
   useEffect(() => {
     let cancelled = false;
-    // 640 so it stays crisp on a 3x screen at the size it now renders.
-    QRCode.toDataURL(url, { margin: 1, width: 640, errorCorrectionLevel: "M" })
+    // ⚠️ margin: 4 IS THE SPEC AND IT IS NOT NEGOTIABLE. A QR needs a quiet zone
+    // of FOUR modules of blank space on every side or scanners fail to find it.
+    //
+    // This shipped as `margin: 1`, which left about 2.2 modules once the white
+    // panel's 8px padding was counted — and this code sits on a near-black card
+    // frame, which is the worst case for a thin quiet zone. Symptom: the card
+    // looks perfect and a screenshot of it will not scan.
+    //
+    // Cost of the fix is real and worth it: at margin 4 the payload is 29+8 = 37
+    // modules instead of 31, so each module is ~16% smaller inside the same box.
+    // A correct quiet zone beats fatter modules every time — a scanner that
+    // cannot locate the code never gets as far as reading it. Moving the decks
+    // off the front bought the room that pays for this.
+    //
+    // 1024, not 640: the code now renders at ~63% of card width, which on a large
+    // phone at 3x is ~750 device pixels. 640 was UPSCALED there — soft edges, and
+    // soft edges are exactly what a screenshot then bakes in permanently.
+    QRCode.toDataURL(url, { margin: 4, width: 1024, errorCorrectionLevel: "M" })
       .then(d => { if (!cancelled) setSrc(d); })
       .catch(() => { /* the typed URL below is the fallback */ });
     return () => { cancelled = true; };
