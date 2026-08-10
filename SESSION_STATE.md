@@ -29,6 +29,22 @@ Both were live-verified in the browser and fixed before commit:
 - Filled geometry checked by feeding real values through the component: Speed 72 → radius 40.32 → vertex at y=51.68 (centre 92, R 56) ✅. Polygon stroke `#38bdf8`, grid `#2a3138` — both from tokens. `aria-label` reads all five vectors. The stub was reverted; `git grep` confirms nothing left in `src`.
 - Lint clean, prod build clean.
 
+### 🔑 THE RADAR WAS A BUTTON NOBODY COULD SEE (`785a993`)
+Ben's first words on seeing it live: *"where do i put in the self reported scrycheck vectors? i dont see an input."* The whole chart was the tap target and carried **no cue whatsoever** — and `NOT GRADED` reads as a verdict the app has reached, not as an empty field waiting on you. Added an `edit` glyph beside the header and a `TAP TO ADD` line in the accent. **A tap target nobody can see is not a tap target** — and I shipped one, having "verified" the surface without ever asking whether a stranger could find the control.
+
+### 🚧 BLOCKED, AWAITING ADAM: the ScryCheck export / API
+Ben wants a **"send to ScryCheck" button on the brew screen — greyed out until the deck is legal at 100, lighting up when it is.** The count is already computed (`decklist.length + (partner ? 2 : 1)`, ReviewScreen ~1128), so the gating is trivial.
+
+**Ben has confirmed Adam gave him a PRIVATE API KEY.** This resolves the ambiguity in the OHANA-188 note (*"his API key was a personal kindness"*) — it is ScryCheck's, it is real, and it is **not public**: [scrycheck.com/docs](https://scrycheck.com/docs) documents no API at all (no endpoints, no keys, no webhooks), only browser-based **Paste list** and **Import URL** (moxfield.com/decks/… and archidekt.com/decks/…). **The key is NOT in the repo** — `magikdex/.env` holds only Supabase vars + `PGPASSWORD`.
+
+**NOTHING WAS BUILT.** Guessing at a private endpoint's shape would waste the work. **Needed from Adam first:** base URL + auth scheme; the submit endpoint (method + body — card names? a Moxfield URL?); the response shape (five vectors? overall 1–10? bracket? confirm 0–100 for the vectors); rate limits **and whether caching results in our own DB is permitted**; whether attribution differs for API-sourced vs self-reported; whether the key is per-app or per-user.
+
+⚠️ **THE KEY MUST BE SERVER-SIDE ONLY — `SCRYCHECK_API_KEY` in Vercel env, read by an `api/` function, NEVER a `VITE_` prefix.** Anything `VITE_`-prefixed is inlined into the client bundle and ships to every visitor. This repo already deleted one of these: `src/services/brewPrompt.js` called api.anthropic.com from the browser on a `VITE_ANTHROPIC_API_KEY` and only never leaked because nothing imported it. Follow the `MOXFIELD_UA` / `api/deck.js` pattern.
+
+**Nothing done so far is wasted or needs undoing.** `030` separated `kind` from `method` for exactly this — a score moves `self_reported` → `api_verified` with **no schema change and no migration**. And `034`'s five columns ARE the per-deck cache OHANA-188 demanded (*"never N API calls per render"*): the API would write the same five columns the sheet writes today, with self-report as the fallback for un-submitted decks.
+
+**Also worth telling Ben: the plain-text export ALREADY EXISTS** — the share icon beside the deck name on the brew screen (ReviewScreen ~1155) copies Moxfield bulk-edit text with WREC `#hashtags`. He didn't know in July either. It is nearly ScryCheck-paste-ready; only the hashtags would need stripping.
+
 ### ⚠️ Known Issues
 - **`034` IS NOT APPLIED TO PRODUCTION.** Until Ben applies it, the radar always reads `NOT GRADED` and saving reports *"this box is running ahead of its database — migration 034 hasn't been applied yet."* That is the designed degradation, not a bug.
 - **A GRADED radar has never rendered from real database data** — only from values fed straight into the component, because the columns don't exist in prod yet. First real save is the proof.
@@ -811,6 +827,8 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 ## Cold Start Prompt
 
 Priority (**2026-08-10**): **APPLY `034_scrycheck_vectors.sql` TO PRODUCTION, then save a real grading from the Box.** The migration is written, the client is built, and the local suite is 140/140 — but the columns do not exist in prod, so **a filled radar has never rendered from real data.** Apply it in the SQL editor (additive: five nullable columns on `public.decks` plus five CHECKs — no policy, no grant, no existing column touched), paste `tests/034_scrycheck_vectors_rls.sql` and confirm 13 `ok`, then open a deck on the Box, tap the radar, and type a grading. Expect the pentagon to fill in `#38bdf8`. **Until it is applied the radar reads `NOT GRADED` and saving says "this box is running ahead of its database" — that is correct behaviour, not a failure.**
+
+Then: **get the ScryCheck API contract out of Adam** so the "send to ScryCheck" button can be built. Ben has a private key from him; the site publishes no API, and the key is not in the repo. Ask Adam for: base URL + auth scheme, the submit endpoint (method + body), the response shape, rate limits **and whether we may cache results in our own DB**, attribution terms for API-sourced scores, and whether the key is per-app or per-user. **Then put the key in Vercel env as `SCRYCHECK_API_KEY` — server-side, NEVER `VITE_`-prefixed — and proxy it through an `api/` function like `MOXFIELD_UA`/`api/deck.js`.** The gating Ben asked for is trivial (the 100-card count already exists in ReviewScreen); it is the endpoint contract that is missing.
 
 Then: **fix `026_trainer_connection_rls`** — it throws **34 errors** on every local run (`column "met_context" does not exist`, renamed by `029_buddy_rename`) and still reports `0 failed`, because pgTAP counts an aborted transaction as neither passed nor failed. **It has been silently half-running for five migrations and would not catch a regression today.** Pre-existing; nothing in this session touched trainer.
 
