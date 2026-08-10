@@ -1,5 +1,42 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-10 — ✅ **The Dex Box shows POWER LEVEL now: a self-reported ScryCheck radar replaced the WREC bars. `034` written, NOT APPLIED. 140/140 local.**
+
+Ben's call on placement, asked before any client code was written: **"radar replaces the WREC bars on the home box page. WREC lives inside the deck on the brew page."** Not a toggle — a swap. The two readouts are orthogonal (WREC = functional coverage, ScryCheck = power level) and now sit one per surface, never side by side.
+
+**Shipped:**
+- `magikdex/supabase/migrations/034_scrycheck_vectors.sql` — five nullable `smallint` columns on `public.decks` (`scrycheck_speed / _consistency / _interaction / _mana_base / _threats`), each with its own **named `CHECK … between 0 and 100`**. No new table, no policy, no grant: `decks_own` (001) is `for all` and column-agnostic. **⚠️ NOT APPLIED TO PRODUCTION — Ben applies.**
+- `magikdex/supabase/tests/034_scrycheck_vectors_rls.sql` — 13 assertions. **Local suite: 10 files, 140 assertions, 0 failed.**
+- `src/components/ScryCheckRadar.jsx` (new) — hand-rolled SVG pentagon, no charting library. Colours pulled from `theme.accent` / `theme.muted`, never hardcoded.
+- `src/components/ScryCheckSheet.jsx` (new) — the manual entry form. Bottom sheet, matching `SettingsSheet` / `AddLegendSheet` grammar.
+- `src/components/LegendIdentity.jsx` — WREC bars out, radar in. `fetchDeckCardsWithTags`, `WREC_CHIPS`, `CATEGORY_META` and the `deck_cards` embed all removed with it; nothing orphaned (`WrecBand` etc. still serve ReviewScreen/SwipeScreen).
+
+### 🔑 THE SCALE IS 0–100. IT IS NOT 0–10. This was nearly got wrong.
+The prompt assumed 0–10 "since a 9.7 has been observed". **Verified at [scrycheck.com/docs](https://scrycheck.com/docs) instead of assumed** — ScryCheck publishes *two different numbers*:
+- **The five vectors** are each *"normalized to 0–100"* (bands: 85–100 exceptional … 0–24 critical gap). **This is what the radar plots.**
+- **The overall power level** is 1–10 with one decimal. **The `9.7` on the trainer card is THIS one**, stored as free text in `trainer.deck.rating` (031).
+
+Encoding 0–10 would have squashed every deck into the bottom tenth of the pentagon **and looked completely plausible while doing it.** Assertion 8 in the suite exists solely to fail if someone later "corrects" it back.
+
+### 🚨 TWO DEFECTS FOUND BY RUNNING IT, NOT BY READING IT
+Both were live-verified in the browser and fixed before commit:
+1. **The out-of-range error read `0–100` — character for character what the field says when it's FINE.** Only the colour changed, so an over-100 value looked like a normal field while SAVE silently went dead. Now `too high — max 100`. *An error message that is indistinguishable from the hint is not an error message.*
+2. **A write to a missing column returns `PGRST204`, NOT `42703`.** 42703 is what a *SELECT* of an unknown column returns; PostgREST's schema-cache miss on a *write* is PGRST204. The first mapping only checked 42703, so the save leaked the raw string *"Could not find the 'scrycheck_consistency' column of 'decks' in the schema cache"* to the user. Both codes matched now.
+
+### ✅ What was actually verified live (dev server, mobile viewport, prod Supabase)
+- Legend with no deck → `NO DECK YET`. Legend with a deck → radar header, five axis labels, `NOT GRADED`, attribution.
+- **The pre-migration fallback works.** Prod has no `034` columns, so the vector select 400s — and the pane still renders, because the fallback select fires. Without it the whole detail pane would go blank for every deck.
+- Filled geometry checked by feeding real values through the component: Speed 72 → radius 40.32 → vertex at y=51.68 (centre 92, R 56) ✅. Polygon stroke `#38bdf8`, grid `#2a3138` — both from tokens. `aria-label` reads all five vectors. The stub was reverted; `git grep` confirms nothing left in `src`.
+- Lint clean, prod build clean.
+
+### ⚠️ Known Issues
+- **`034` IS NOT APPLIED TO PRODUCTION.** Until Ben applies it, the radar always reads `NOT GRADED` and saving reports *"this box is running ahead of its database — migration 034 hasn't been applied yet."* That is the designed degradation, not a bug.
+- **A GRADED radar has never rendered from real database data** — only from values fed straight into the component, because the columns don't exist in prod yet. First real save is the proof.
+- **`026_trainer_connection_rls` throws 34 errors on the local suite** (`column "met_context" does not exist`) — it reports `12 ok, 0 failed` because pgTAP counts an aborted transaction as neither. **PRE-EXISTING, not from this session** (nothing in the trainer schema was touched). `029_buddy_rename` renamed that column and 026's test was never updated. The suite has been silently half-running for five migrations.
+- **`public.decks.scrycheck_score`** (text, pre-001) is read and written by **nothing** in the client. Left alone deliberately. If revived it is the OVERALL rating, a sibling of the five — **not** a sixth vector.
+- The prompt specified gold `#c8960c` / amber `#e8a020` across light "Vintage Game Manual" and dark "McDonald's Late Night" themes. **magikdex has no light mode and no gold** — `tokens.js` is one dark palette on `#38bdf8` (light mode removed in UAT batch 2). Built against the real tokens.
+- A throwaway `Meren of Clan Nel Toth` legend + deck was created on an **anonymous** prod account during testing. Reachable only from that browser profile; harmless, but it exists.
+
 ## 2026-08-08 (later still) — 🚨 **THE QR HAD A 1-MODULE QUIET ZONE. Ben's screenshot wouldn't scan. Fixed.**
 
 Ben: *"i took a screenshot and i cant scan it. did we make the QR code too big?"*
@@ -773,7 +810,11 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-08, later still**): **RE-TEST THE QR ON A REAL PHONE.** It shipped with a 1-module quiet zone against a spec of 4 — measured, not guessed — which is why Ben's screenshot would not scan. Fixed to `margin: 4` / `width: 1024` and verified by canvas pixel analysis (4.01 modules of quiet zone, no upscaling at 3x, 1.07 mm per module in print), but **there is no camera in this environment, so nobody has actually scanned it.** If it still fails, rule out the card's 3D context next — `/print` renders `flat` with no transform, so if the printed sheet scans and the screen card doesn't, it's `preserve-3d`.
+Priority (**2026-08-10**): **APPLY `034_scrycheck_vectors.sql` TO PRODUCTION, then save a real grading from the Box.** The migration is written, the client is built, and the local suite is 140/140 — but the columns do not exist in prod, so **a filled radar has never rendered from real data.** Apply it in the SQL editor (additive: five nullable columns on `public.decks` plus five CHECKs — no policy, no grant, no existing column touched), paste `tests/034_scrycheck_vectors_rls.sql` and confirm 13 `ok`, then open a deck on the Box, tap the radar, and type a grading. Expect the pentagon to fill in `#38bdf8`. **Until it is applied the radar reads `NOT GRADED` and saving says "this box is running ahead of its database" — that is correct behaviour, not a failure.**
+
+Then: **fix `026_trainer_connection_rls`** — it throws **34 errors** on every local run (`column "met_context" does not exist`, renamed by `029_buddy_rename`) and still reports `0 failed`, because pgTAP counts an aborted transaction as neither passed nor failed. **It has been silently half-running for five migrations and would not catch a regression today.** Pre-existing; nothing in this session touched trainer.
+
+Then (SUPERSEDED priority, still owed): **RE-TEST THE QR ON A REAL PHONE.** It shipped with a 1-module quiet zone against a spec of 4 — measured, not guessed — which is why Ben's screenshot would not scan. Fixed to `margin: 4` / `width: 1024` and verified by canvas pixel analysis (4.01 modules of quiet zone, no upscaling at 3x, 1.07 mm per module in print), but **there is no camera in this environment, so nobody has actually scanned it.** If it still fails, rule out the card's 3D context next — `/print` renders `flat` with no transform, so if the printed sheet scans and the screen card doesn't, it's `preserve-3d`.
 
 Then: **scan your own card from a phone — signed in, and signed out.** The add/save block on `/t/<handle>` is live, but **only the signed-out path was ever exercised**; `can_add`, `buddy`, `no_card` and `me` are read from code, not observed. The signed-out path was tested under a *refused clipboard* and correctly falls back to revealing the URL — but the share sheet itself (`navigator.share`) has never run, because this environment has no such API. That is the control a real phone will actually use.
 
