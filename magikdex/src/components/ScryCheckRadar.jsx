@@ -166,15 +166,27 @@ export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEd
       })}
 
       {/* Ungraded is a legible state, not a blank pane: the grid stands empty
-          and says so. */}
+          and says what to do about it. "NOT GRADED" alone was the whole message
+          at first, and it reads as a verdict — a thing the app has decided —
+          rather than as the empty field it actually is. The accent line is the
+          instruction, in the colour everything tappable uses. */}
       {!graded && (
-        <text
-          x={CX} y={CY + 3} textAnchor="middle"
-          style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 8, letterSpacing: "0.14em" }}
-          fill={dim}
-        >
-          NOT GRADED
-        </text>
+        <>
+          <text
+            x={CX} y={CY - 3} textAnchor="middle"
+            style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 8, letterSpacing: "0.14em" }}
+            fill={dim}
+          >
+            NOT GRADED
+          </text>
+          <text
+            x={CX} y={CY + 9} textAnchor="middle"
+            style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 8, letterSpacing: "0.1em" }}
+            fill={accent}
+          >
+            TAP TO ADD
+          </text>
+        </>
       )}
     </svg>
   );
@@ -198,14 +210,29 @@ export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEd
         }}>
           power level
         </span>
-        <span style={{
-          fontFamily: "'Noto Sans Mono', monospace",
-          fontSize: 8,
-          letterSpacing: "0.12em",
-          color: dim,
-          whiteSpace: "nowrap",
-        }}>
-          SELF-REPORTED
+        {/* The edit glyph is not decoration. Shipped without it, the chart was a
+            button with NO visual cue — Ben's first question on seeing it live was
+            "where do i put in the vectors? i dont see an input." A tap target
+            nobody can see is not a tap target. */}
+        <span style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
+          <span style={{
+            fontFamily: "'Noto Sans Mono', monospace",
+            fontSize: 8,
+            letterSpacing: "0.12em",
+            color: dim,
+            whiteSpace: "nowrap",
+          }}>
+            SELF-REPORTED
+          </span>
+          {onEdit && (
+            <span
+              className="material-symbols-rounded"
+              aria-hidden="true"
+              style={{ fontSize: 13, color: accent, lineHeight: 1 }}
+            >
+              edit
+            </span>
+          )}
         </span>
       </div>
 
