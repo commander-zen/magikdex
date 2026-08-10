@@ -1,0 +1,345 @@
+import { useEffect, useState } from "react";
+import { createPortal } from "react-dom";
+import { useTheme } from "../theme/ThemeContext";
+import { supabase } from "../lib/supabase.js";
+import { SCRYCHECK_VECTORS, SCRYCHECK_MAX, SCRYCHECK_URL, readVectors } from "./ScryCheckRadar.jsx";
+
+// Manual entry for the five self-reported ScryCheck vectors.
+//
+// A bottom sheet because that is this app's one overlay grammar (SettingsSheet,
+// AddLegendSheet) — backdrop, slide-up, a single × dismiss. There was no
+// existing deck-metadata editor to copy: build_name and status are written once
+// at import (Brew.jsx) and never edited, so this is the first one.
+//
+// You grade the deck AT SCRYCHECK and type what you were shown. The link out is
+// therefore part of the form, not a footnote: it is the only way to get the
+// numbers this form wants.
+
+// The DB stores nothing outside 0–100 (migration 034, one CHECK per column), so
+// the form refuses the same range rather than letting the round-trip fail with a
+// Postgres error string. Empty is legal and means "not graded" — that is null,
+// not zero. Zero is a real ScryCheck reading ("virtually absent").
+//
+// ⚠️ The error text must never READ THE SAME AS THE HINT. Caught in live
+// testing: an over-range value first reported `0–100`, which is character for
+// character what the field already says when it is fine. The only difference
+// was the colour, so the field looked identical to a working one and the SAVE
+// button just went dead with no stated reason.
+function parseVector(raw) {
+  const v = raw.trim();
+  if (v === "") return { value: null, error: null };
+  if (!/^\d{1,3}$/.test(v)) return { value: null, error: "whole numbers only" };
+  const n = Number(v);
+  if (n > SCRYCHECK_MAX) return { value: null, error: `too high — max ${SCRYCHECK_MAX}` };
+  return { value: n, error: null };
+}
+
+export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved }) {
+  const { theme } = useTheme();
+  const [fields, setFields] = useState({});
+  const [busy, setBusy] = useState(false);
+  const [saveError, setSaveError] = useState(null);
+
+  const textColor   = theme.white;
+  const dimColor    = theme.dim;
+  const borderColor = theme.border;
+  const accent      = theme.accent;
+
+  // Reload from the deck every time the sheet opens, so an abandoned edit is
+  // discarded rather than lingering as a phantom unsaved state.
+  useEffect(() => {
+    if (!open) return;
+    const v = readVectors(deck) ?? {};
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    setFields(Object.fromEntries(
+      SCRYCHECK_VECTORS.map(x => [x.key, v[x.key] === null || v[x.key] === undefined ? "" : String(v[x.key])])
+    ));
+    setSaveError(null);
+  }, [open, deck]);
+
+  const parsed = Object.fromEntries(
+    SCRYCHECK_VECTORS.map(x => [x.key, parseVector(fields[x.key] ?? "")])
+  );
+  const hasError = SCRYCHECK_VECTORS.some(x => parsed[x.key].error);
+  const canSave = Boolean(deck?.id) && !hasError && !busy;
+
+  async function save() {
+    if (!canSave) return;
+    setBusy(true);
+    setSaveError(null);
+    const patch = Object.fromEntries(
+      SCRYCHECK_VECTORS.map(x => [x.column, parsed[x.key].value])
+    );
+    const { error } = await supabase.from("decks").update(patch).eq("id", deck.id);
+    setBusy(false);
+    if (error) {
+      // NEVER swallow a failure on a primary control. A save button that does
+      // nothing on tap reads as a broken app, and the row would silently keep
+      // the old numbers while the radar showed the new ones.
+      // ⚠️ A WRITE to a column PostgREST doesn't know about comes back as
+      // PGRST204 ("could not find the column ... in the schema cache"), NOT as
+      // Postgres's 42703 — that one is what a SELECT of an unknown column
+      // returns. Verified live against the hosted project before 034 was
+      // applied; the first version of this mapping only checked 42703 and
+      // leaked the raw schema-cache string to the user. Both are matched here
+      // because the two paths genuinely return different codes for the same
+      // underlying cause.
+      const missingColumn = error.code === "PGRST204" || error.code === "42703";
+      setSaveError(
+        missingColumn
+          ? "this box is running ahead of its database — migration 034 hasn't been applied yet"
+          : error.code === "23514"
+            ? `every score has to be 0–${SCRYCHECK_MAX}`
+            : error.message
+      );
+      return;
+    }
+    onSaved?.(patch);
+    onClose();
+  }
+
+  // Clearing is the way back to ungraded. Without it a mistyped grading would be
+  // permanent, since blanking the inputs and saving is exactly this — the
+  // button just makes it findable.
+  function clearAll() {
+    setFields(Object.fromEntries(SCRYCHECK_VECTORS.map(x => [x.key, ""])));
+    setSaveError(null);
+  }
+
+  return createPortal(
+    <>
+      <div
+        onClick={onClose}
+        style={{
+          position: "fixed", inset: 0, zIndex: 220,
+          background: "rgba(0,0,0,0.6)",
+          opacity: open ? 1 : 0,
+          pointerEvents: open ? "auto" : "none",
+          transition: "opacity 0.28s",
+        }}
+      />
+      <div style={{
+        position: "fixed", bottom: 0, left: 0, right: 0, zIndex: 221,
+        display: "flex", justifyContent: "center",
+        transform: open ? "translateY(0)" : "translateY(100%)",
+        transition: "transform 0.32s cubic-bezier(0.32, 0.72, 0, 1)",
+        pointerEvents: open ? "auto" : "none",
+      }}>
+        <div style={{
+          width: "100%", maxWidth: 600,
+          maxHeight: "80dvh",
+          background: theme.base,
+          borderTop: `1px solid ${borderColor}`,
+          display: "flex", flexDirection: "column",
+          overflow: "hidden",
+          paddingBottom: "env(safe-area-inset-bottom)",
+        }}>
+          {/* Header — same grammar as the other sheets: an eyebrow and one ×. */}
+          <div style={{
+            display: "flex", alignItems: "center", justifyContent: "space-between",
+            padding: "4px 8px 0 20px",
+          }}>
+            <span style={{
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 10,
+              letterSpacing: "0.18em",
+              textTransform: "uppercase",
+              color: dimColor,
+            }}>
+              scrycheck scores
+            </span>
+            <button
+              onClick={onClose}
+              aria-label="Close"
+              style={{
+                width: 44, height: 44,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "transparent", border: "none", padding: 0,
+                color: dimColor, cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: 22 }}>close</span>
+            </button>
+          </div>
+
+          <div style={{
+            flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch",
+            padding: "4px 20px 20px",
+            display: "flex", flexDirection: "column", gap: 14,
+          }}>
+            {deckName && (
+              <div style={{
+                fontFamily: "'Zilla Slab', serif",
+                fontSize: 16,
+                color: textColor,
+                overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+              }}>
+                {deckName}
+              </div>
+            )}
+
+            {/* The link out IS the workflow, so it sits at the top of the form
+                rather than under it. Grade there, type here. */}
+            <a
+              href={SCRYCHECK_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                minHeight: 44,
+                display: "flex", alignItems: "center",
+                borderBottom: `1px solid ${borderColor}`,
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 12, letterSpacing: "0.06em",
+                color: accent,
+                textDecoration: "none",
+              }}
+            >
+              grade this deck on scrycheck ↗
+            </a>
+
+            {SCRYCHECK_VECTORS.map(v => {
+              const err = parsed[v.key].error;
+              return (
+                <div key={v.key} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <div style={{
+                    display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10,
+                  }}>
+                    <label
+                      htmlFor={`sc-${v.key}`}
+                      style={{
+                        fontFamily: "'Zilla Slab', serif",
+                        fontSize: 14,
+                        color: textColor,
+                      }}
+                    >
+                      {v.full}
+                    </label>
+                    <span style={{
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 9, letterSpacing: "0.08em",
+                      color: err ? theme.red : dimColor,
+                      flexShrink: 0,
+                    }}>
+                      {err ?? `0–${SCRYCHECK_MAX}`}
+                    </span>
+                  </div>
+                  <input
+                    id={`sc-${v.key}`}
+                    type="text"
+                    // Numeric keypad without type="number": that type brings
+                    // spinners, accepts "1e3", and on iOS silently drops the
+                    // value when it can't parse — none of which a 0–100 field
+                    // wants. The regex in parseVector is the real gate.
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={3}
+                    value={fields[v.key] ?? ""}
+                    onChange={e => setFields(f => ({ ...f, [v.key]: e.target.value }))}
+                    placeholder="—"
+                    autoComplete="off" autoCorrect="off" spellCheck={false}
+                    style={{
+                      width: "100%", boxSizing: "border-box",
+                      background: "transparent",
+                      color: textColor,
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 16, // 16 or iOS zooms the whole sheet on focus
+                      border: "none",
+                      borderBottom: `1px solid ${err ? theme.red : borderColor}`,
+                      borderRadius: 0,
+                      padding: "8px 0",
+                      outline: "none",
+                    }}
+                  />
+                  <span style={{
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 10,
+                    color: dimColor,
+                  }}>
+                    {v.hint}
+                  </span>
+                </div>
+              );
+            })}
+
+            <div style={{
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 10,
+              color: dimColor,
+              lineHeight: 1.5,
+            }}>
+              leave a field blank for “not graded”. the radar draws only when all
+              five are filled — a missing vertex would read as a zero, and zero is
+              a real score.
+            </div>
+
+            {saveError && (
+              <div style={{
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 11,
+                color: theme.red,
+                lineHeight: 1.5,
+              }}>
+                {saveError}
+              </div>
+            )}
+
+            <div style={{ display: "flex", gap: 10 }}>
+              <button
+                onClick={clearAll}
+                disabled={busy}
+                style={{
+                  flex: "0 0 auto", minHeight: 44, padding: "0 14px",
+                  background: "transparent",
+                  border: `1px solid ${borderColor}`,
+                  borderRadius: 0,
+                  color: dimColor,
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
+                  cursor: busy ? "default" : "pointer",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                clear
+              </button>
+              <button
+                onClick={save}
+                disabled={!canSave}
+                style={{
+                  flex: 1, minHeight: 44,
+                  background: canSave ? textColor : "transparent",
+                  color: canSave ? theme.base : dimColor,
+                  border: `1px solid ${borderColor}`,
+                  borderRadius: 0,
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
+                  cursor: canSave ? "pointer" : "default",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {busy ? "saving…" : "save"}
+              </button>
+            </div>
+
+            {/* Attribution again, here, because this sheet is where the numbers
+                are entered and the credit belongs next to the claim. */}
+            <div style={{
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 10,
+              color: dimColor,
+              lineHeight: 1.5,
+            }}>
+              power level data via{" "}
+              <a href={SCRYCHECK_URL} target="_blank" rel="noopener noreferrer"
+                 style={{ color: accent, textDecoration: "none" }}>
+                ScryCheck ↗
+              </a>
+              {" "}— scores are self-reported, not verified.
+            </div>
+          </div>
+        </div>
+      </div>
+    </>,
+    document.body
+  );
+}
