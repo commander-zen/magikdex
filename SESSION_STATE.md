@@ -1,6 +1,27 @@
 # SESSION_STATE — MTG DNA
 
-## 2026-08-10 (latest) — ✅ **ONE TAP GRADE IS BUILT. `035` applied to prod, 12/12. Blocked on ONE thing Ben must do: set `SCRYCHECK_API_KEY` in Vercel.**
+## 2026-08-11 — ✅✅ **THE LIVE ROUND-TRIP RAN. One tap, real deck, real grade, on production.**
+
+Ben set `SCRYCHECK_API_KEY` in Vercel. **App → proxy → ScryCheck → row → radar, end to end, verified.**
+
+Pasted `moxfield.com/decks/SqpWSu4uLEKJdtCga5dcLg` into the sheet's Deck link field, tapped **GRADE WITH SCRYCHECK**, and the sheet closed onto a filled radar reading **`power level 9.7 · B5 · VIA SCRYCHECK`** with SPEED 96 / CONSISTENCY 96 / INTERACTION 88 / MANA BASE 87 / THREATS 94 — matching the direct API probe exactly, so **the velocity→Speed / efficiency→Mana base / lethality→Threats mapping is correct in the shipped code**, not just on paper. The chart body is a live link to `scrycheck.com/deck/6d451f3d168b6b20`. Survives a reload; the row in production carries every column including `platform='moxfield'`.
+
+**`scrycheck_version` came back `v2026-08-10-2`** — a real, dated scoring version. The column earns its keep immediately: that value is what will reveal a stale cached score when ScryCheck re-scores.
+
+**Deploy probe worth reusing:** `curl -X POST https://magikdex.vercel.app/api/scrycheck` with no auth returns **401 "Sign-in required"** when the env is configured, and **500 "isn't configured"** when it is not — because the handler checks env before auth. One request, no quota spent, tells you whether the key landed.
+
+### 🐛 Two bugs this session's testing caught (both fixed)
+1. **A network failure surfaced as the raw browser string "Failed to fetch"** — two words, nothing actionable, on a primary control. Now *"couldn't reach the grader — check your connection"*.
+2. **The radar's `aria-label` said "self-reported" unconditionally.** Once a deck was API-graded the visible label read `VIA SCRYCHECK` while the screen-reader label still called the same numbers self-reported — **two contradictory claims about who computed them, which is the exact distinction this feature exists to keep straight.** Now reads "graded by ScryCheck" when a `scrycheck_url` is present.
+
+### ⚠️ MOXFIELD URL IMPORT IS STILL BLOCKED — and it dulls the new URL-storage fix
+Importing `moxfield.com/decks/…` through `/api/deck` returns **"moxfield refused the request (bot filter) — paste the deck text instead"**, the long-standing `MOXFIELD_UA` gap. So although imports NOW store `decks.url` (035), **that path can't currently be exercised for Moxfield at all** — a Moxfield deck can only get its URL via the sheet's Deck link field. Archidekt has no such gate and should work.
+
+**This does NOT affect grading.** ScryCheck fetches Moxfield themselves with their own access; the bot filter only blocks *magikdex* reading Moxfield. Grading a Moxfield deck works fine, as just proven.
+
+⚠️ A test legend (`Ral, Monsoon Mage`, really graded) sits on a throwaway **anonymous** prod account, reachable only from this browser profile.
+
+## 2026-08-10 (earlier) — ✅ **ONE TAP GRADE IS BUILT. `035` applied to prod, 12/12. Was blocked on `SCRYCHECK_API_KEY` — now set.**
 
 Ben: *"i want a link between magikdex and scrycheck so they have a one tap grade. and it links to scrycheck and gives credit and all that good stuff."*
 
@@ -945,11 +966,13 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-10, latest**): **SET `SCRYCHECK_API_KEY` IN VERCEL, THEN GRADE A REAL DECK FROM THE BOX.** The whole one-tap feature is built, `034` and `035` are applied to production, and every suite is green — but **the live round-trip has never run**, because the key isn't on the deploy. The value is in `~/repos/pod-check/.env.local`; add it to the magikdex project's Vercel env, **server-side, NEVER `VITE_`-prefixed** (a `VITE_` key is inlined into the client bundle and shipped to every visitor — this repo already deleted one function that made that mistake). Then: import a Moxfield deck (imports now keep the URL, which nothing ever did before), open the Box, swipe to page 2, tap the radar. Expect the pentagon to fill, the header to read `9.7 · B5 · VIA SCRYCHECK`, and the chart to become a link to that deck on scrycheck.com.
+Priority (**2026-08-11**): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** Everything is live and the round-trip is proven on production — `034` + `035` applied, all suites green, `SCRYCHECK_API_KEY` set, one real deck graded end to end. What has never happened is a human using it. Open the Box, swipe the detail pane to page 2, tap the radar.
 
-**Watch for:** a deck imported BEFORE today has no `decks.url`, so it offers the manual sheet rather than one-tap. Paste its Moxfield link into the sheet's new "Deck link" field once and it unlocks.
+**Two things to expect, neither of them faults:**
+- A deck with no `decks.url` (i.e. every deck that existed before today) offers the manual sheet rather than one-tap. **Paste its Moxfield/Archidekt link into the sheet's "Deck link" field once and it grades from then on.**
+- **Moxfield URL *import* still 403s** on their bot filter (the standing `MOXFIELD_UA` gap), so a Moxfield deck can't yet arrive carrying its own URL — it has to be pasted into the sheet. Archidekt should import fine. This does not affect grading, which ScryCheck performs from their own side.
 
-Then, still open from earlier: **the brew-screen button Ben originally asked for** ("*when i have a valid 100 cards*") — a deck brewed in magikdex has no URL, and ScryCheck takes no card list, so it cannot be graded in place. Either it exports to Moxfield first or Adam is asked for a list endpoint.
+Then: **the brew-screen button Ben originally asked for** ("*when i have a valid 100 cards*") — a deck brewed in magikdex has no URL, and ScryCheck takes no card list, so it cannot be graded in place. Either it exports to Moxfield first or Adam is asked for a list endpoint.
 
 Priority (SUPERSEDED, **2026-08-10, later**): **ONE PRODUCT DECISION IS ALL THAT BLOCKS THE SCRYCHECK API INTEGRATION.** `034` is applied and verified end-to-end, the full contract is recovered, **and the vector mapping + 0–100 scale are now PROVEN by a live call** (see the 2026-08-10 (later) entry — endpoint, both auth headers, body, envelope, error codes, response shape, and the five-key mapping table).
 

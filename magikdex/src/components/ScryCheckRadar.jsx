@@ -128,9 +128,15 @@ export default function ScryCheckRadar({
       viewBox="0 0 280 200"
       style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}
       role="img"
+      // The provenance in here has to match the provenance on screen. It said
+      // "self-reported" unconditionally, so once a deck was graded by the API
+      // the visible label read VIA SCRYCHECK while the screen-reader label
+      // still called the same numbers self-reported. Two different claims about
+      // who computed them, which is the one distinction this feature exists to
+      // keep straight.
       aria-label={
         graded
-          ? `ScryCheck power level, self-reported: ${SCRYCHECK_VECTORS
+          ? `ScryCheck power level, ${deckUrl ? "graded by ScryCheck" : "self-reported"}: ${SCRYCHECK_VECTORS
               .map(v => `${v.full} ${vectors[v.key]} of ${SCRYCHECK_MAX}`).join(", ")}`
           : "ScryCheck power level: this deck has not been graded"
       }
