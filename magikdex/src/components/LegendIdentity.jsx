@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase.js";
 import { getCardData, getCardImage } from "../lib/scryfall.js";
@@ -6,28 +6,39 @@ import { resolveLegendDeck } from "../lib/legendDeck.js";
 import ScryCheckRadar, { readVectors } from "./ScryCheckRadar.jsx";
 import ScryCheckSheet from "./ScryCheckSheet.jsx";
 
-// The detail pane of the storage-box Home: the selected commander as a device
-// readout. LEFT = the actual card image ("sprite"); RIGHT = the deck's
-// self-reported ScryCheck power level as a radar. Fills its pane height with no
-// internal scroll.
+// The detail pane of the storage-box Home — now a PAGED summary, the way a
+// Pokémon summary screen is paged.
 //
-// ⚠️ THIS PANE USED TO SHOW THE WREC BARS. It doesn't any more, and the swap is
-// the point rather than a redesign: WREC measures FUNCTIONAL COVERAGE and is a
-// tool you use while building, so it belongs inside the deck on the brew page
-// (ReviewScreen, where it still lives). The Box is the shelf you look at — what
-// you want from a deck at a glance there is how hard it hits, which is power
-// level. Two orthogonal axes, one per surface, never side by side.
+// ⚠️ WHY THIS IS PAGED, because it will look like over-engineering otherwise.
+// The pane briefly showed the card art and the ScryCheck radar side by side and
+// Ben's read was immediate: "its getting busy on the main page... there's a
+// better way to sort this information." Going back to the source settled it —
+// in Gen V the PC box shows sprites and identity, and the STAT HEXAGON lives on
+// the summary screen's stats page, which you reach by pressing left/right.
+// Paging is Pokémon's answer to exactly this problem: not shrinking two things
+// to share one pane, but giving each its own and letting you flick between.
+//
+//   PAGE 1  the card art — the "sprite" page. Identity.
+//   PAGE 2  the ScryCheck radar — power level. Analysis.
+//
+// The pane is not taller than it was and nothing scrolls vertically; each page
+// simply gets the WHOLE pane instead of half, which is why the radar's axis
+// labels could stop being abbreviations.
+//
+// ⚠️ A DECK-LESS LEGEND GETS NO SECOND PAGE AT ALL — no page 2, no dots, no
+// empty state to swipe into. That is lifted straight from Gen V too: a Pokémon
+// with no Ribbons has no Ribbons page. A page that can only ever say "nothing
+// here" is worse than the absence of the page.
 
-// The five vector columns land in migration 034. Ben applies migrations by hand,
-// so a deployed client can be ahead of the database — and naming a column that
-// doesn't exist yet fails the WHOLE select (42703), which would blank the detail
-// pane for every deck rather than just hiding the radar. Same hazard
-// fetchDeckPartner isolates itself against in lib/legendDeck.js. Hence two
-// selects and a fallback.
+// The vector columns land in migration 034. Ben applies migrations by hand, so a
+// deployed client can be ahead of the database — and naming a column that
+// doesn't exist yet fails the WHOLE select, which would blank the detail pane
+// for every deck rather than just hiding the radar. Same hazard fetchDeckPartner
+// isolates itself against in lib/legendDeck.js. Hence two selects and a fallback.
 //
-// deck_cards is deliberately NOT fetched any more: it was here only to count
-// WREC tags. One deck per legend is a schema constraint (decks_legend_id_unique),
-// so resolveLegendDeck has nothing to weigh and picks the single row regardless.
+// deck_cards is deliberately NOT fetched: it was here only to count WREC tags.
+// One deck per legend is a schema constraint (decks_legend_id_unique), so
+// resolveLegendDeck has nothing to weigh and picks the single row regardless.
 const DECK_SELECT_WITH_VECTORS =
   "decks!decks_legend_id_fkey(id, status, build_name, scrycheck_speed, scrycheck_consistency, scrycheck_interaction, scrycheck_mana_base, scrycheck_threats)";
 const DECK_SELECT_BASE =
@@ -38,6 +49,8 @@ export default function LegendIdentity({ legend }) {
   const [oracleCard, setOracleCard] = useState(null);
   const [deck, setDeck] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [page, setPage] = useState(0);
+  const pagerRef = useRef(null);
 
   const dimColor    = theme.dim;
   const textColor   = theme.white;
@@ -86,57 +99,121 @@ export default function LegendIdentity({ legend }) {
   }, [legend.id]);
 
   const cardImage = oracleCard ? (getCardImage(oracleCard, "normal") ?? getCardImage(oracleCard, "large")) : null;
+  const hasDeck = Boolean(deck?.id);
+
+  // Selecting a different legend returns to page 1. Landing on the power page of
+  // a deck you didn't ask about is disorienting, and the pager keeps its scroll
+  // position across a prop change otherwise.
+  useEffect(() => {
+    const el = pagerRef.current;
+    if (!el) return;
+    el.scrollTo({ left: 0, behavior: "auto" });
+    setPage(0);
+  }, [legend.id]);
+
+  // Which page is showing. Driven from BOTH the scroll position and the dot
+  // taps, which is belt-and-braces on purpose rather than by accident:
+  // onScroll is what catches a FLICK (the fast path, and the only thing that
+  // knows about a half-swipe that snapped back), while goToPage sets the state
+  // itself so a tap is never waiting on an event to land.
+  function handleScroll() {
+    const el = pagerRef.current;
+    if (!el || !el.clientWidth) return;
+    const next = Math.round(el.scrollLeft / el.clientWidth);
+    setPage(p => (p === next ? p : next));
+  }
+
+  // Assigns scrollLeft rather than scrollTo({behavior:"smooth"}) — deliberately.
+  // Verified in-browser: the smooth variant never completes here, landing back
+  // at 0 every time, and it fails the same way with scroll-snap disabled and
+  // with prefers-reduced-motion off, so snap is not the cause. A direct
+  // assignment lands and holds. The flick gesture still gets the browser's own
+  // native smooth snapping; only the dot tap is instant, which is ordinary
+  // behaviour for a pager dot and beats a control that silently does nothing.
+  function goToPage(i) {
+    const el = pagerRef.current;
+    if (!el) return;
+    el.scrollLeft = i * el.clientWidth;
+    // Set the state here too. Verified in-browser: a programmatic scrollLeft
+    // assignment fires NO scroll event in some engines, so an indicator that
+    // only listened to onScroll would move the page and leave the dot behind.
+    setPage(i);
+  }
 
   return (
     <div style={{
       height: "100%",
       display: "flex",
       flexDirection: "column",
-      padding: "8px 16px 4px",
+      padding: "6px 16px 2px",
       overflow: "hidden",
     }}>
-      {/* Sprite + readout */}
-      <div style={{ flex: 1, minHeight: 0, display: "flex", gap: 14 }}>
-        {/* Card image — a FIXED box every legend fills identically: the box
-            height is the pane height and the width follows the MTG card ratio
-            (63:88). The img is absolutely positioned so the source image's
-            intrinsic size can never drive the box (otherwise an oversized- or
-            old-frame art would render taller than a normal card). object-fit
-            cover fills without distortion; corner mask unchanged. */}
-        <div style={{
-          position: "relative",
-          height: "100%",
-          aspectRatio: "63 / 88",
-          flexShrink: 0,
-          borderRadius: "4.8% / 3.4%",
-          overflow: "hidden",
-          background: plateBg,
-          boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-        }}>
-          {cardImage && (
-            <img
-              src={cardImage}
-              alt={legend.name}
-              draggable={false}
-              style={{
-                position: "absolute", inset: 0,
-                width: "100%", height: "100%",
-                objectFit: "cover", display: "block",
-              }}
-            />
-          )}
-        </div>
+      <div
+        ref={pagerRef}
+        onScroll={handleScroll}
+        className="hide-scrollbar"
+        style={{
+          flex: 1, minHeight: 0,
+          display: "flex",
+          overflowX: hasDeck ? "auto" : "hidden",
+          overflowY: "hidden",
+          scrollSnapType: "x mandatory",
+          // Momentum scrolling on iOS; without it the snap feels sticky.
+          WebkitOverflowScrolling: "touch",
+        }}
+      >
+        {/* PAGE 1 — the sprite. The card art already carries the name, type and
+            mana cost in its own frame, so nothing is labelled here; this page is
+            the thing itself, at the largest size the pane allows. */}
+        <section
+          aria-label="Card"
+          style={{
+            flex: "0 0 100%", minWidth: 0,
+            scrollSnapAlign: "start",
+            display: "flex", alignItems: "center", justifyContent: "center",
+          }}
+        >
+          {/* A FIXED box every legend fills identically: the box height is the
+              page height and the width follows the MTG card ratio (63:88). The
+              img is absolutely positioned so the source image's intrinsic size
+              can never drive the box (otherwise an oversized- or old-frame art
+              would render taller than a normal card). object-fit cover fills
+              without distortion; corner mask unchanged. */}
+          <div style={{
+            position: "relative",
+            height: "100%",
+            aspectRatio: "63 / 88",
+            borderRadius: "4.8% / 3.4%",
+            overflow: "hidden",
+            background: plateBg,
+            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+          }}>
+            {cardImage && (
+              <img
+                src={cardImage}
+                alt={legend.name}
+                draggable={false}
+                style={{
+                  position: "absolute", inset: 0,
+                  width: "100%", height: "100%",
+                  objectFit: "cover", display: "block",
+                }}
+              />
+            )}
+          </div>
+        </section>
 
-        {/* Readout — the ScryCheck radar, with its attribution under it. Tapping
-            it opens the self-report sheet. A legend with no deck row has nothing
-            to grade, so it gets the dashed placeholder instead of a chart that
-            could never be filled in. */}
-        <div style={{
-          flex: 1, minWidth: 0, minHeight: 0,
-          display: "flex", flexDirection: "column",
-          padding: "2px 0",
-        }}>
-          {deck?.id ? (
+        {/* PAGE 2 — power level. Only exists when there is a deck to grade. */}
+        {hasDeck && (
+          <section
+            aria-label="Power level"
+            style={{
+              flex: "0 0 100%", minWidth: 0,
+              scrollSnapAlign: "start",
+              display: "flex", flexDirection: "column",
+              padding: "2px 0",
+            }}
+          >
             <ScryCheckRadar
               vectors={readVectors(deck)}
               accent={accentColor}
@@ -145,26 +222,45 @@ export default function LegendIdentity({ legend }) {
               track={trackColor}
               onEdit={() => setSheetOpen(true)}
             />
-          ) : (
-            <div style={{
-              flex: 1, minHeight: 0,
-              display: "flex", alignItems: "center", justifyContent: "center",
-              border: `1px dashed ${trackColor}`,
-              textAlign: "center", padding: 8,
-            }}>
-              <span style={{
-                fontFamily: "'Noto Sans Mono', monospace",
-                fontSize: 9,
-                letterSpacing: "0.12em",
-                lineHeight: 1.6,
-                color: dimColor,
-              }}>
-                NO DECK YET
-              </span>
-            </div>
-          )}
-        </div>
+          </section>
+        )}
       </div>
+
+      {/* Page dots. Tappable, not just an indicator — a flick is the fast path
+          but it is not a discoverable one, and the dots are what tell you a
+          second page exists at all. Hidden entirely at one page, since a lone
+          dot indicates nothing. */}
+      {hasDeck && (
+        <div style={{
+          flex: "0 0 auto",
+          display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+          height: 18,
+        }}>
+          {["Card", "Power level"].map((label, i) => (
+            <button
+              key={label}
+              onClick={() => goToPage(i)}
+              aria-label={label}
+              aria-current={page === i ? "true" : undefined}
+              style={{
+                // The dot is 5px but the target is 18px tall and 14 wide —
+                // a 5px tap target is not a tap target.
+                width: 14, height: 18, padding: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "transparent", border: "none", borderRadius: 0,
+                cursor: "pointer",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              <span style={{
+                width: 5, height: 5,
+                background: page === i ? accentColor : trackColor,
+                transition: "background 0.2s",
+              }} />
+            </button>
+          ))}
+        </div>
+      )}
 
       <ScryCheckSheet
         open={sheetOpen}

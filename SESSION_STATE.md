@@ -32,6 +32,27 @@ Both were live-verified in the browser and fixed before commit:
 ### 🔑 THE RADAR WAS A BUTTON NOBODY COULD SEE (`785a993`)
 Ben's first words on seeing it live: *"where do i put in the self reported scrycheck vectors? i dont see an input."* The whole chart was the tap target and carried **no cue whatsoever** — and `NOT GRADED` reads as a verdict the app has reached, not as an empty field waiting on you. Added an `edit` glyph beside the header and a `TAP TO ADD` line in the accent. **A tap target nobody can see is not a tap target** — and I shipped one, having "verified" the surface without ever asking whether a stranger could find the control.
 
+### 🎮 THE DETAIL PANE IS PAGED NOW — and the Pokémon source says the radar was in the wrong place, not the wrong shape
+Ben: *"its getting busy on the main page... there's a better way to 'sort' this information i think. go back to pokemon (inspo source) for revalidation."* He was right, and the source is unambiguous.
+
+**Re-researched rather than recalled** ([Bulbapedia — Summary](https://bulbapedia.bulbagarden.net/wiki/Summary), [Serebii — B/W Boxes](https://www.serebii.net/blackwhite/box.shtml), [stat hexagon reference](https://pokemoncn.dev/components/stat-hexagon)):
+- **Gen V's summary screen HAS a hexagonal stat graph** — six axes, four nested rings, a translucent gold polygon over the values. **The radar is a validated Gen V pattern.** (One WebFetch pass claimed Gen V had no stat graph, reading "from HGSS to ORAS" as excluding it. That range *spans* Gen V. Don't trust a single fetch summary on a load-bearing fact.)
+- **But it lives on the SUMMARY screen's stats page, reached with left/right — not on the box grid and not in the box's selection panel.** The box is storage; the summary is analysis. Putting an analysis chart on the storage screen is exactly the busy-ness Ben felt.
+- **Paging IS Pokémon's answer to "how do I sort this."** Not shrinking two things into one pane — giving each its own and flicking between.
+- **Empty pages are not rendered at all**: a Pokémon with no Ribbons has no Ribbons page.
+
+**Built:** the 46vh detail pane is now a scroll-snapped pager. **Page 1 = the card art** (the sprite page). **Page 2 = the ScryCheck radar.** Tappable page dots, ≥14×18px targets. Selecting a different legend returns to page 1. **A deck-less legend gets NO second page, no dots, and no horizontal overflow at all** — verified live on a legend with no deck row — straight from the Ribbons rule.
+
+**The pane did not get taller and nothing scrolls vertically; each page just gets the WHOLE pane instead of half.** That is why the axis labels could stop being abbreviations — `CONS`/`INTER`/`THREAT` are now `CONSISTENCY`/`INTERACTION`/`THREATS`, the SVG went from a cramped column to 343×339, values moved onto their own line under each label, and the viewBox widened to 280×200 to hold the long words. **The abbreviations were a symptom of the crowding, not a design choice.**
+
+### ⚠️ THE BROWSER PANE CANNOT VERIFY SCROLL — three limits found the hard way
+Alongside "the pane does not composite, so no screenshots", add these:
+1. **`scrollTo({behavior:"smooth"})` never completes** — it lands back at 0 every time. Not a scroll-snap interaction: it fails identically with snap set to `none` and with `prefers-reduced-motion` false. Direct `scrollLeft =` assignment works and holds.
+2. **A programmatic `scrollLeft` assignment fires ZERO scroll events** (measured: 0 events while scrollLeft went 0 → 343). An indicator listening only to `onScroll` moves the page and leaves the dot behind.
+3. **`getComputedStyle()` readback goes stale** — it reported the dot colours inverted while the inline `style` attribute and `aria-current` were both correct. **Trust the inline style attribute over computed styles here.**
+
+Consequences in the shipped code, both deliberate and commented: the dot tap assigns `scrollLeft` directly instead of animating, and `page` is set by **both** `onScroll` (catches a real flick, incl. a half-swipe that snaps back) **and** `goToPage` (so a tap never waits on an event that may not fire).
+
 ### 🚧 BLOCKED, AWAITING ADAM: the ScryCheck export / API
 Ben wants a **"send to ScryCheck" button on the brew screen — greyed out until the deck is legal at 100, lighting up when it is.** The count is already computed (`decklist.length + (partner ? 2 : 1)`, ReviewScreen ~1128), so the gating is trivial.
 

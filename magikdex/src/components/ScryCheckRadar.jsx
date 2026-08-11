@@ -19,17 +19,18 @@
 
 // The five vectors, in render order around the pentagon starting at the top.
 //
-// `column` is the public.decks column (migration 034). `label` is ABBREVIATED
-// on purpose: these sit at the pentagon's vertices inside a column roughly a
-// third of a phone wide, and the full names ("CONSISTENCY", "INTERACTION")
-// collide with their neighbours at any legible size. The sheet shows the full
-// names, where there is room to read them.
+// `column` is the public.decks column (migration 034).
+//
+// The labels were abbreviated (CONS / INTER / THREAT) when this shared the
+// detail pane with the card art and had about a third of a phone to work in.
+// It owns a whole page now, so they are spelled out — the abbreviations were a
+// symptom of the crowding, not a design choice, and "INTER" is not a word.
 export const SCRYCHECK_VECTORS = [
-  { key: "speed",       column: "scrycheck_speed",       label: "SPEED", full: "Speed",       hint: "mana acceleration, development pace" },
-  { key: "consistency", column: "scrycheck_consistency", label: "CONS",  full: "Consistency", hint: "tutors, draw engine reliability" },
-  { key: "threats",     column: "scrycheck_threats",     label: "THREAT", full: "Threats",    hint: "win conditions, combo potential" },
-  { key: "manaBase",    column: "scrycheck_mana_base",   label: "MANA",  full: "Mana base",   hint: "land quality, colour fixing" },
-  { key: "interaction", column: "scrycheck_interaction", label: "INTER", full: "Interaction", hint: "disruption, protection" },
+  { key: "speed",       column: "scrycheck_speed",       label: "SPEED",       full: "Speed",       hint: "mana acceleration, development pace" },
+  { key: "consistency", column: "scrycheck_consistency", label: "CONSISTENCY", full: "Consistency", hint: "tutors, draw engine reliability" },
+  { key: "threats",     column: "scrycheck_threats",     label: "THREATS",     full: "Threats",     hint: "win conditions, combo potential" },
+  { key: "manaBase",    column: "scrycheck_mana_base",   label: "MANA BASE",   full: "Mana base",   hint: "land quality, colour fixing" },
+  { key: "interaction", column: "scrycheck_interaction", label: "INTERACTION", full: "Interaction", hint: "disruption, protection" },
 ];
 
 // Verified at https://scrycheck.com/docs, not inferred: each vector is
@@ -64,13 +65,14 @@ export function isGraded(vectors) {
 
 // ── Geometry ─────────────────────────────────────────────────────────────────
 // A regular pentagon, first vertex at the top (-90°), going clockwise. The
-// viewBox is wider than it is tall because the vertex LABELS live outside the
-// polygon and the left/right ones need the room; the polygon itself stays
-// centred and regular.
-const CX = 100;
-const CY = 92;
-const R  = 56;   // radius at 100 — the outer ring
-const LR = 70;   // radius the labels sit at
+// viewBox is much wider than the polygon because the vertex LABELS live outside
+// it: "CONSISTENCY" hangs off the right vertex and "INTERACTION" off the left,
+// so the box has to hold R + LR + half a word on each side. The polygon itself
+// stays centred and regular.
+const CX = 140;
+const CY = 96;
+const R  = 58;   // radius at 100 — the outer ring
+const LR = 74;   // radius the labels sit at
 
 function vertex(i, radius) {
   const angle = (-90 + i * 72) * (Math.PI / 180);
@@ -85,7 +87,12 @@ function ring(radius) {
 // side labels outward (start on the right, end on the left) is what keeps them
 // from overlapping the polygon they annotate.
 const LABEL_ANCHOR = ["middle", "start", "start", "end", "end"];
-const LABEL_DY     = [-4, 3, 10, 10, 3];
+const LABEL_DY     = [-10, -1, 8, 8, -1];
+// The value sits on its OWN line under its label rather than trailing it. Run
+// together ("CONSISTENCY 64") the longest label plus a number overflows the
+// right edge of the viewBox, and the eye has to parse a word and a number out
+// of one run anyway.
+const VALUE_DY = 11;
 
 export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEdit }) {
   const graded = isGraded(vectors);
@@ -105,7 +112,7 @@ export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEd
 
   const Chart = (
     <svg
-      viewBox="0 0 200 184"
+      viewBox="0 0 280 200"
       style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}
       role="img"
       aria-label={
@@ -150,18 +157,28 @@ export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEd
         const [x, y] = vertex(i, LR);
         const value = graded ? vectors[v.key] : null;
         return (
-          <text
-            key={v.key}
-            x={x}
-            y={y + LABEL_DY[i]}
-            textAnchor={LABEL_ANCHOR[i]}
-            style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 8, letterSpacing: "0.08em" }}
-          >
-            <tspan fill={dim}>{v.label}</tspan>
+          <g key={v.key}>
+            <text
+              x={x}
+              y={y + LABEL_DY[i]}
+              textAnchor={LABEL_ANCHOR[i]}
+              fill={dim}
+              style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 9, letterSpacing: "0.08em" }}
+            >
+              {v.label}
+            </text>
             {value !== null && (
-              <tspan fill={accent} style={{ fontSize: 9 }}> {value}</tspan>
+              <text
+                x={x}
+                y={y + LABEL_DY[i] + VALUE_DY}
+                textAnchor={LABEL_ANCHOR[i]}
+                fill={accent}
+                style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 12 }}
+              >
+                {value}
+              </text>
             )}
-          </text>
+          </g>
         );
       })}
 
@@ -174,14 +191,14 @@ export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEd
         <>
           <text
             x={CX} y={CY - 3} textAnchor="middle"
-            style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 8, letterSpacing: "0.14em" }}
+            style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 9, letterSpacing: "0.14em" }}
             fill={dim}
           >
             NOT GRADED
           </text>
           <text
-            x={CX} y={CY + 9} textAnchor="middle"
-            style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 8, letterSpacing: "0.1em" }}
+            x={CX} y={CY + 11} textAnchor="middle"
+            style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 9, letterSpacing: "0.1em" }}
             fill={accent}
           >
             TAP TO ADD
