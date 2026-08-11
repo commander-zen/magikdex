@@ -1,5 +1,31 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-11 (later) — 📬 **The decklist-endpoint email is SENT. Waiting on Adam. Plus: an unclaimed offer, and a key-hygiene audit.**
+
+**Adam Tolman — `adam@scrycheck.com`.** Ben sent the ask on 2026-08-11: would `/api/v1/analyze` accept a raw decklist, since magikdex is itself a deck builder and has no Moxfield/Archidekt URL to hand over. Argument used: **scrycheck.com's own "Paste list" tab already does this**, so the analysis path exists and simply isn't reachable from the API. **No reply yet — do not chase.**
+
+### ✅ Adam's terms, in his own words (2026-08-10)
+> *"Happy for you to use Scrycheck's data for this use case. I think a simple attribution is fair, with a link to the site."*
+
+**What ships satisfies this and then some:** the credit line `power level data via ScryCheck ↗` links to scrycheck.com, and on a graded deck the chart itself links to that deck's page on their site. Attribution is in the layout, never a tooltip.
+
+And from the key handover (2026-07-10): *"please don't share your key or these details with anyone else – this is a beta API and I'm not really broadcasting it."* **Treat the endpoint shape, the auth headers and the error codes as confidential too, not just the key** — they are written down in this file, which is fine while the repo is private and is a thing to re-check before open-sourcing.
+
+### 🎁 STANDING OFFER, NOT YET TAKEN UP
+Adam, same 2026-08-10 reply: *"Also happy to take a look at Magicdex and give you some thoughts 👍"* — answering Ben's request for a lightweight peer review. **Ben's 08-11 email did not pick this up.** The natural moment is whenever Adam answers on the decklist endpoint. He is the one person with strong opinions about how his own data should be presented, and the app has changed substantially since he offered.
+
+### 🔐 KEY HYGIENE — AUDITED, CLEAN
+Prompted by Adam's confidentiality note and the open-source-prep item. Scanned the magikdex repo for the key's literal value (44 chars, never printed):
+- **Tracked files: absent.**
+- **Git history, `git log --all -S<key>` across every ref: absent.**
+- Only the variable NAME appears — in this file, and in `api/scrycheck.js` reading `process.env`.
+- `magikdex/.env` is covered by `.gitignore:14`.
+
+The key lives in exactly two places: **Vercel env (magikdex project)** and **`~/repos/pod-check/.env.local`** (git-ignored; pod-check's own audit confirms it was never committed there either).
+
+### ⚠️ One open loop, disclosed not hidden
+The key was issued 2026-07-10 in a **Pod Check** context; **magikdex is a second app using it.** Ben's 08-11 email states this plainly up front (*"just wired the private-beta API into magikdex"*), which is the right way round — but **Adam has not yet acknowledged the second-app use.** Nothing to fix; just don't let it become an assumption.
+
 ## 2026-08-11 — ✅✅ **THE LIVE ROUND-TRIP RAN. One tap, real deck, real grade, on production.**
 
 Ben set `SCRYCHECK_API_KEY` in Vercel. **App → proxy → ScryCheck → row → radar, end to end, verified.**
@@ -971,6 +997,8 @@ Priority (**2026-08-11**): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** Everyth
 **Two things to expect, neither of them faults:**
 - A deck with no `decks.url` (i.e. every deck that existed before today) offers the manual sheet rather than one-tap. **Paste its Moxfield/Archidekt link into the sheet's "Deck link" field once and it grades from then on.**
 - **Moxfield URL *import* still 403s** on their bot filter (the standing `MOXFIELD_UA` gap), so a Moxfield deck can't yet arrive carrying its own URL — it has to be pasted into the sheet. Archidekt should import fine. This does not affect grading, which ScryCheck performs from their own side.
+
+**Blocked on Adam, do not chase:** the decklist-endpoint email went out 2026-08-11 (`adam@scrycheck.com`). If he says yes, the brew-screen button below becomes trivial and the Moxfield/Archidekt link requirement disappears entirely. **When he replies, also take him up on the peer review he already offered on 2026-08-10** — it has been sitting unclaimed in the thread.
 
 Then: **the brew-screen button Ben originally asked for** ("*when i have a valid 100 cards*") — a deck brewed in magikdex has no URL, and ScryCheck takes no card list, so it cannot be graded in place. Either it exports to Moxfield first or Adam is asked for a list endpoint.
 
