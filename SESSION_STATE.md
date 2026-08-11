@@ -37,17 +37,25 @@ Envelope `{ success, data, error:{ code, message } }`. Error codes: `INVALID_REQ
 
 `data` carries: `commanders[]`, `name`, `powerLevel:{ level, interval:{ margin }, tier, label }`, `bracket:{ number }`, `vectors:{…}`, `winSpeed:{ typical, earliest }`, `summary:{ themes, warnings }`, `incomplete`, `deckUrl`.
 
-🚨 **THE VECTOR NAMES IN THE API ARE NOT THE NAMES ON THE SITE. Three of five differ.**
+🔑 **THE VECTOR NAMES IN THE API ARE NOT THE NAMES ON THE SITE — three of five differ. ✅ MAPPING NOW PROVEN, not inferred.**
 
-| scrycheck.com/docs (what users see) | API field |
-|---|---|
-| Speed | `velocity` |
-| Consistency | `consistency` |
-| Interaction | `interaction` |
-| Mana base | **`efficiency`** |
-| Threats | **`lethality`** |
+Settled with **one live API call** (Ben's key, his explicit go-ahead) against his own deck `moxfield.com/decks/SqpWSu4uLEKJdtCga5dcLg`, then cross-read against ScryCheck's own rendering of the same analysis at the `deckUrl` it returned:
 
-`034`'s columns are named after the **display** names, which is right for a self-report form — those are the words on screen when you type them in. But an API integration needs a mapping layer, and **`efficiency` → mana base / `lethality` → threats is an INFERENCE, not a documented fact.** Get it wrong and the radar silently plots two axes swapped. **Confirm before wiring it up.** Also unconfirmed: whether the API returns the vectors on the same **0–100** normalisation the public docs describe (`034`'s CHECK assumes it).
+| Site label | Value shown | API field | Value returned |
+|---|---|---|---|
+| SPEED | 96 | `velocity` | 96 |
+| CONSISTENCY | 96 | `consistency` | 96 |
+| INTERACTION | 88 | `interaction` | 88 |
+| **MANA BASE** | **87** | **`efficiency`** | **87** |
+| **THREATS** | **94** | **`lethality`** | **94** |
+
+The deck page renders **both vocabularies side by side** in its re-score diff (`Velocity 96 → 96 —`, `Efficiency 88 → 87 -1`, `Lethality 94 → 94 —`), so ScryCheck uses velocity/efficiency/lethality internally and Speed/Mana base/Threats as display labels. **`034`'s columns follow the display names and are correct; the integration needs a five-key mapping and this table is it.**
+
+✅ **AND THE SCALE IS CONFIRMED 0–100** — returned values 96/96/88/87/94. `034`'s CHECK holds.
+
+✅ **AND THE `9.7` MYSTERY CLOSES THE LOOP.** `powerLevel.level` came back **9.7** for Ral, Monsoon Mage — the exact deck and exact number on Ben's trainer card. It is the OVERALL power level, never a vector, precisely as the docs said. Full response: `{"level":9.7,"display":"9.7","tier":"Competitive","label":"Fringe cEDH","confidence":"high","interval":{"low":9.4,"high":10,"margin":0.3}}`, with `bracket:{"number":5,"name":"cEDH", reasoning:[…]}`.
+
+**Richer than pod-check's `normalize()` keeps.** Untouched fields worth knowing: `deckHash`, `sourceUrl`, `source`, `uniqueCardCount`, `totalCardCount`, `importWarnings`, **`scoringVersion`** (the rubric is versioned — a cached score is only valid for the version that produced it), `cache`, `powerLevel.confidence/description/interval.low/high`, `bracket.name/description/reasoning[]`, `winSpeed.withDisruption/display/range`, `summary.primaryWinCondition`.
 
 ⚖️ **TERMS, stated in the proxy's own header:** *"The secret MUST stay server-side (ScryCheck forbids browser-side calls / committing it)."* Not a preference — their rule.
 
@@ -908,10 +916,11 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-10, later**): **TWO ANSWERS, THEN THE SCRYCHECK API INTEGRATION IS BUILDABLE.** `034` is applied and verified end-to-end, so the self-report half is DONE, and the full API contract is recovered (see the 2026-08-10 (later) entry — endpoint, both auth headers, body, envelope, error codes, response shape).
+Priority (**2026-08-10, later**): **ONE PRODUCT DECISION IS ALL THAT BLOCKS THE SCRYCHECK API INTEGRATION.** `034` is applied and verified end-to-end, the full contract is recovered, **and the vector mapping + 0–100 scale are now PROVEN by a live call** (see the 2026-08-10 (later) entry — endpoint, both auth headers, body, envelope, error codes, response shape, and the five-key mapping table).
 
-1. **Does `efficiency` mean "Mana base" and `lethality` mean "Threats"?** The API's vector keys are `velocity / consistency / interaction / efficiency / lethality`; the site's labels are Speed / Consistency / Interaction / Mana base / Threats. Three of five differ and the mapping is an inference. **Get it wrong and two axes silently swap on the radar.** Also confirm the API returns them on the **0–100** scale `034`'s CHECK assumes. Settle it either by one live call with Ben's key (his quota, his call) or by asking Adam.
-2. **Brewed decks have no URL.** The endpoint takes `{ url }` for Moxfield/Archidekt only — no decklist parameter exists. So Ben's brew-screen button can't analyse an in-app brew. Export to Moxfield first, or ask Adam for a list endpoint.
+**The one open question: brewed decks have no URL.** The endpoint takes `{ url }`, host-bounded to Moxfield/Archidekt — **there is no decklist parameter**, confirmed from the proxy source and the live request. So Ben's brew-screen button ("*when i have a valid 100 cards*") cannot analyse a deck brewed in magikdex. **Ben picks:** (a) the button exports to Moxfield/Archidekt first, then analyses the resulting URL; (b) it only lights up for decks that were imported and already carry `decks.url`; or (c) ask Adam for a list-accepting endpoint.
+
+**Then it is straightforward to build:** proxy in `api/`, key server-side only, map the five keys, write them to `034`'s columns as the per-deck cache, and store `powerLevel.level` in the dead `decks.scrycheck_score` column. **Cache against `scoringVersion`** — the rubric is versioned and the deck page showed a re-score moving Efficiency 88 → 87, so a cached score is only valid for the version that produced it.
 
 **When building:** key server-side only (`SCRYCHECK_API_KEY` in Vercel env, NEVER `VITE_`-prefixed — *"ScryCheck forbids browser-side calls / committing it"*), proxy through an `api/` function like `MOXFIELD_UA`/`api/deck.js`, cache per-deck in `034`'s columns, and **authenticate + throttle the proxy** — pod-check's `HARDENING.md` H1 flags its own as neither, the real risk being *"ScryCheck revoking your private-beta key or the relationship."*
 
