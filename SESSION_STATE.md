@@ -24,9 +24,40 @@ Recovered from `pod-check/CLAUDE.md` + `HARDENING.md` + `src/`:
 - ⚠️ Their own `HARDENING.md` **H1**: that proxy is **unauthenticated and unthrottled**, so anyone can burn the private-beta quota. *"The realistic damage isn't your Vercel bill — it's ScryCheck revoking your private-beta key or the relationship."* **Whatever magikdex builds must not repeat this.**
 - 🐛 Free bug for pod-check: the response field is read as **`json.scrychecUrl`** (missing the `k`) in `SwapPanel.jsx:79` and `JoinPage.jsx:606`. Either the API really spells it that way or those two reads are silently `undefined`.
 
-**⛔ STILL MISSING, and it is blocking:** the **base URL**, the **auth header name**, the **exact request body**, and **the key names inside `vectors`**. All four live in `pod-check/api/scrape.js`, which **could not be read: OneDrive is not running and the file is a cloud-only placeholder** (`src/lib/ui.jsx`, `src/lib/pods.js`, `README.md` too). Git objects failed the same way (`mmap failed`) and `gh` is unauthenticated. **Ben: start OneDrive (or open those files once) and I can read them directly — no need to paste anything, and never paste the key.**
+**✅ FULL CONTRACT RECOVERED** once Ben started OneDrive and `pod-check/api/scrape.js` hydrated:
 
-**⚠️ A DESIGN CONSTRAINT THIS EXPOSES, worth deciding before building.** The API takes a **deck URL**, not a card list. `public.decks` already stores `url` + `platform`, so an **imported** Moxfield/Archidekt deck can be analyzed with one tap. But a deck **brewed inside magikdex has no URL** — which is precisely the case in Ben's ask (*"from my brew screen when i have a valid 100 cards"*). Either those decks get exported to Moxfield first, or Adam is asked whether `/api/v1/analyze` also accepts a raw decklist. **Do not build the brew-screen button until that is answered.**
+```
+POST https://scrycheck.com/api/v1/analyze
+Authorization: Bearer <SCRYCHECK_API_KEY>      ← proxy sends BOTH forms,
+X-ScryCheck-API-Key: <SCRYCHECK_API_KEY>          "docs document both"
+Content-Type: application/json
+body: { "url": "https://moxfield.com/decks/…" }   ← Moxfield/Archidekt ONLY
+```
+Envelope `{ success, data, error:{ code, message } }`. Error codes: `INVALID_REQUEST`, `UNSUPPORTED_SOURCE`, `SOURCE_UNAVAILABLE`, `TEMPORARILY_UNAVAILABLE`, `ANALYSIS_FAILED`. **A bare 404 means the key is missing or wrong — intentional, per their docs — so never surface it as "not found".** Cache `s-maxage=300`, which the proxy notes "matches ScryCheck's own caching".
+
+`data` carries: `commanders[]`, `name`, `powerLevel:{ level, interval:{ margin }, tier, label }`, `bracket:{ number }`, `vectors:{…}`, `winSpeed:{ typical, earliest }`, `summary:{ themes, warnings }`, `incomplete`, `deckUrl`.
+
+🚨 **THE VECTOR NAMES IN THE API ARE NOT THE NAMES ON THE SITE. Three of five differ.**
+
+| scrycheck.com/docs (what users see) | API field |
+|---|---|
+| Speed | `velocity` |
+| Consistency | `consistency` |
+| Interaction | `interaction` |
+| Mana base | **`efficiency`** |
+| Threats | **`lethality`** |
+
+`034`'s columns are named after the **display** names, which is right for a self-report form — those are the words on screen when you type them in. But an API integration needs a mapping layer, and **`efficiency` → mana base / `lethality` → threats is an INFERENCE, not a documented fact.** Get it wrong and the radar silently plots two axes swapped. **Confirm before wiring it up.** Also unconfirmed: whether the API returns the vectors on the same **0–100** normalisation the public docs describe (`034`'s CHECK assumes it).
+
+⚖️ **TERMS, stated in the proxy's own header:** *"The secret MUST stay server-side (ScryCheck forbids browser-side calls / committing it)."* Not a preference — their rule.
+
+✅ **CORRECTION to the earlier entry: `scrychecUrl` is NOT a bug.** `normalize()` deliberately emits that misspelling (*"Keeps the (misspelled) `scrychecUrl` key — it's load-bearing in every consumer"*); the API field is `data.deckUrl`. Consumers reading `json.scrychecUrl` are correct. I called it a likely bug on incomplete evidence — the file that resolved it was the one I couldn't read.
+
+🎨 **And the theme mystery from this morning is solved.** The original prompt specified gold `#c8960c` / amber `#e8a020` across light "Vintage Game Manual" and dark "McDonald's Late Night" — which magikdex does not have. **That is POD CHECK's palette**: `ui.jsx` reads `mode === "light" ? theme.gold : theme.amber`. The spec was describing the wrong app. Building against magikdex's real tokens was correct.
+
+**Attribution wording Adam has already accepted** (pod-check `ui.jsx`, reusable): badge — *"Scores by ScryCheck — the best EDH deck grader in the biz."*; footer — *"POWERED BY / ScryCheck ↗"*.
+
+**⚠️ CONFIRMED FROM THE SOURCE, not inferred: THE API TAKES A URL, NEVER A CARD LIST.** The body is `{ url }`, host-bounded to `moxfield.com` / `archidekt.com`, and there is no decklist parameter anywhere in the request. `public.decks` already stores `url` + `platform`, so an **imported** deck analyses in one tap. But a deck **brewed inside magikdex has no URL** — precisely Ben's ask (*"from my brew screen when i have a valid 100 cards"*). **So the brew-screen button as described cannot work for brewed decks.** Either they get exported to Moxfield/Archidekt first (the existing share-icon export is the seed of that), or Adam is asked for a list-accepting endpoint. **Ben's call, and it is the last open product question.**
 
 💡 And a use for the dead column: `public.decks.scrycheck_score` (text, read by nothing) is the natural home for the returned `power`, with `bracket` alongside it. Sibling of the five vectors, still not a sixth vector.
 
@@ -877,9 +908,12 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-10, later**): **START ONEDRIVE, then read `~/repos/pod-check/api/scrape.js`.** `034` is applied and verified end-to-end, so the self-report half is DONE. The remaining blocker on the ScryCheck API is four facts — **base URL, auth header name, request body, and the key names inside the `vectors` object** — all of which are in that one file. It is a **cloud-only OneDrive placeholder and OneDrive is not running**, so it cannot be read (git objects fail the same way; `gh` is unauthenticated). Everything else about the contract is already recovered and written up in the 2026-08-10 (later) entry. **Never paste the key — it belongs in Vercel env as `SCRYCHECK_API_KEY`, server-side, NEVER `VITE_`-prefixed.**
+Priority (**2026-08-10, later**): **TWO ANSWERS, THEN THE SCRYCHECK API INTEGRATION IS BUILDABLE.** `034` is applied and verified end-to-end, so the self-report half is DONE, and the full API contract is recovered (see the 2026-08-10 (later) entry — endpoint, both auth headers, body, envelope, error codes, response shape).
 
-**Then answer the one design question before building anything:** `/api/v1/analyze` takes a **deck URL**, not a card list. Imported decks carry `decks.url` + `platform` and can be analyzed in one tap — but a deck **brewed in magikdex has no URL**, which is exactly Ben's brew-screen case. Either export to Moxfield first, or ask Adam whether the endpoint accepts a raw decklist. **And whatever gets built must be authenticated and throttled** — pod-check's own `HARDENING.md` H1 flags its proxy as neither, with the real risk being *"ScryCheck revoking your private-beta key or the relationship."*
+1. **Does `efficiency` mean "Mana base" and `lethality` mean "Threats"?** The API's vector keys are `velocity / consistency / interaction / efficiency / lethality`; the site's labels are Speed / Consistency / Interaction / Mana base / Threats. Three of five differ and the mapping is an inference. **Get it wrong and two axes silently swap on the radar.** Also confirm the API returns them on the **0–100** scale `034`'s CHECK assumes. Settle it either by one live call with Ben's key (his quota, his call) or by asking Adam.
+2. **Brewed decks have no URL.** The endpoint takes `{ url }` for Moxfield/Archidekt only — no decklist parameter exists. So Ben's brew-screen button can't analyse an in-app brew. Export to Moxfield first, or ask Adam for a list endpoint.
+
+**When building:** key server-side only (`SCRYCHECK_API_KEY` in Vercel env, NEVER `VITE_`-prefixed — *"ScryCheck forbids browser-side calls / committing it"*), proxy through an `api/` function like `MOXFIELD_UA`/`api/deck.js`, cache per-deck in `034`'s columns, and **authenticate + throttle the proxy** — pod-check's `HARDENING.md` H1 flags its own as neither, the real risk being *"ScryCheck revoking your private-beta key or the relationship."*
 
 Then: **fix `026_trainer_connection_rls`** — it throws **34 errors** on every local run (`column "met_context" does not exist`, renamed by `029_buddy_rename`) and still reports `0 failed`, because pgTAP counts an aborted transaction as neither passed nor failed. **It has been silently half-running for five migrations and would not catch a regression today.** Pre-existing; nothing in this session touched trainer.
 
