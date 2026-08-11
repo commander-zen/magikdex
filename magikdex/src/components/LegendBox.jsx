@@ -8,10 +8,18 @@ import AddLegendSheet from "./AddLegendSheet";
 
 const DECK_GATE = 100;
 
-// Fixed 4×2 box of slots, Pokémon-storage style — never scrolls; legends
+// Fixed 4×1 box of slots, Pokémon-storage style — never scrolls; legends
 // beyond one box page onto the next via the header chevrons.
+//
+// ONE ROW, NOT TWO (Ben, 2026-08-11: "drop the box to only 4? one row at the
+// bottom instead of 2? gives the card and scrycheck panes more emphasis"). The
+// tray was taking 42 of the 88 flex units below the wordmark for what is, on
+// this surface, the navigation rather than the content — you look at the card
+// and the power level, and you use the tray to change which one. Halving it
+// hands that height to the detail pane, which is where the reading happens.
+// Home.jsx's flex ratios move with this; the two are a pair.
 const COLS = 4;
-const ROWS = 2;
+const ROWS = 1;
 const PAGE_SIZE = COLS * ROWS;
 const BOX_KEY = "magicdex-box";
 const ORDER_KEY = "magicdex-box-order";
@@ -502,7 +510,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
         </div>
       )}
 
-      {/* Fixed 4×2 slot grid — fills the tray, no scroll */}
+      {/* Fixed 4×1 slot grid — fills the tray, no scroll */}
       <div style={{
         flex: 1,
         minHeight: 0,

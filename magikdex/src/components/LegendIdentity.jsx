@@ -206,34 +206,44 @@ export default function LegendIdentity({ legend }) {
             display: "flex", alignItems: "center", justifyContent: "center",
           }}
         >
-          {/* A FIXED box every legend fills identically: the box height is the
-              page height and the width follows the MTG card ratio (63:88). The
-              img is absolutely positioned so the source image's intrinsic size
-              can never drive the box (otherwise an oversized- or old-frame art
-              would render taller than a normal card). object-fit cover fills
-              without distortion; corner mask unchanged. */}
-          <div style={{
-            position: "relative",
-            height: "100%",
-            aspectRatio: "63 / 88",
-            borderRadius: "4.8% / 3.4%",
-            overflow: "hidden",
-            background: plateBg,
-            boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-          }}>
-            {cardImage && (
-              <img
-                src={cardImage}
-                alt={legend.name}
-                draggable={false}
-                style={{
-                  position: "absolute", inset: 0,
-                  width: "100%", height: "100%",
-                  objectFit: "cover", display: "block",
-                }}
-              />
-            )}
-          </div>
+          {/* ⚠️ CONSTRAINED ON BOTH AXES, and it has to be.
+              This was `height: 100%` + `aspect-ratio: 63/88`, which is only
+              correct while the pane is the SHORTER constraint. Giving the pane
+              more height (the tray dropping to one row) made the card
+              width-bound instead: at 529px tall it wanted 378px of width inside
+              343px, so the frame squashed to a 0.649 ratio and object-fit cover
+              silently cropped the card's sides. It looked like a rendering bug
+              and was a sizing one.
+              Letting the IMAGE carry its own intrinsic ratio under max-width
+              AND max-height is resolvable whichever axis binds — tall narrow
+              phone, short wide one, or a future pane resize. object-fit
+              contain is belt-and-braces for a non-standard source. */}
+          {cardImage ? (
+            <img
+              src={cardImage}
+              alt={legend.name}
+              draggable={false}
+              style={{
+                maxWidth: "100%", maxHeight: "100%",
+                objectFit: "contain", display: "block",
+                borderRadius: "4.8% / 3.4%",
+                boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+              }}
+            />
+          ) : (
+            // Pre-load plate. Sized the old way on purpose: it is a blank
+            // rectangle for a few hundred milliseconds, so a momentarily
+            // imperfect ratio is invisible, and this keeps the pane from
+            // collapsing to nothing while the art resolves.
+            <div style={{
+              height: "100%",
+              aspectRatio: "63 / 88",
+              maxWidth: "100%",
+              borderRadius: "4.8% / 3.4%",
+              background: plateBg,
+              boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+            }} />
+          )}
         </section>
 
         {/* PAGE 2 — power level. Only exists when there is a deck to grade. */}

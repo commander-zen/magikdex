@@ -162,8 +162,13 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
         </div>
       </div>
 
-      {/* 2. DETAIL PANE (~46vh) */}
-      <div style={{ flex: "46 1 0", minHeight: 0, overflow: "hidden" }}>
+      {/* 2. DETAIL PANE (~64vh) — the card and the power-level radar.
+          Was 46 against a tray of 42. The tray dropped from two rows of slots
+          to one (LegendBox COLS×ROWS), so the height it no longer needs comes
+          here: this pane is what you READ, the tray is how you NAVIGATE, and
+          they were splitting the screen almost evenly. Change these two
+          together or the tray's tiles distort — they are a pair. */}
+      <div style={{ flex: "64 1 0", minHeight: 0, overflow: "hidden" }}>
         {activeLegend ? (
           <LegendIdentity
             key={`${activeLegend.id}-${reloadSignal}`}
@@ -202,9 +207,11 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
         )}
       </div>
 
-      {/* 3. BOX TRAY (remaining ~42vh) */}
+      {/* 3. BOX TRAY (remaining ~24vh) — one row of four slots. Sized so a
+          tile keeps roughly the dimensions it had at two rows rather than
+          stretching to fill: header + padding + a single row's worth. */}
       <div style={{
-        flex: "42 1 0",
+        flex: "24 1 0",
         minHeight: 0,
         display: "flex",
         flexDirection: "column",
