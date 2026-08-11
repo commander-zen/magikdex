@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase.js";
 import { SCRYCHECK_VECTORS, SCRYCHECK_MAX, SCRYCHECK_URL, readVectors } from "./ScryCheckRadar.jsx";
+import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
 
 // Manual entry for the five self-reported ScryCheck vectors.
 //
@@ -39,6 +40,9 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
   const [fields, setFields] = useState({});
   const [busy, setBusy] = useState(false);
   const [saveError, setSaveError] = useState(null);
+  const [deckUrl, setDeckUrl] = useState("");
+  const [grading, setGrading] = useState(false);
+  const [gradeError, setGradeError] = useState(null);
 
   const textColor   = theme.white;
   const dimColor    = theme.dim;
@@ -55,6 +59,8 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
       SCRYCHECK_VECTORS.map(x => [x.key, v[x.key] === null || v[x.key] === undefined ? "" : String(v[x.key])])
     ));
     setSaveError(null);
+    setDeckUrl(deck?.url ?? "");
+    setGradeError(null);
   }, [open, deck]);
 
   const parsed = Object.fromEntries(
@@ -62,6 +68,30 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
   );
   const hasError = SCRYCHECK_VECTORS.some(x => parsed[x.key].error);
   const canSave = Boolean(deck?.id) && !hasError && !busy;
+
+  const trimmedUrl = deckUrl.trim();
+  const urlProblem = trimmedUrl && !isSupportedDeckUrl(trimmedUrl)
+    ? "Moxfield or Archidekt links only"
+    : null;
+  const canGrade = Boolean(deck?.id) && Boolean(trimmedUrl) && !urlProblem && !grading && !busy;
+
+  // One tap: analyse the deck at that URL and write every score back, including
+  // the link to its graded page on ScryCheck. The sheet closes on success —
+  // there is nothing left to type.
+  async function grade() {
+    if (!canGrade) return;
+    setGrading(true);
+    setGradeError(null);
+    try {
+      const { patch } = await gradeDeck(deck.id, trimmedUrl);
+      onSaved?.(patch);
+      onClose();
+    } catch (err) {
+      setGradeError(err.message ?? "grading failed");
+    } finally {
+      setGrading(false);
+    }
+  }
 
   async function save() {
     if (!canSave) return;
@@ -179,8 +209,78 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
               </div>
             )}
 
-            {/* The link out IS the workflow, so it sits at the top of the form
-                rather than under it. Grade there, type here. */}
+            {/* ── THE ONE-TAP PATH ──────────────────────────────────────────
+                Paste the deck's Moxfield/Archidekt link and ScryCheck grades it
+                for you — this is the link Ben asked for, and the reason the
+                manual fields below exist at all is that it can't always apply:
+                ScryCheck analyses a deck FROM A URL, so a deck that only lives
+                inside magikdex has nothing to send. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label
+                htmlFor="sc-deck-url"
+                style={{ fontFamily: "'Zilla Slab', serif", fontSize: 14, color: textColor }}
+              >
+                Deck link
+              </label>
+              <input
+                id="sc-deck-url"
+                type="url"
+                value={deckUrl}
+                onChange={e => { setDeckUrl(e.target.value); setGradeError(null); }}
+                placeholder="moxfield.com/decks/… or archidekt.com/decks/…"
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  background: "transparent",
+                  color: textColor,
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 16, // 16 or iOS zooms the sheet on focus
+                  border: "none",
+                  borderBottom: `1px solid ${urlProblem ? theme.red : borderColor}`,
+                  borderRadius: 0,
+                  padding: "8px 0",
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={grade}
+                disabled={!canGrade}
+                style={{
+                  minHeight: 44,
+                  background: canGrade ? accent : "transparent",
+                  color: canGrade ? theme.base : dimColor,
+                  border: `1px solid ${canGrade ? accent : borderColor}`,
+                  borderRadius: 0,
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
+                  cursor: canGrade ? "pointer" : "default",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {grading ? "grading…" : "grade with scrycheck"}
+              </button>
+              <span style={{
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 10, lineHeight: 1.5,
+                color: gradeError ? theme.red : dimColor,
+              }}>
+                {gradeError
+                  ?? urlProblem
+                  ?? "ScryCheck grades a deck from its Moxfield or Archidekt page — it can't read a list. No link? Type the scores below."}
+              </span>
+            </div>
+
+            <div style={{
+              borderTop: `1px solid ${borderColor}`,
+              paddingTop: 12,
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 10, letterSpacing: "0.14em",
+              color: dimColor,
+            }}>
+              OR ENTER THEM YOURSELF
+            </div>
+
+            {/* Grade on the site by hand, then type what you were shown. */}
             <a
               href={SCRYCHECK_URL}
               target="_blank"
@@ -195,7 +295,7 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
                 textDecoration: "none",
               }}
             >
-              grade this deck on scrycheck ↗
+              open scrycheck.com ↗
             </a>
 
             {SCRYCHECK_VECTORS.map(v => {

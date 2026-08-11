@@ -147,6 +147,18 @@ export function isDeckUrl(text) {
   return /(?:moxfield\.com\/decks\/[A-Za-z0-9_-]+|archidekt\.com\/decks\/\d+)/i.test(text ?? "");
 }
 
+// The canonical https deck URL out of whatever the user pasted — the same two
+// patterns isDeckUrl matches, rebuilt clean. Stored on the deck row (035) and
+// later handed to ScryCheck, so it must survive a paste that carried tracking
+// params, a missing scheme, or surrounding text. Returns null if there isn't one.
+export function canonicalDeckUrl(text) {
+  const mox = String(text ?? "").match(/moxfield\.com\/decks\/([A-Za-z0-9_-]+)/i);
+  if (mox) return `https://moxfield.com/decks/${mox[1]}`;
+  const arch = String(text ?? "").match(/archidekt\.com\/decks\/(\d+)/i);
+  if (arch) return `https://archidekt.com/decks/${arch[1]}`;
+  return null;
+}
+
 // URL → the same preview shape prepareImport returns. Unlike the paste path
 // this CAN throw (network/private deck) — the caller surfaces the message.
 // Tags never come from a URL import (auto-tagging owns that now). The

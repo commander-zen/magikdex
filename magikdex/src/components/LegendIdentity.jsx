@@ -5,6 +5,7 @@ import { getCardData, getCardImage } from "../lib/scryfall.js";
 import { resolveLegendDeck } from "../lib/legendDeck.js";
 import ScryCheckRadar, { readVectors } from "./ScryCheckRadar.jsx";
 import ScryCheckSheet from "./ScryCheckSheet.jsx";
+import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
 
 // The detail pane of the storage-box Home — now a PAGED summary, the way a
 // Pokémon summary screen is paged.
@@ -39,10 +40,23 @@ import ScryCheckSheet from "./ScryCheckSheet.jsx";
 // deck_cards is deliberately NOT fetched: it was here only to count WREC tags.
 // One deck per legend is a schema constraint (decks_legend_id_unique), so
 // resolveLegendDeck has nothing to weigh and picks the single row regardless.
-const DECK_SELECT_WITH_VECTORS =
-  "decks!decks_legend_id_fkey(id, status, build_name, scrycheck_speed, scrycheck_consistency, scrycheck_interaction, scrycheck_mana_base, scrycheck_threats)";
-const DECK_SELECT_BASE =
-  "decks!decks_legend_id_fkey(id, status, build_name)";
+// Tried in order, most complete first. Ben applies migrations by hand, so a
+// deployed client can be ahead of the database by one OR two migrations — and
+// dropping straight to the base select on a 034-applied/035-pending database
+// would throw away the vectors too. Each rung degrades by exactly one feature.
+const VECTOR_COLS = "scrycheck_speed, scrycheck_consistency, scrycheck_interaction, scrycheck_mana_base, scrycheck_threats";
+const LINK_COLS   = "url, platform, scrycheck_url, scrycheck_score, scrycheck_bracket, scrycheck_version, scrycheck_scored_at";
+const DECK_SELECTS = [
+  `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS}, ${LINK_COLS})`, // 034 + 035
+  `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS})`,               // 034 only
+  "decks!decks_legend_id_fkey(id, status, build_name)",                                // neither
+];
+
+// 42703 is what a SELECT of an unknown column returns; PGRST204/PGRST202 are
+// PostgREST's schema-cache misses. Verified live: the select path returns 42703,
+// but all three are matched so a stale schema cache degrades to "fewer features"
+// rather than to an empty detail pane.
+const MISSING_COLUMN = new Set(["42703", "PGRST204", "PGRST202"]);
 
 export default function LegendIdentity({ legend }) {
   const { theme } = useTheme();
@@ -50,6 +64,8 @@ export default function LegendIdentity({ legend }) {
   const [deck, setDeck] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [page, setPage] = useState(0);
+  const [grading, setGrading] = useState(false);
+  const [gradeError, setGradeError] = useState(null);
   const pagerRef = useRef(null);
 
   const dimColor    = theme.dim;
@@ -82,18 +98,17 @@ export default function LegendIdentity({ legend }) {
     (async () => {
       // FK named on purpose — see fetchLegendDeck: partner_legend_id (019) made
       // the bare `decks(...)` embed ambiguous and it fails for every user.
-      let { data, error } = await supabase
-        .from("legends").select(DECK_SELECT_WITH_VECTORS).eq("id", legend.id).single();
-      // 42703 is what a SELECT of an unknown column returns; PGRST204/PGRST202
-      // are PostgREST's schema-cache misses. Verified live: the select path
-      // returns 42703, but both are matched so a stale schema cache degrades to
-      // "no radar" rather than to an empty detail pane.
-      if (error?.code === "42703" || error?.code === "PGRST204" || error?.code === "PGRST202") {
-        ({ data, error } = await supabase
-          .from("legends").select(DECK_SELECT_BASE).eq("id", legend.id).single());
+      for (const select of DECK_SELECTS) {
+        const { data, error } = await supabase
+          .from("legends").select(select).eq("id", legend.id).single();
+        if (cancelled) return;
+        if (error) {
+          if (MISSING_COLUMN.has(error.code)) continue; // try the next rung down
+          return;
+        }
+        if (data) setDeck(resolveLegendDeck(data.decks));
+        return;
       }
-      if (cancelled || error || !data) return;
-      setDeck(resolveLegendDeck(data.decks));
     })();
     return () => { cancelled = true; };
   }, [legend.id]);
@@ -130,6 +145,24 @@ export default function LegendIdentity({ legend }) {
   // assignment lands and holds. The flick gesture still gets the browser's own
   // native smooth snapping; only the dot tap is instant, which is ordinary
   // behaviour for a pager dot and beats a control that silently does nothing.
+  // ONE TAP GRADE. Sends this deck's source URL to our proxy, which calls
+  // ScryCheck, and writes every score plus the link to the graded page back
+  // onto the row. Never swallows a failure — this is a primary control, and a
+  // button that does nothing on tap reads as a broken app.
+  async function runGrade() {
+    if (grading || !deck?.id) return;
+    setGrading(true);
+    setGradeError(null);
+    try {
+      const { patch } = await gradeDeck(deck.id, deck.url);
+      setDeck(d => (d ? { ...d, ...patch } : d));
+    } catch (err) {
+      setGradeError(err.message ?? "grading failed");
+    } finally {
+      setGrading(false);
+    }
+  }
+
   function goToPage(i) {
     const el = pagerRef.current;
     if (!el) return;
@@ -220,8 +253,35 @@ export default function LegendIdentity({ legend }) {
               text={textColor}
               dim={dimColor}
               track={trackColor}
+              deckUrl={deck.scrycheck_url ?? null}
+              score={deck.scrycheck_score ?? null}
+              bracket={deck.scrycheck_bracket ?? null}
+              // One-tap grading is offered ONLY when we already know a
+              // Moxfield/Archidekt link for this deck — that is the single
+              // input ScryCheck's API accepts. Without one the radar falls back
+              // to offering the manual sheet, which is also where a link can be
+              // pasted to unlock this.
+              onGrade={isSupportedDeckUrl(deck.url) ? runGrade : null}
+              grading={grading}
               onEdit={() => setSheetOpen(true)}
             />
+            {/* A grading failure has to be visible HERE, on the surface that
+                asked for it. The sheet isn't open, so it has nowhere else to
+                go, and a tap that quietly does nothing is the exact failure
+                mode this codebase keeps re-learning. */}
+            {gradeError && (
+              <div style={{
+                flex: "0 0 auto",
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 8,
+                lineHeight: 1.4,
+                color: theme.red,
+                textAlign: "center",
+                paddingTop: 2,
+              }}>
+                {gradeError}
+              </div>
+            )}
           </section>
         )}
       </div>

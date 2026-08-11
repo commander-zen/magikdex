@@ -2,7 +2,7 @@ import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
 import { searchCommanders, getCardImage } from "../lib/scryfall.js";
-import { prepareImport, prepareImportFromUrl, isDeckUrl } from "../lib/moxfieldImport.js";
+import { prepareImport, prepareImportFromUrl, isDeckUrl, canonicalDeckUrl } from "../lib/moxfieldImport.js";
 
 export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
   const { theme } = useTheme();
@@ -61,7 +61,13 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
       const lines = preview.resolvedLines.filter(
         l => l.name.toLowerCase() !== commanderName.toLowerCase()
       );
-      const result = await onImport(commanderName, lines);
+      // Keep the URL this deck came from. It was being parsed for cards and then
+      // dropped, which left decks.url empty for every deck in the app — and
+      // ScryCheck analyses a deck FROM that URL, so throwing it away was quietly
+      // costing the one-tap grade. Canonicalised out of the pasted text so a
+      // trailing "?utm=" or a stray word can't corrupt what gets stored.
+      const sourceUrl = isDeckUrl(pasteText) ? canonicalDeckUrl(pasteText) : null;
+      const result = await onImport(commanderName, lines, sourceUrl);
       setImportResult({
         cardCount: result.cardCount,
         taggedCount: result.taggedCount,

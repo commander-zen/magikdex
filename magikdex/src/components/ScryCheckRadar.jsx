@@ -94,7 +94,20 @@ const LABEL_DY     = [-10, -1, 8, 8, -1];
 // of one run anyway.
 const VALUE_DY = 11;
 
-export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEdit }) {
+export default function ScryCheckRadar({
+  vectors, accent, text, dim, track, onEdit,
+  // The link out to this deck's own graded page on ScryCheck (decks.scrycheck_url,
+  // migration 035). When present, the CHART BODY becomes that link — Ben's whole
+  // ask: "see the vectors, be like 'wtf is this... tap here', and it shoots them
+  // to their decklist on scrycheck graded and everything."
+  deckUrl = null,
+  // One-tap grading, offered when we know a Moxfield/Archidekt link for this
+  // deck but have never analysed it.
+  onGrade = null,
+  grading = false,
+  score = null,
+  bracket = null,
+}) {
   const graded = isGraded(vectors);
 
   const shape = graded
@@ -194,15 +207,22 @@ export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEd
             style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 9, letterSpacing: "0.14em" }}
             fill={dim}
           >
-            NOT GRADED
+            {grading ? "GRADING…" : "NOT GRADED"}
           </text>
-          <text
-            x={CX} y={CY + 11} textAnchor="middle"
-            style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 9, letterSpacing: "0.1em" }}
-            fill={accent}
-          >
-            TAP TO ADD
-          </text>
+          {/* The invitation changes with what we can actually do. If a
+              Moxfield/Archidekt link is on file, one tap really does grade the
+              deck — so say GRADE, not ADD. If it isn't, the only honest offer
+              is the manual sheet. Promising a grade we can't deliver would be
+              the same sin as the invisible tap target. */}
+          {!grading && (
+            <text
+              x={CX} y={CY + 11} textAnchor="middle"
+              style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 9, letterSpacing: "0.1em" }}
+              fill={accent}
+            >
+              {onGrade ? "TAP TO GRADE" : "TAP TO ADD"}
+            </text>
+          )}
         </>
       )}
     </svg>
@@ -219,18 +239,41 @@ export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEd
         display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 6,
         flex: "0 0 auto",
       }}>
-        <span style={{
-          fontFamily: "'Zilla Slab', serif",
-          fontSize: 13,
-          color: text,
-          lineHeight: 1,
-        }}>
-          power level
+        <span style={{ display: "flex", alignItems: "baseline", gap: 7, minWidth: 0 }}>
+          <span style={{
+            fontFamily: "'Zilla Slab', serif",
+            fontSize: 13,
+            color: text,
+            lineHeight: 1,
+          }}>
+            power level
+          </span>
+          {/* The OVERALL rating, when ScryCheck has given us one. It is the
+              number people actually quote ("my deck's a 9.7") and it is NOT on
+              the radar — the radar plots the five vectors, this is their
+              sibling. Bracket rides along because ScryCheck returns both and
+              they answer different questions at a table. */}
+          {score && (
+            <span style={{
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 13,
+              color: accent,
+              whiteSpace: "nowrap",
+            }}>
+              {score}
+              {bracket != null && (
+                <span style={{ fontSize: 9, color: dim }}> · B{bracket}</span>
+              )}
+            </span>
+          )}
         </span>
         {/* The edit glyph is not decoration. Shipped without it, the chart was a
             button with NO visual cue — Ben's first question on seeing it live was
             "where do i put in the vectors? i dont see an input." A tap target
-            nobody can see is not a tap target. */}
+            nobody can see is not a tap target.
+            The LABEL states provenance, which is the whole point of 030 keeping
+            `kind` and `method` apart: a number ScryCheck computed and a number
+            somebody typed are two different claims, and the card says which. */}
         <span style={{ display: "flex", alignItems: "center", gap: 4, flexShrink: 0 }}>
           <span style={{
             fontFamily: "'Noto Sans Mono', monospace",
@@ -239,38 +282,75 @@ export default function ScryCheckRadar({ vectors, accent, text, dim, track, onEd
             color: dim,
             whiteSpace: "nowrap",
           }}>
-            SELF-REPORTED
+            {deckUrl ? "VIA SCRYCHECK" : "SELF-REPORTED"}
           </span>
           {onEdit && (
-            <span
-              className="material-symbols-rounded"
-              aria-hidden="true"
-              style={{ fontSize: 13, color: accent, lineHeight: 1 }}
+            <button
+              type="button"
+              onClick={onEdit}
+              aria-label={graded ? "Edit these scores by hand" : "Enter scores by hand"}
+              style={{
+                width: 28, height: 22, padding: 0, flexShrink: 0,
+                display: "flex", alignItems: "center", justifyContent: "center",
+                background: "transparent", border: "none", borderRadius: 0,
+                cursor: "pointer", WebkitTapHighlightColor: "transparent",
+              }}
             >
-              edit
-            </span>
+              <span
+                className="material-symbols-rounded"
+                style={{ fontSize: 13, color: accent, lineHeight: 1 }}
+              >
+                edit
+              </span>
+            </button>
           )}
         </span>
       </div>
 
-      {/* The chart. The whole area is the edit affordance — the pane had no tap
-          target before this, so there is nothing to conflict with. A button, not
-          a div with onClick, so it is reachable by keyboard and announced. */}
-      <button
-        type="button"
-        onClick={onEdit}
-        aria-label={graded ? "Edit the self-reported ScryCheck scores" : "Add self-reported ScryCheck scores"}
-        style={{
-          flex: 1, minHeight: 0, width: "100%",
-          display: "flex", alignItems: "center", justifyContent: "center",
-          background: "transparent", border: "none", borderRadius: 0,
-          padding: "2px 0", margin: 0,
-          cursor: onEdit ? "pointer" : "default",
-          WebkitTapHighlightColor: "transparent",
-        }}
-      >
-        {Chart}
-      </button>
+      {/* THE CHART BODY IS THE LINK OUT once this deck has been graded — that is
+          the interaction Ben described: see the vectors, wonder what they mean,
+          tap, and land on your own graded deck at scrycheck.com. Editing moved
+          to the explicit glyph above so the body could carry this.
+          Before it has been graded the body is a button instead: one tap to
+          grade when we know a deck link, otherwise the manual sheet. */}
+      {deckUrl ? (
+        <a
+          href={deckUrl}
+          target="_blank"
+          rel="noopener noreferrer"
+          aria-label="Open this deck's full analysis on ScryCheck"
+          style={{
+            flex: 1, minHeight: 0, width: "100%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            padding: "2px 0",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          {Chart}
+        </a>
+      ) : (
+        <button
+          type="button"
+          onClick={grading ? undefined : (onGrade ?? onEdit)}
+          disabled={grading}
+          aria-label={
+            grading ? "Grading this deck on ScryCheck"
+              : onGrade ? "Grade this deck with ScryCheck"
+              : graded ? "Edit these scores by hand" : "Enter scores by hand"
+          }
+          style={{
+            flex: 1, minHeight: 0, width: "100%",
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "transparent", border: "none", borderRadius: 0,
+            padding: "2px 0", margin: 0,
+            opacity: grading ? 0.6 : 1,
+            cursor: grading ? "default" : (onGrade || onEdit) ? "pointer" : "default",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          {Chart}
+        </button>
+      )}
 
       {/* ATTRIBUTION — required, and deliberately in the layout rather than in a
           tooltip or a footer somewhere else. Adam approved the self-report use

@@ -105,11 +105,21 @@ select lives_ok(
 
 -- 9. Every one of the five is constrained, not just the first one written. A
 --    loop that added the constraint to only one column would still pass 6 and 7.
-select is(
-  (select count(*)::int from pg_constraint
-    where conrelid = 'public.decks'::regclass
-      and conname like 'decks_scrycheck!_%!_range' escape '!'),
-  5,
+--
+--    ⚠️ NAMES THE FIVE EXPLICITLY rather than counting `like 'decks_scrycheck_%_range'`.
+--    The counting version passed until 035 added decks_scrycheck_bracket_range,
+--    which matches the same wildcard — so a migration that touched a DIFFERENT
+--    column broke this assertion while the thing it tests was still perfectly
+--    fine. Same trap 033 wrote up: pin the expected list, never a count.
+select set_eq(
+  $$ select conname::text from pg_constraint
+      where conrelid = 'public.decks'::regclass
+        and conname in ('decks_scrycheck_speed_range', 'decks_scrycheck_consistency_range',
+                        'decks_scrycheck_interaction_range', 'decks_scrycheck_mana_base_range',
+                        'decks_scrycheck_threats_range') $$,
+  $$ values ('decks_scrycheck_speed_range'), ('decks_scrycheck_consistency_range'),
+            ('decks_scrycheck_interaction_range'), ('decks_scrycheck_mana_base_range'),
+            ('decks_scrycheck_threats_range') $$,
   '9. all five vectors carry their own named range constraint'
 );
 

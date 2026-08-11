@@ -3,6 +3,7 @@ import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase";
 import { fetchCardIdentity, getCardImage } from "../lib/scryfall.js";
 import { deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck, upsertLegend } from "../lib/legendDeck.js";
+import { platformOf } from "../lib/scrycheck.js";
 import AddLegendSheet from "./AddLegendSheet";
 
 const DECK_GATE = 100;
@@ -258,7 +259,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
   // AddLegendSheet can show the parse/commander UI and a result summary
   // before closing itself — this never closes the sheet or selects the
   // legend on its own.
-  async function handleImportDeck(commanderName, lines) {
+  async function handleImportDeck(commanderName, lines, sourceUrl = null) {
     const legend = await upsertLegend({ name: commanderName });
 
     if (!legend.image_uri || !legend.type_line) {
@@ -280,16 +281,28 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
     // A legend can have at most one deck. Resolve the existing one (if any)
     // through the same shared lookup every other surface uses, and only
     // insert a fresh deck row when the legend truly has none yet.
+    // Where the deck came from, when it came from a URL. `url` and `platform`
+    // have existed since before 001 and nothing ever wrote them; migration 035
+    // is what gave them a job — ScryCheck analyses a deck FROM this URL, so a
+    // deck that doesn't carry one can never be graded in a single tap.
+    // Best-effort throughout: a failure here must never fail the import itself.
+    const source = sourceUrl ? { url: sourceUrl, platform: platformOf(sourceUrl) } : null;
+
     const existingDeck = await fetchLegendDeck(legend.id);
     let deckId = existingDeck?.id;
     if (!deckId) {
       const { data: deck, error: deckError } = await supabase
         .from("decks")
-        .insert({ legend: commanderName, legend_id: legend.id, status: "Active" })
+        .insert({ legend: commanderName, legend_id: legend.id, status: "Active", ...(source ?? {}) })
         .select()
         .single();
       if (deckError) throw deckError;
       deckId = deck.id;
+    } else if (source) {
+      // Re-importing from a URL re-points the existing deck at it. The scores
+      // are deliberately NOT cleared: they may be self-reported, and 035 keeps
+      // scrycheck_version so a stale API grade is identifiable on its own terms.
+      await supabase.from("decks").update(source).eq("id", deckId);
     }
 
     // Merge into the resolved deck: a card already present (by name) has its
