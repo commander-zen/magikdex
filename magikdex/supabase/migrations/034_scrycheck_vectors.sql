@@ -1,8 +1,8 @@
 -- 034_scrycheck_vectors.sql — the five self-reported ScryCheck vectors
 --
--- ⚠️ NOT YET APPLIED TO PRODUCTION. Apply, then run `bash
--- supabase/local/run-tests.sh 034` (and the 030/031 suites, which touch the
--- neighbouring ScryCheck surfaces) before believing it.
+-- ✅ APPLIED TO PRODUCTION 2026-08-10 (project iduoct…). Suites run AGAINST
+-- PRODUCTION afterwards: 034 13 ok, plus 030 (11 ok) and 031 (10 ok) re-checked
+-- for regressions. Locally: `bash supabase/local/run-tests.sh 034`.
 --
 -- ── What this is, and what it is NOT ─────────────────────────────────────────
 -- ScryCheck (https://scrycheck.com/, creator Adam) grades a Commander deck on
@@ -10,10 +10,17 @@
 -- separately gives an overall power level. Adam has approved Magikdex showing
 -- those numbers on a SELF-REPORT basis with attribution and a link back.
 --
--- Self-report is the whole model, exactly as 030 established for the overall
--- rating: you grade the deck on ScryCheck, then type what you were shown. We do
--- not call their API and we do not scrape. If they ever publish an API the
--- columns do not change — only where the values come from does.
+-- Self-report is the whole model TODAY, exactly as 030 established for the
+-- overall rating: you grade the deck on ScryCheck, then type what you were
+-- shown. This migration's client never calls an API and never scrapes.
+--
+-- ⚠️ CORRECTION, same day: ScryCheck DOES have an API — a PRIVATE BETA, which
+-- Ben has a key for and which `~/repos/pod-check` already calls
+-- (`/api/v1/analyze`, server-side proxy, deck URL in). It is absent from their
+-- public docs, which is why the first pass here concluded there wasn't one.
+-- THESE COLUMNS DO NOT CHANGE when that lands — only the provenance of the
+-- numbers does, and 030 already separated `kind` from `method` so a score can
+-- move self_reported → api_verified with no schema change and no migration.
 --
 -- THIS IS NOT WREC. WREC (public.deck_card_tags, migration 006) measures
 -- FUNCTIONAL COVERAGE — does this deck have enough ramp, card advantage,

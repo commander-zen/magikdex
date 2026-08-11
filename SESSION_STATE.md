@@ -1,6 +1,36 @@
 # SESSION_STATE — MTG DNA
 
-## 2026-08-10 — ✅ **The Dex Box shows POWER LEVEL now: a self-reported ScryCheck radar replaced the WREC bars. `034` written, NOT APPLIED. 140/140 local.**
+## 2026-08-10 (later) — ✅ **`034` IS APPLIED TO PRODUCTION. 13/13 against prod, and the radar has now rendered from real data end-to-end.**
+
+Ben: *"you sHOULd have the access to run 034 if its a supabase migration."* Correct — `SUPABASE_DB_URL` + `PGPASSWORD` are in `magikdex/.env` and PostgreSQL 17 is installed. Applied directly.
+
+**Applied to project `iduocttuesaflybfqspp` (prod)** with `psql -v ON_ERROR_STOP=1 -1` so a partial failure would roll back. Verified after: all five `smallint` columns nullable, all five named CHECKs present with `(col IS NULL) OR (col >= 0 AND col <= 100)`.
+
+**Suites run AGAINST PRODUCTION:** `034` **13 ok, 0 failed**. Neighbours re-checked for regressions: `030` 11 ok, `031` 10 ok. **No test rows leaked** — the files are `begin;`/`rollback;` wrapped, and `auth.users` + `public.decks` were both confirmed clean afterwards.
+
+**✅ THE GAP THAT WAS OPEN ALL SESSION IS CLOSED.** A real grading was typed into the sheet and saved against prod: Speed 72 / Consistency 64 / Threats 95 / Mana base 31 / Interaction 88. The polygon rendered in `#38bdf8` at `140.0,54.2 175.3,84.5 172.4,140.6 129.4,110.5 91.5,80.2` — Speed 72 → centre 96 − (58 × 0.72) = **54.24**, matching to the decimal. **Then the page was reloaded and the values came back from the database**, so the full path — sheet → PostgREST → row → refetch → radar — is proven, not inferred.
+
+The sheet also closes correctly on save (transform `translateY(649px)`, `pointer-events: none`). ⚠️ **Don't test that with `innerText`** — the sheet is ALWAYS in the DOM (it animates via transform, it is not conditionally rendered), so a text match reports it open when it is shut. Read the transform.
+
+### 🔓 THE SCRYCHECK API CONTRACT — most of it recovered from pod-check, and it is NOT what the public site says
+Ben: *"i also have the API in pod check if thats helpful."* It was. **`~/repos/pod-check` calls a real, official ScryCheck API** — so the earlier finding that "ScryCheck publishes no API" was true of the *public docs* and false of reality. **It is a PRIVATE BETA.**
+
+Recovered from `pod-check/CLAUDE.md` + `HARDENING.md` + `src/`:
+- **Endpoint `/api/v1/analyze`**, POSTed from a server-side proxy at `pod-check/api/scrape.js`.
+- **Auth via `SCRYCHECK_API_KEY`** — Vercel env + git-ignored `.env.local`, **never** the tracked `.env`. Their audit confirms it has never been committed.
+- **Input is a public Archidekt/Moxfield DECK URL** — explicitly **NOT** a `scrycheck.com/deck/` result URL. Host-bounded to those two domains (so not open SSRF).
+- **Normalised response carries `commander`, `power`, `bracket`, `tier`, `vectors`, `scrychecUrl`.** `power` is 1–10 to one decimal (rendered `.toFixed(1)`, scaled as `((power-1)/9)*100`); `bracket` is 1–5 (`B{bracket}`). **`vectors` is an object and it is exactly what `034`'s five columns are for.**
+- Proxy caches with `s-maxage=300`, and maps ScryCheck error codes to friendly copy.
+- ⚠️ Their own `HARDENING.md` **H1**: that proxy is **unauthenticated and unthrottled**, so anyone can burn the private-beta quota. *"The realistic damage isn't your Vercel bill — it's ScryCheck revoking your private-beta key or the relationship."* **Whatever magikdex builds must not repeat this.**
+- 🐛 Free bug for pod-check: the response field is read as **`json.scrychecUrl`** (missing the `k`) in `SwapPanel.jsx:79` and `JoinPage.jsx:606`. Either the API really spells it that way or those two reads are silently `undefined`.
+
+**⛔ STILL MISSING, and it is blocking:** the **base URL**, the **auth header name**, the **exact request body**, and **the key names inside `vectors`**. All four live in `pod-check/api/scrape.js`, which **could not be read: OneDrive is not running and the file is a cloud-only placeholder** (`src/lib/ui.jsx`, `src/lib/pods.js`, `README.md` too). Git objects failed the same way (`mmap failed`) and `gh` is unauthenticated. **Ben: start OneDrive (or open those files once) and I can read them directly — no need to paste anything, and never paste the key.**
+
+**⚠️ A DESIGN CONSTRAINT THIS EXPOSES, worth deciding before building.** The API takes a **deck URL**, not a card list. `public.decks` already stores `url` + `platform`, so an **imported** Moxfield/Archidekt deck can be analyzed with one tap. But a deck **brewed inside magikdex has no URL** — which is precisely the case in Ben's ask (*"from my brew screen when i have a valid 100 cards"*). Either those decks get exported to Moxfield first, or Adam is asked whether `/api/v1/analyze` also accepts a raw decklist. **Do not build the brew-screen button until that is answered.**
+
+💡 And a use for the dead column: `public.decks.scrycheck_score` (text, read by nothing) is the natural home for the returned `power`, with `bracket` alongside it. Sibling of the five vectors, still not a sixth vector.
+
+## 2026-08-10 — ✅ **The Dex Box shows POWER LEVEL now: a self-reported ScryCheck radar replaced the WREC bars. `034` applied (see above). 140/140 local.**
 
 Ben's call on placement, asked before any client code was written: **"radar replaces the WREC bars on the home box page. WREC lives inside the deck on the brew page."** Not a toggle — a swap. The two readouts are orthogonal (WREC = functional coverage, ScryCheck = power level) and now sit one per surface, never side by side.
 
@@ -67,8 +97,8 @@ Ben wants a **"send to ScryCheck" button on the brew screen — greyed out until
 **Also worth telling Ben: the plain-text export ALREADY EXISTS** — the share icon beside the deck name on the brew screen (ReviewScreen ~1155) copies Moxfield bulk-edit text with WREC `#hashtags`. He didn't know in July either. It is nearly ScryCheck-paste-ready; only the hashtags would need stripping.
 
 ### ⚠️ Known Issues
-- **`034` IS NOT APPLIED TO PRODUCTION.** Until Ben applies it, the radar always reads `NOT GRADED` and saving reports *"this box is running ahead of its database — migration 034 hasn't been applied yet."* That is the designed degradation, not a bug.
-- **A GRADED radar has never rendered from real database data** — only from values fed straight into the component, because the columns don't exist in prod yet. First real save is the proof.
+- ✅ ~~`034` is not applied~~ — **APPLIED to production 2026-08-10, 13/13 against prod.** See the later entry above.
+- ✅ ~~A graded radar has never rendered from real data~~ — **it has now**, saved and re-read across a reload.
 - **`026_trainer_connection_rls` throws 34 errors on the local suite** (`column "met_context" does not exist`) — it reports `12 ok, 0 failed` because pgTAP counts an aborted transaction as neither. **PRE-EXISTING, not from this session** (nothing in the trainer schema was touched). `029_buddy_rename` renamed that column and 026's test was never updated. The suite has been silently half-running for five migrations.
 - **`public.decks.scrycheck_score`** (text, pre-001) is read and written by **nothing** in the client. Left alone deliberately. If revived it is the OVERALL rating, a sibling of the five — **not** a sixth vector.
 - The prompt specified gold `#c8960c` / amber `#e8a020` across light "Vintage Game Manual" and dark "McDonald's Late Night" themes. **magikdex has no light mode and no gold** — `tokens.js` is one dark palette on `#38bdf8` (light mode removed in UAT batch 2). Built against the real tokens.
@@ -847,9 +877,9 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-10**): **APPLY `034_scrycheck_vectors.sql` TO PRODUCTION, then save a real grading from the Box.** The migration is written, the client is built, and the local suite is 140/140 — but the columns do not exist in prod, so **a filled radar has never rendered from real data.** Apply it in the SQL editor (additive: five nullable columns on `public.decks` plus five CHECKs — no policy, no grant, no existing column touched), paste `tests/034_scrycheck_vectors_rls.sql` and confirm 13 `ok`, then open a deck on the Box, tap the radar, and type a grading. Expect the pentagon to fill in `#38bdf8`. **Until it is applied the radar reads `NOT GRADED` and saving says "this box is running ahead of its database" — that is correct behaviour, not a failure.**
+Priority (**2026-08-10, later**): **START ONEDRIVE, then read `~/repos/pod-check/api/scrape.js`.** `034` is applied and verified end-to-end, so the self-report half is DONE. The remaining blocker on the ScryCheck API is four facts — **base URL, auth header name, request body, and the key names inside the `vectors` object** — all of which are in that one file. It is a **cloud-only OneDrive placeholder and OneDrive is not running**, so it cannot be read (git objects fail the same way; `gh` is unauthenticated). Everything else about the contract is already recovered and written up in the 2026-08-10 (later) entry. **Never paste the key — it belongs in Vercel env as `SCRYCHECK_API_KEY`, server-side, NEVER `VITE_`-prefixed.**
 
-Then: **get the ScryCheck API contract out of Adam** so the "send to ScryCheck" button can be built. Ben has a private key from him; the site publishes no API, and the key is not in the repo. Ask Adam for: base URL + auth scheme, the submit endpoint (method + body), the response shape, rate limits **and whether we may cache results in our own DB**, attribution terms for API-sourced scores, and whether the key is per-app or per-user. **Then put the key in Vercel env as `SCRYCHECK_API_KEY` — server-side, NEVER `VITE_`-prefixed — and proxy it through an `api/` function like `MOXFIELD_UA`/`api/deck.js`.** The gating Ben asked for is trivial (the 100-card count already exists in ReviewScreen); it is the endpoint contract that is missing.
+**Then answer the one design question before building anything:** `/api/v1/analyze` takes a **deck URL**, not a card list. Imported decks carry `decks.url` + `platform` and can be analyzed in one tap — but a deck **brewed in magikdex has no URL**, which is exactly Ben's brew-screen case. Either export to Moxfield first, or ask Adam whether the endpoint accepts a raw decklist. **And whatever gets built must be authenticated and throttled** — pod-check's own `HARDENING.md` H1 flags its proxy as neither, with the real risk being *"ScryCheck revoking your private-beta key or the relationship."*
 
 Then: **fix `026_trainer_connection_rls`** — it throws **34 errors** on every local run (`column "met_context" does not exist`, renamed by `029_buddy_rename`) and still reports `0 failed`, because pgTAP counts an aborted transaction as neither passed nor failed. **It has been silently half-running for five migrations and would not catch a regression today.** Pre-existing; nothing in this session touched trainer.
 
