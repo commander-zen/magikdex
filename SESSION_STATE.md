@@ -1,5 +1,34 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-10 (latest) — ✅ **ONE TAP GRADE IS BUILT. `035` applied to prod, 12/12. Blocked on ONE thing Ben must do: set `SCRYCHECK_API_KEY` in Vercel.**
+
+Ben: *"i want a link between magikdex and scrycheck so they have a one tap grade. and it links to scrycheck and gives credit and all that good stuff."*
+
+Tap the radar → ScryCheck analyses the deck → the five vectors, the overall 1–10 and the bracket land on the row → **the chart body becomes a link to that deck's own graded page on scrycheck.com.**
+
+### 🚨 THE FIND THAT MADE THIS POSSIBLE: `decks.url` was never written. By anything.
+`public.decks.url` and `.platform` have existed **since before 001** and **NOTHING in the app has ever written them** — the importer fetches a deck URL through `/api/deck`, parses the cards out of it, and drops the URL on the floor. **Confirmed against production: zero rows carried one.**
+
+That mattered enormously, because **ScryCheck's API analyses a deck FROM its Moxfield/Archidekt URL and accepts no card list.** So the single input the whole feature needs was being thrown away on every import. Imports now keep it (canonicalised via `canonicalDeckUrl`, so a pasted tracking param or stray text can't corrupt it), and re-importing re-points an existing deck.
+
+### What shipped (`61ff83e`)
+- **`035_scrycheck_link.sql`** — `scrycheck_url` (the tap target, CHECK-constrained to `https://(www.)?scrycheck.com/`), `scrycheck_bracket` (1–5), `scrycheck_version`, `scrycheck_scored_at`; `powerLevel.level` reuses the long-dead `scrycheck_score` text column. **✅ APPLIED TO PROD — 12/12 against production, 034 re-run at 13/13, full local suite 152/0.**
+- **`api/scrycheck.js`** — server-side proxy. Key never reaches the browser (ScryCheck's terms forbid browser-side calls). **Requires a real Supabase session and throttles 10 analyses per user per 10 min** — pod-check ships the same proxy wide open and its own `HARDENING.md` files that as **H1**, the stated risk being *"ScryCheck revoking your private-beta key or the relationship"*. ACAO stays `*` because the Capacitor shell is cross-origin, and **CORS is not an access control** — curl ignores it; the session check is the real gate.
+- **`src/lib/scrycheck.js`** — `gradeDeck()`, the vector map, `platformOf`, `isSupportedDeckUrl`.
+- **Radar** — body is a link when graded; header shows `9.7 · B5` and flips **`SELF-REPORTED` → `VIA SCRYCHECK`** (030's kind/method split, finally visible in the UI). Editing moved to the explicit glyph so the body could carry the link.
+- **Sheet** — gained a **Deck link** field + `GRADE WITH SCRYCHECK`, so a deck with no stored URL can be unlocked in one paste. Manual entry stays below an `OR ENTER THEM YOURSELF` rule.
+
+### ⛔ BEN MUST DO THIS OR NOTHING GRADES
+**Add `SCRYCHECK_API_KEY` to Vercel env for the magikdex project** (the value is in `~/repos/pod-check/.env.local`). **NEVER `VITE_`-prefixed** — that inlines it into the client bundle and ships it to every visitor. Until it is set, `/api/scrycheck` returns *"Deck grading isn't configured on this deploy yet."*
+
+### ✅ Verified live / ⚠️ not
+- Ungraded + no URL → `SELF-REPORTED`, body opens the manual sheet. ✅
+- URL present → body becomes **"Grade this deck with ScryCheck"**. ✅
+- Graded → header `9.7 · B5 · VIA SCRYCHECK`, body is `<a href="…/deck/6d451f3d168b6b20" target="_blank" rel="noopener noreferrer">`, credit line still points at scrycheck.com separately. ✅ (verified by writing a real analysis result into the row, then cleared again)
+- **⚠️ THE LIVE GRADE ROUND-TRIP HAS NEVER RUN** — the key isn't set, so the proxy has never actually returned an analysis to the app. The API contract itself was proven by a direct call earlier today; what's unproven is app → proxy → ScryCheck → row.
+- Caught in testing: a network failure surfaced as the raw browser string **"Failed to fetch"**. Now reads *"couldn't reach the grader — check your connection"*.
+- **Fixed a self-inflicted test break:** `034`'s assertion 9 counted constraints matching `decks_scrycheck!_%!_range`, and `035`'s new bracket constraint matched the same wildcard — so an unrelated migration broke a passing test. Now names the five explicitly. **This is precisely the trap `033` wrote up: pin the expected list, never a count.** I wrote the counting version anyway, one migration after reading that lesson.
+
 ## 2026-08-10 (later) — ✅ **`034` IS APPLIED TO PRODUCTION. 13/13 against prod, and the radar has now rendered from real data end-to-end.**
 
 Ben: *"you sHOULd have the access to run 034 if its a supabase migration."* Correct — `SUPABASE_DB_URL` + `PGPASSWORD` are in `magikdex/.env` and PostgreSQL 17 is installed. Applied directly.
@@ -916,7 +945,13 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-10, later**): **ONE PRODUCT DECISION IS ALL THAT BLOCKS THE SCRYCHECK API INTEGRATION.** `034` is applied and verified end-to-end, the full contract is recovered, **and the vector mapping + 0–100 scale are now PROVEN by a live call** (see the 2026-08-10 (later) entry — endpoint, both auth headers, body, envelope, error codes, response shape, and the five-key mapping table).
+Priority (**2026-08-10, latest**): **SET `SCRYCHECK_API_KEY` IN VERCEL, THEN GRADE A REAL DECK FROM THE BOX.** The whole one-tap feature is built, `034` and `035` are applied to production, and every suite is green — but **the live round-trip has never run**, because the key isn't on the deploy. The value is in `~/repos/pod-check/.env.local`; add it to the magikdex project's Vercel env, **server-side, NEVER `VITE_`-prefixed** (a `VITE_` key is inlined into the client bundle and shipped to every visitor — this repo already deleted one function that made that mistake). Then: import a Moxfield deck (imports now keep the URL, which nothing ever did before), open the Box, swipe to page 2, tap the radar. Expect the pentagon to fill, the header to read `9.7 · B5 · VIA SCRYCHECK`, and the chart to become a link to that deck on scrycheck.com.
+
+**Watch for:** a deck imported BEFORE today has no `decks.url`, so it offers the manual sheet rather than one-tap. Paste its Moxfield link into the sheet's new "Deck link" field once and it unlocks.
+
+Then, still open from earlier: **the brew-screen button Ben originally asked for** ("*when i have a valid 100 cards*") — a deck brewed in magikdex has no URL, and ScryCheck takes no card list, so it cannot be graded in place. Either it exports to Moxfield first or Adam is asked for a list endpoint.
+
+Priority (SUPERSEDED, **2026-08-10, later**): **ONE PRODUCT DECISION IS ALL THAT BLOCKS THE SCRYCHECK API INTEGRATION.** `034` is applied and verified end-to-end, the full contract is recovered, **and the vector mapping + 0–100 scale are now PROVEN by a live call** (see the 2026-08-10 (later) entry — endpoint, both auth headers, body, envelope, error codes, response shape, and the five-key mapping table).
 
 **The one open question: brewed decks have no URL.** The endpoint takes `{ url }`, host-bounded to Moxfield/Archidekt — **there is no decklist parameter**, confirmed from the proxy source and the live request. So Ben's brew-screen button ("*when i have a valid 100 cards*") cannot analyse a deck brewed in magikdex. **Ben picks:** (a) the button exports to Moxfield/Archidekt first, then analyses the resulting URL; (b) it only lights up for decks that were imported and already carry `decks.url`; or (c) ask Adam for a list-accepting endpoint.
 
