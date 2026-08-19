@@ -1,5 +1,34 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-19 — ✅ **CARD POOL REFRESHED (first since 2026-07-14) — and the ingest was silently broken by a Scryfall format change.**
+
+Ben asked how stale the card DB was, then asked for a refresh. Both answered.
+
+### 🚨 THE FIND: `ingest:cards` would have failed for anyone, any time, since Scryfall moved to JSONL
+The first run died instantly on `No oracle_cards entry in bulk-data manifest.` **Scryfall has retired `download_uri`** — the single ~168 MB JSON array the script streamed with `stream-json` — **in favour of `jsonl_download_uri`: gzipped JSON Lines, one card object per line** (~23.4 MB compressed). The manifest entry now carries only `jsonl_download_uri` + `compressed_size`; `download_uri`, `size`, `content_type` and `content_encoding` are all gone.
+
+**The guard did its job** — the script aborted before opening a connection, so nothing partial ever reached production. But this had been broken silently since whenever Scryfall cut over: the failure only surfaces when someone runs the ingest by hand, and nobody had since 2026-07-14.
+
+**Fixed in `scripts/ingest-cards.mjs`:** `createGunzip()` + `readline` replace the `stream-chain`/`stream-json` array walker; still streamed, never buffered whole. `stream-json` and `stream-chain` are now unused by this script (still in devDependencies — no other script imports them). The error message now names the bulk-data docs so the next format change is self-diagnosing. Lint clean.
+
+### ✅ The refresh itself, against production
+```
+oracle_cards: ~23.4 MB gzipped → oracle-cards-20260819090153.jsonl.gz
+processed: 38,626  |  upserted: 35,293  |  skipped: 3,333
+batches written: 71  |  cards table now holds: 35,306 rows
+```
+**+677 cards** since the 2026-07-14 run (34,629). Pure upsert — the script has no delete path, so a partial run is always recoverable by re-running.
+
+**Post-ingest sanity, queried live:** total 35,306 · `legal_commander` 31,830 · `edhrec_rank` populated 32,065 · **null `image_normal` 0** · **token/emblem/art_series layouts 0** (the Change 8 non-deckable filter still holds on the new reader).
+
+### 📋 NEW — Scryfall now ships `oracle_tags` and `art_tags` as BULK FILES
+The manifest lists seven types now, two of which did not exist when `ingest-tags.mjs` was written: **`oracle_tags`** and **`art_tags`**. Today `npm run ingest:tags` paginates 35 hand-picked `otag:` searches against `api.scryfall.com` (49,144 rows, the slowest and most rate-sensitive job we run, and the one closest to the compliance line in DATA_SOURCES.md). A bulk file would replace that entire crawl with one download from the un-rate-limited `*.scryfall.io` origin — **and would lift the 35-tag taxonomy ceiling**. Not done, not scoped; flagged because it is strictly better on every axis DATA_SOURCES.md cares about.
+
+### ⚠️ Known Issues added
+- **No refresh is scheduled, and nothing alerts when one is overdue.** `vercel.json` has only a rewrite; every ingest to date has been run by hand on Ben's machine with the service key. DATA_SOURCES.md names scheduled ingest as the TARGET architecture — it is still not the current one. The 36-day gap here was invisible until Ben happened to ask.
+- **A broken ingest is undetectable until someone runs it.** Exactly what happened above. Any scheduled-ingest work should fail loudly, not silently.
+- **The tag/EDHREC caches are older than the card pool**: `ingest:legend-edhrec --all` last ran **2026-07-03**, `ingest:tags` / `ingest:legend-tags` **2026-07-02**. The 677 new cards have **no `card_tags` rows and no `legend_synergy` rows** — new legends among them are not yet commander-relevant in the brew stack.
+
 ## 2026-08-11 (later) — 📬 **The decklist-endpoint email is SENT. Waiting on Adam. Plus: an unclaimed offer, and a key-hygiene audit.**
 
 **Adam Tolman — `adam@scrycheck.com`.** Ben sent the ask on 2026-08-11: would `/api/v1/analyze` accept a raw decklist, since magikdex is itself a deck builder and has no Moxfield/Archidekt URL to hand over. Argument used: **scrycheck.com's own "Paste list" tab already does this**, so the analysis path exists and simply isn't reachable from the API. **No reply yet — do not chase.**
@@ -991,6 +1020,8 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 - 3 empty test-only anon users remain (`25d64369`, `43143805`, `45b16f05`) — I was blocked from deleting auth users (correctly; destructive auth op). Safe to delete by hand.
 
 ## Cold Start Prompt
+
+Priority (**2026-08-19**, unchanged in substance): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** (Card pool refreshed 2026-08-19 — 35,306 rows, ingest un-broken; the tag + EDHREC caches are NOT refreshed and are the next data job, but they block nothing on this priority.)
 
 Priority (**2026-08-11**): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** Everything is live and the round-trip is proven on production — `034` + `035` applied, all suites green, `SCRYCHECK_API_KEY` set, one real deck graded end to end. What has never happened is a human using it. Open the Box, swipe the detail pane to page 2, tap the radar.
 

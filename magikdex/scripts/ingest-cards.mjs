@@ -16,19 +16,18 @@
 //
 // Compliance (DATA_SOURCES.md): the manifest call hits api.scryfall.com once
 // with a User-Agent; the bulk file itself is on *.scryfall.io, which is NOT
-// rate-limited. The array is STREAMED, never buffered whole. Gameplay data
-// only — no prices.
+// rate-limited. The file is STREAMED and gunzipped on the fly, never buffered
+// whole. Gameplay data only — no prices.
+//
+// 2026-08-19: Scryfall retired `download_uri` (one big JSON array) in favour of
+// `jsonl_download_uri` — gzipped JSON Lines, one card object per line. That is
+// why this reads line-by-line instead of walking a JSON array.
 
 import { Readable } from "node:stream";
+import { createGunzip } from "node:zlib";
+import { createInterface } from "node:readline";
 import { readFileSync } from "node:fs";
-import { createRequire } from "node:module";
 import { createClient } from "@supabase/supabase-js";
-
-// stream-json / stream-chain are CommonJS — require them to sidestep ESM interop.
-const require = createRequire(import.meta.url);
-const { chain } = require("stream-chain");
-const { parser } = require("stream-json");
-const { streamArray } = require("stream-json/streamers/stream-array.js");
 
 const UA = "magikdex/1.0 (bulk ingest; deck-stack.vercel.app)";
 const BULK_MANIFEST = "https://api.scryfall.com/bulk-data";
@@ -117,14 +116,23 @@ async function main() {
   if (!manifestRes.ok) throw new Error(`Manifest fetch failed: HTTP ${manifestRes.status}`);
   const { data } = await manifestRes.json();
   const oracle = (data ?? []).find(d => d.type === "oracle_cards");
-  if (!oracle?.download_uri) throw new Error("No oracle_cards entry in bulk-data manifest.");
-  console.log(`oracle_cards: ~${(oracle.size / 1048576).toFixed(1)} MB → ${oracle.download_uri}`);
+  const bulkUri = oracle?.jsonl_download_uri;
+  if (!bulkUri) {
+    throw new Error(
+      "No oracle_cards jsonl_download_uri in bulk-data manifest — Scryfall may have " +
+      "changed the bulk format again. Check scryfall.com/docs/api/bulk-data.",
+    );
+  }
+  console.log(`oracle_cards: ~${(oracle.compressed_size / 1048576).toFixed(1)} MB gzipped → ${bulkUri}`);
 
-  const fileRes = await fetch(oracle.download_uri, { headers: { "User-Agent": UA } });
+  const fileRes = await fetch(bulkUri, { headers: { "User-Agent": UA } });
   if (!fileRes.ok || !fileRes.body) throw new Error(`Bulk file fetch failed: HTTP ${fileRes.status}`);
 
-  // Stream the JSON array — never buffer the whole ~168 MB file.
-  const pipeline = chain([Readable.fromWeb(fileRes.body), parser(), streamArray()]);
+  // Gunzip and read line-by-line — never buffer the whole file.
+  const pipeline = createInterface({
+    input: Readable.fromWeb(fileRes.body).pipe(createGunzip()),
+    crlfDelay: Infinity,
+  });
 
   const seen = new Set();        // guard against duplicate PKs within a batch
   let batch = [];
@@ -145,7 +153,9 @@ async function main() {
   }
 
   // for-await drives backpressure: the stream pauses while a batch upserts.
-  for await (const { value } of pipeline) {
+  for await (const line of pipeline) {
+    if (!line.trim()) continue; // trailing newline at EOF
+    const value = JSON.parse(line);
     processed += 1;
     if (!value?.oracle_id || seen.has(value.oracle_id) || isNonDeckable(value)) { skipped += 1; continue; }
     seen.add(value.oracle_id);
