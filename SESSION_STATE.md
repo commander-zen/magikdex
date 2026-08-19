@@ -1,5 +1,44 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-19 (later) — ✅ **ALL FOUR INGESTS RUN. Every cache is current for the first time since early July.**
+
+Ben: *"update all of them."* Done — `cards`, `tags`, `legend-edhrec --all`, `legend-tags`, in that order.
+
+| table | before | after | Δ |
+|---|---|---|---|
+| `cards` | 34,629 | **35,306** | +677 |
+| `card_tags` | 74,264 | **116,074** | +41,810 |
+| `legend_synergy` | 856,396 | **880,862** | +24,466 |
+| `legend_themes` | 136,628 | **141,421** | +4,793 |
+
+Baseline counts were taken BEFORE any write specifically so a silent prune would be provable. Every table moved up; nothing was lost.
+
+- **`ingest:tags`** — 50,340 rows across all 35 tags. Every tag came back ABOVE its July taxonomy figure (natural community drift, e.g. removal 6,367→6,428, anthem 432→512). The taxonomy's recorded counts in `otag-taxonomy.mjs` are now ~2-15% stale but are only used as a drift note, not a gate.
+- **`ingest:legend-edhrec -- --all`** — 3,384 candidates (was 3,321 in July, +63 new commanders), **3,349 cached, 35 with no EDHREC page** — the pageless count is unchanged from July. Zero 429s from EDHREC.
+- **`ingest:legend-tags`** — all 10 Box legends profiled off Tagger. `card_tags` source split is now **otag-search 115,930 / tagger-card-page 144**.
+
+### ⚠️ 38 × HTTP 429 FROM SCRYFALL — and the first 13 were self-inflicted
+`ingest:tags` took 13 backoffs, `ingest:legend-tags` another 25. **Cause of the first batch: I ran a full `--dry-run` walk (~260 pages) and then immediately the identical real walk, doubling request volume against `api.scryfall.com` inside a few minutes.** The dry run was the right instinct after the JSONL break — the prune-on-zero hazard below is real — but back-to-back full walks is exactly the pattern DATA_SOURCES.md warns ends the app.
+
+**Lesson for the next run: dry-run a SINGLE tag (`--tag=X`), not the whole taxonomy.** Same shape validation, 1/35th the requests.
+
+`politeFetch` handled all 38 correctly — honoured `retry-after` (60s each), never aborted. **Its 3-strike abort is PER REQUEST, not cumulative** (`attempt` resets inside each call), so scattered 429s across different pages can't kill a run; only three consecutive failures on one page can.
+
+**Deliberate ordering:** `legend-edhrec` was run BEFORE `legend-tags` even though tags/legend-tags are siblings — EDHREC uses a different host (`json.edhrec.com`; verified zero `api.scryfall.com` references in that script, commander enumeration reads our own Supabase), so slotting it between the two Scryfall jobs bought a free ~30 min cooldown at no cost to wall clock.
+
+### 🚨 PRUNE-ON-ZERO IS AN UNGUARDED HAZARD IN `ingest-tags.mjs`
+`writeCardTags` upserts, then `DELETE ... WHERE updated_at < runIso` scoped to `{tag, source}`. **If a tag ever returns zero ids — upstream rename, syntax change, a 200 with an empty payload — the prune deletes every row for that tag, silently, and the run reports success.** There is no `if (ids.length === 0) skip` guard. This is why the dry run happened at all. `ingest-legend-edhrec` does NOT share the flaw: a failed page fetch `continue`s before any write or prune, so an outage skips rather than wipes.
+
+**Suggested fix, not made (no unsolicited changes):** skip the prune when `ids.length === 0` and log it loudly.
+
+### 📋 EDHREC COMPLIANCE — explained to Ben in full, still HIS decision, nothing changed in code
+Ben asked for the detail. The substance, so it isn't re-derived next session:
+- **The distinction that matters is Scryfall vs EDHREC, not "are we polite."** Scryfall PUBLISHES bulk files and explicitly asks you to cache — we're doing what they want. EDHREC publishes no API, no bulk files, no terms; `json.edhrec.com` is their site's private backend, found by inspecting the page. Identical code, completely different standing.
+- **The sharp concern is SUBSTITUTION, not volume.** 880k cached synergy rows let a user get EDHREC's core product — *"what goes with this commander"* — without visiting EDHREC. They are ad-supported; those recommendations ARE the product. The Settings credit (`SettingsSheet.jsx` "built on" block) is honest but returns zero pageviews.
+- **It is load-bearing**: `brew_stack` v4 (015) depends on `legend_synergy`; Ben's own July verdict was that the generic fallback "loses a Commander player instantly." A block would degrade a core feature.
+- **The inconsistency worth remembering:** Ben asked Adam at ScryCheck BEFORE wiring his data in, and got explicit terms. EDHREC was ingested to 880k rows and shipped without the equivalent ask. Same category, opposite sequence.
+- **Recommended (not done):** (1) email EDHREC stating volume/cadence/attribution and ask — the move that worked with Adam; (2) deep-link the brew stack back into that commander's EDHREC page, which converts substitution into referral and is good product regardless. **Timing matters — this is a different risk as a listed app-store app than as a private side project.**
+
 ## 2026-08-19 — ✅ **CARD POOL REFRESHED (first since 2026-07-14) — and the ingest was silently broken by a Scryfall format change.**
 
 Ben asked how stale the card DB was, then asked for a refresh. Both answered.
@@ -1021,7 +1060,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-19**, unchanged in substance): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** (Card pool refreshed 2026-08-19 — 35,306 rows, ingest un-broken; the tag + EDHREC caches are NOT refreshed and are the next data job, but they block nothing on this priority.)
+Priority (**2026-08-19**, unchanged in substance): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** (All four caches refreshed 2026-08-19 — cards 35,306 / card_tags 116,074 / legend_synergy 880,862 / legend_themes 141,421. No data job is outstanding. Two things owed that block nothing: the unguarded prune-on-zero in `ingest-tags.mjs`, and Ben's call on the EDHREC ask — both detailed in the 2026-08-19 entries at the top.)
 
 Priority (**2026-08-11**): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** Everything is live and the round-trip is proven on production — `034` + `035` applied, all suites green, `SCRYCHECK_API_KEY` set, one real deck graded end to end. What has never happened is a human using it. Open the Box, swipe the detail pane to page 2, tap the radar.
 
