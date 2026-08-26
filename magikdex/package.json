@@ -14,7 +14,8 @@
     "ingest:cards": "node scripts/ingest-cards.mjs",
     "ingest:tags": "node scripts/ingest-tags.mjs",
     "ingest:legend-tags": "node scripts/ingest-legend-tags.mjs",
-    "ingest:legend-edhrec": "node scripts/ingest-legend-edhrec.mjs"
+    "ingest:legend-edhrec": "node scripts/ingest-legend-edhrec.mjs",
+    "gen:deck-cards": "node scripts/gen-deck-cards.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",
@@ -22,6 +23,7 @@
     "@capacitor/core": "^8.4.1",
     "@capacitor/ios": "^8.4.1",
     "@supabase/supabase-js": "^2.107.0",
+    "qrcode": "^1.5.4",
     "react": "^19.2.6",
     "react-dom": "^19.2.6"
   },

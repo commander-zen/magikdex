@@ -1,0 +1,83 @@
+{
+  "_comment": [
+    "Sample input for scripts/gen-deck-cards.mjs.",
+    "",
+    "Field names deliberately mirror the columns a future migration 036 would add",
+    "to trainer.deck, and the five vectors are ALSO accepted under their real",
+    "public.decks column names (scrycheck_speed, ...) so the same generator can be",
+    "pointed at a Supabase query with no reshaping once 035 is applied.",
+    "",
+    "decklist_url is the ScryCheck analysis page — migration 035 calls that value",
+    "'THE TAP TARGET'. It is publicly viewable, stable, and unguessable, so it",
+    "carries no enumeration risk the way a sequential /deck/0042 would.",
+    "",
+    "A null vector means NOT GRADED and prints an em dash, not a zero.",
+    "",
+    "The final line of the deck name gets the mockup's inverted accent block.",
+    "Because the mockup sets line-height 0.94, that block overlaps the line above",
+    "it — fine at one or two lines, visibly clipping at four or more. Set",
+    "\"accent\": null on a deck to turn it off for that card."
+  ],
+  "decks": [
+    {
+      "name": "Graveyard Shift",
+      "playstyle": "cedh",
+      "bracket": 5,
+      "archetype": "reanimator · sac value",
+      "catalog_number": "0042",
+      "decklist_url": "https://scrycheck.com/deck/6d451f3d168b6b20",
+      "stats": {
+        "speed": 96,
+        "consistency": 96,
+        "threats": 94,
+        "manaBase": 87,
+        "interaction": 88
+      }
+    },
+    {
+      "name": "Slivers",
+      "playstyle": "casual",
+      "bracket": 3,
+      "archetype": "tribal · go wide",
+      "catalog_number": "0043",
+      "decklist_url": "https://www.moxfield.com/decks/example-slivers",
+      "stats": {
+        "speed": 54,
+        "consistency": 61,
+        "threats": 72,
+        "manaBase": 44,
+        "interaction": 38
+      }
+    },
+    {
+      "name": "Mishra, Claimed by Gix",
+      "playstyle": "jank",
+      "bracket": 2,
+      "archetype": "artifacts · attrition",
+      "catalog_number": "0044",
+      "decklist_url": "https://www.archidekt.com/decks/example-mishra",
+      "stats": {
+        "speed": 41,
+        "consistency": 37,
+        "threats": 55,
+        "manaBase": 62,
+        "interaction": 29
+      }
+    },
+    {
+      "name": "Trash Magic Pile",
+      "playstyle": "trash_magic",
+      "bracket": 1,
+      "archetype": "chaos · bad on purpose",
+      "catalog_number": "0045",
+      "decklist_url": "https://www.moxfield.com/decks/example-pile",
+      "stats": {
+        "speed": null,
+        "consistency": null,
+        "threats": null,
+        "manaBase": null,
+        "interaction": null
+      }
+    }
+  ]
+}

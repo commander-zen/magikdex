@@ -1,5 +1,53 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-25 — ✅ **DECK ID CARD SHIPS: print-ready 300dpi card generator, batch, in `magikdex/scripts/`**
+
+Ben asked for the Deck ID Card from `deck-id-card-mockup-v4.html` — the reference card that goes in a deck box next to the physical deck. Built as a Node script, no browser, no new heavy dependency.
+
+**Run it:** `npm run gen:deck-cards` (in `magikdex/`). Flags: `--from <data.json>` `--out <dir>` `--only <catalog|slug>` `--svg`.
+
+| file | what |
+|---|---|
+| `scripts/gen-deck-cards.mjs` | CLI + batch + normalisation + warnings |
+| `scripts/lib/deck-id-card.mjs` | SVG builder, shrink-to-fit, QR path, geometry |
+| `scripts/lib/card-fonts.mjs` | font vendoring + the fontconfig gate |
+| `scripts/deck-cards.sample.json` | sample input, shaped like a future migration 036 |
+| `scripts/reference/deck-id-card-mockup-v4.html` | the mockup, kept in-repo as the spec |
+| `assets/fonts/` | Archivo Black + JetBrains Mono, both OFL, vendored |
+
+Output is **1050×750 PNG, density 300** = 3.5in × 2.5in. The pixel dimensions ARE the resolution; nothing resamples. Added `qrcode@^1.5.4` (already used in `trainer`) and an `sharp` was already present.
+
+**Geometry is measured, not guessed.** The mockup was served over HTTP with both webfonts confirmed loaded and every box read out of `getBoundingClientRect`. Two CSS facts drive it: `.card` is `border-box` with a 10px border, and absolutely-positioned children resolve against the PADDING box — so every `top:44px` in the stylesheet is 54px from the card edge.
+
+### 🚨 THE FINDING THAT MATTERS: setting `process.env.FONTCONFIG_FILE` IN-PROCESS SILENTLY DOES NOTHING
+sharp rasterises SVG through librsvg → pango → fontconfig, and **pango does not error on a missing font family — it substitutes the default sans.** Measured: at 80px, `Archivo Black`, `JetBrains Mono` and a deliberately fake `TotallyFakeFontXYZ` produced a **byte-identical PNG**. A missing font does not break the build, it ships a card that looks plausible and is wrong, on a print run you pay for.
+
+Worse, the obvious fix does not work. Assigning `process.env.FONTCONFIG_FILE` before dynamic-importing sharp looks correct and fails, because on Windows the native library reads its own copy of the environment. A/B, rendering "GRAVEYARD" at 86px:
+
+| how the env was set | Archivo Black ink width | verdict |
+|---|---|---|
+| in-process, before `import('sharp')` | 387px | system serif fallback — **WRONG** |
+| externally, on the command line | 583px | the real font (and Arial/Times stop resolving, proving isolation) |
+
+**So `ensureFontconfigEnv()` re-execs the process once** with the variable in the child's environment. `assertFonts()` runs first and hard-fails with the exact path it wants. Do not "simplify" either back into a static import.
+
+**The QR was verified, not eyeballed:** the drawn module matrix was compared against the encoded matrix at module-centre resolution — **0 mismatches of 1089**.
+
+### ⚠️ Known issues — four in the mockup, three in the data model
+- **The QR caption does not fit, in the mockup either.** The QR row is 346px; the QR takes 230 + a 20px gap, leaving 96px. Its first authored line "scan for full" is ~193px. The browser wraps it to **four** lines, not the two its `<br>` implies. Reproduced faithfully (wrapping at the flex item's 119px min-content width). **Real fixes are all design changes: shorter caption, caption under the QR, or a wider right column. Ben's call.**
+- **The mockup's own hero line overflows its column.** "GRAVEYARD" at 86px measures 589px in a 540px box and is clipped by `overflow:hidden`. Shrink-to-fit (the actual requirement) steps it to 79px, so **our card intentionally differs from the mockup here** — it is the bug being fixed.
+- **Three elements are below Ben's stated 26px readability floor**: `.kicker` and `.spec-head` at 22px, `.qr-caption` at 24px. Kept the mockup's values, since the mockup was declared ground truth — but the spec and the mockup contradict each other.
+- **QR quiet zone is 2.33 modules where the spec wants 4.** The 14px pad is only 2.33 modules at a version-4 code, with a 2px ink rule right outside it. Cream paper past the rule keeps it workable. **If cards scan unreliably, raise `QR.pad` 14 → 24.** The generator now warns when modules drop under 5px (~0.42mm) — it fires on a realistic long Archidekt URL (version 6, 4.83px).
+- **`archetype`, `catalog_number` and `playstyle` have no column anywhere.** The five vectors and `bracket` are real (034/035); these three are not. They live in the JSON for now, shaped so a migration 036 is mechanical. `PHILOSOPHY_CHOICES` in `trainer.js` already has exactly the four playstyle values, at profile level.
+- **`035_scrycheck_link.sql`'s header is stale** — it still says "⚠️ NOT YET APPLIED TO PRODUCTION" but the 2026-08-11 entry records it applied. Cost real time this session. Worth correcting in the file.
+- The name's inverted accent block overlaps the line above it (mockup line-height is 0.94). Fine at 1–2 lines, visibly clipping at 4+. Per-deck escape hatch: `"accent": null`.
+
+### Decisions taken, with reasons
+- **QR encodes `decklist_url`, defaulting to `scrycheck_url`** — 035 calls that value "THE TAP TARGET", it is publicly viewable, stable and unguessable. **Deliberately NOT the mockup's `/deck/0042`**: a sequential catalog number is enumerable, which contradicts "nothing is enumerable and no uuid is ever published" in `trainer.js`. No new route or RPC was added.
+- **The five bars reuse `SCRYCHECK_VECTORS`** from `ScryCheckRadar.jsx` rather than a parallel taxonomy — the mockup's row order already matched it exactly.
+- **null ≠ 0.** An ungraded vector prints an em dash and an empty track, never a zero bar. Verified on a card carrying both a real 0 and a real null.
+
+
 ## 2026-08-19 (later) — ✅ **ALL FOUR INGESTS RUN. Every cache is current for the first time since early July.**
 
 Ben: *"update all of them."* Done — `cards`, `tags`, `legend-edhrec --all`, `legend-tags`, in that order.
@@ -1060,7 +1108,13 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-08-19**, unchanged in substance): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** (All four caches refreshed 2026-08-19 — cards 35,306 / card_tags 116,074 / legend_synergy 880,862 / legend_themes 141,421. No data job is outstanding. Two things owed that block nothing: the unguarded prune-on-zero in `ingest-tags.mjs`, and Ben's call on the EDHREC ask — both detailed in the 2026-08-19 entries at the top.)
+Priority (**2026-08-25**): **PRINT ONE DECK ID CARD AND PUT IT IN A DECK BOX.** The generator is done and verified — `cd magikdex && npm run gen:deck-cards` writes 1050×750 @ 300dpi PNGs to `dist/deck-cards/`. What has never happened is one coming off a printer. **Two things to settle, both design calls only Ben can make** (full detail in the 2026-08-25 entry at the top):
+1. **The QR caption does not fit — in the mockup either**, which wraps it to four lines rather than the two its `<br>` implies. Shorter caption, caption under the QR, or wider right column?
+2. **`archetype`, `catalog_number` and `playstyle` have no column anywhere.** They live in `scripts/deck-cards.sample.json` today, shaped so a migration 036 is mechanical. Promote them, or leave the card file-driven? The five vectors + `bracket` are already real (034/035) and can be read straight from `public.decks` — the generator already accepts those column names, so pointing it at Supabase is a query, not a refactor.
+
+Also worth doing while in there: `035_scrycheck_link.sql`'s header still claims "NOT YET APPLIED TO PRODUCTION" though it was applied 2026-08-11.
+
+Priority (**2026-08-19**, STILL STANDING behind the card work): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** (All four caches refreshed 2026-08-19 — cards 35,306 / card_tags 116,074 / legend_synergy 880,862 / legend_themes 141,421. No data job is outstanding. Two things owed that block nothing: the unguarded prune-on-zero in `ingest-tags.mjs`, and Ben's call on the EDHREC ask — both detailed in the 2026-08-19 entries near the top.)
 
 Priority (**2026-08-11**): **BEN GRADES HIS OWN DECKS ON A REAL PHONE.** Everything is live and the round-trip is proven on production — `034` + `035` applied, all suites green, `SCRYCHECK_API_KEY` set, one real deck graded end to end. What has never happened is a human using it. Open the Box, swipe the detail pane to page 2, tap the radar.
 
