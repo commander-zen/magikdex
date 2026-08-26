@@ -8,7 +8,9 @@ import { Segmented } from "./CardFields.jsx";
 import {
   getSession, getMyProfile, claimHandle, myDecks, myLinks, updateMyProfile,
   normalizeHandle, handleProblem, readyNoteProblem, READY_NOTE_MAX,
+  myBuddies, addBuddy,
 } from "../lib/trainer.js";
+import { pendingScans, forgetScan } from "../lib/pendingScan.js";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
 
@@ -157,10 +159,16 @@ export default function MyCard() {
           <SignIn {...{ email, setEmail, code, setCode, sent, setSent, msg, setMsg, busy, sendCode, verify }} />
 
         ) : !profile ? (
-          <Claim {...{ handle, setHandle, displayName, setDisplayName, normalized, problem, busy, submitClaim, err, setErr }} />
+          <Claim {...{ handle, setHandle, displayName, setDisplayName, normalized, problem, busy, submitClaim, err, setErr }}
+                 pendingHandle={pendingScans().at(-1) ?? null} />
 
         ) : (
           <>
+            {/* Above the tabs on purpose: it is the reason a lot of people made
+                an account at all, and it must not be hiding behind a tab they
+                have no reason to open yet. It removes itself once answered. */}
+            <PendingBuddies myHandle={profile.handle} />
+
             <Segmented
               value={tab}
               options={[["card", "CARD"], ["buddies", "BUDDIES"]]}
@@ -191,6 +199,93 @@ export default function MyCard() {
         // normalised or rejected part of it, and the decks may have changed too.
         onSaved={() => refresh()}
       />
+    </div>
+  );
+}
+
+// THE OTHER HALF OF THE SCAN.
+//
+// Someone scanned a card at a table, had no account, and tapped through to make
+// one. Three screens later — email, code, screen name — they arrive here, and
+// until now the person they had just met was simply gone. They would have had to
+// remember a stranger's handle through a sign-up flow and go type it in.
+//
+// pendingScan.js parked the handle on their device on the way out. This offers it
+// back. It is the step that makes the product's own promise true: the buddy list
+// is an upgrade you can take later, not a toll gate at the table.
+//
+// ONE TAP, NEVER AUTOMATIC. Adding somebody to your social graph is not a thing
+// to do on a user's behalf because a URL was once open on their phone — and
+// add_buddy bumps met_count, so a silent add would also assert a game that may
+// not have happened. It asks, and "not now" is a real answer that stops asking.
+function PendingBuddies({ myHandle }) {
+  const [handles, setHandles] = useState([]);
+  const [busy, setBusy] = useState(null);
+  const [err, setErr] = useState(null);
+
+  useEffect(() => {
+    let cancelled = false;
+    (async () => {
+      const parked = pendingScans().filter(h => h !== myHandle?.toLowerCase());
+      if (!parked.length) return;
+      try {
+        // Filter against the real list first. Offering to add someone who is
+        // already a buddy would, if tapped, silently claim a second game.
+        const { buddies } = await myBuddies();
+        if (cancelled) return;
+        const have = new Set((buddies ?? []).map(b => b.handle?.toLowerCase()));
+        const fresh = parked.filter(h => !have.has(h));
+        // Anything already on the list is answered — stop parking it.
+        for (const h of parked) if (have.has(h)) forgetScan(h);
+        setHandles(fresh);
+      } catch {
+        // A failed read must not hide the prompt; the add itself re-checks.
+        if (!cancelled) setHandles(parked);
+      }
+    })();
+    return () => { cancelled = true; };
+  }, [myHandle]);
+
+  async function add(h) {
+    setBusy(h); setErr(null);
+    const { error } = await addBuddy(h);
+    setBusy(null);
+    if (error) { setErr(error); return; }
+    forgetScan(h);
+    setHandles(list => list.filter(x => x !== h));
+  }
+
+  function dismiss(h) {
+    forgetScan(h);
+    setErr(null);
+    setHandles(list => list.filter(x => x !== h));
+  }
+
+  if (!handles.length) return null;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
+      {handles.map(h => (
+        <div key={h} style={{
+          border: `1px solid ${t.accent}`, padding: 12,
+          display: "flex", flexDirection: "column", gap: 10,
+        }}>
+          <span style={{ ...mono, fontSize: 11, color: t.accent, lineHeight: 1.7 }}>
+            ◆ you kept @{h}&rsquo;s card
+          </span>
+          <div style={{ display: "flex", gap: 8 }}>
+            <button onClick={() => add(h)} disabled={busy === h} style={btn(true, busy === h)}>
+              {busy === h ? "adding…" : "add to buddies"}
+            </button>
+            <button onClick={() => dismiss(h)} disabled={busy === h} style={btn(false, busy === h)}>
+              not now
+            </button>
+          </div>
+        </div>
+      ))}
+      {err && (
+        <span style={{ ...mono, fontSize: 11, color: t.red, lineHeight: 1.7 }}>{err}</span>
+      )}
     </div>
   );
 }
@@ -315,11 +410,18 @@ function SignIn({ email, setEmail, code, setCode, sent, setSent, msg, setMsg, bu
   );
 }
 
-function Claim({ handle, setHandle, displayName, setDisplayName, normalized, problem, busy, submitClaim, err, setErr }) {
+function Claim({ handle, setHandle, displayName, setDisplayName, normalized, problem, busy, submitClaim, err, setErr, pendingHandle }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
+      {/* THE HARDEST MOMENT IN THE PRODUCT: choosing a permanent screen name,
+          often standing at a table while somebody waits. It cannot be skipped —
+          buddy.trainer_id is a foreign key to profile, so there is no adding
+          anyone without a handle — but it can at least say what it is FOR.
+          Arriving from a scan, the reason is a specific person, so name them. */}
       <span style={{ fontSize: 14, lineHeight: 1.65, color: t.white }}>
-        pick your screen name. it&rsquo;s how other players look you up.
+        {pendingHandle
+          ? <>pick your screen name and we&rsquo;ll add <strong>@{pendingHandle}</strong> to your buddies. it&rsquo;s how other players look <em>you</em> up.</>
+          : <>pick your screen name. it&rsquo;s how other players look you up.</>}
       </span>
       <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
         <span style={{ ...mono, fontSize: 16, color: t.dim }}>@</span>

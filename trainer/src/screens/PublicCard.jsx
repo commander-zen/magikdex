@@ -4,6 +4,7 @@ import {
   getPublicCard, getPublicDecks, getPublicLinks,
   getSession, getMyProfile, myBuddies, addBuddy,
 } from "../lib/trainer.js";
+import { rememberScan } from "../lib/pendingScan.js";
 
 // /t/<handle> — what a stranger gets after a scan, a link, or the physical card.
 // No auth. Renders only what the two public RPCs return.
@@ -114,6 +115,11 @@ function AfterScan({ handle, displayName }) {
   // ready to long-press. That works in every browser with no permission at all.
   async function keep() {
     const url = location.href;
+    // Park the handle before anything that can fail or navigate away. If they
+    // ever sign up on this device, MyCard offers to finish the connection — the
+    // half of the reframe ("add_buddy closes from either side, later") that
+    // nothing was actually asking them to do.
+    rememberScan(handle);
     setRevealed(true);
     try {
       if (navigator.share) {
@@ -189,7 +195,10 @@ function AfterScan({ handle, displayName }) {
             or <strong>share&nbsp;→ add to home screen</strong>. their discord and
             decks are on the back of the card.
           </span>
-          <a href="/" style={{
+          {/* Leaving for the sign-up is the strongest "I want to keep this" there
+              is, so the handle is parked on the way out. Coming back with a
+              profile, they are offered @handle instead of an empty buddy list. */}
+          <a href="/" onClick={() => rememberScan(handle)} style={{
             ...mono, fontSize: 11, color: DIM, textDecoration: "none",
             border: `1px solid ${MUTED}`, minHeight: 44, marginTop: 6,
             display: "flex", alignItems: "center", justifyContent: "center",

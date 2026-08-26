@@ -1,5 +1,34 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-26 — ✅ **THE SCAN NOW SURVIVES SIGN-UP** (+ edh-id is now called **ritual**)
+
+Ben renamed the product: **edh-id → ritual**, and mocked up seven surfaces. The repo, the `trainer/` subdir and the `edh-id.vercel.app` deploy all still carry the old name — only the vocabulary moved.
+
+**The seven surfaces, and what exists:** ritual landing ❌ · player-id ritual ❌ · player-id printed ❌ · commander-id ritual ❌ · **commander-id printed ✅ (the 2026-08-25 generator)** · buddy list ⚠️ backend only, no groups · LGS Yelp ❌ (name TBD, no schema). Each **-id** exists twice — an online ritual page and a printed card. That pairing is the pattern.
+
+### ⚠️ CORRECTION: the scan → no-account problem was ALREADY HALF SOLVED
+`AfterScan` in `PublicCard.jsx` has been handling the anon visitor properly — "you don't need an account to keep this", share sheet, and a revealed selectable URL as the guaranteed fallback. **Any note claiming a scan "offers nothing to tap" is stale.** Do not re-solve it.
+
+### What was actually missing, and is now built
+**Nothing survived the sign-up.** An anon scanner tapped "make your own card", went email → code → permanent screen name, landed on their own card — and the person they just met was gone. The product's own promise ("add_buddy closes from either side, later") was true and **nothing ever asked them to close it**.
+
+- **`src/lib/pendingScan.js`** (new) — parks the handle in localStorage. **Recorded on INTENT, never on view**: saving the link, or leaving to make a card. Storing on view would build a passive log of who someone browsed, which is the thing 025 refuses to keep. 30-day TTL applied on read (there is no background anywhere to run a timer), 20-entry cap, every access try/caught — a QR scan routinely opens in Instagram's or Discord's in-app browser where localStorage throws.
+- **`PendingBuddies`** in `MyCard.jsx` — offers parked handles back, above the tabs. **One tap, never automatic**: `add_buddy` bumps `met_count`, so a silent add would assert a game that may not have happened. Filters against the real buddy list first; "not now" is a real answer that stops asking.
+- **`Claim`** now names the person when you arrive from a scan — "pick your screen name and we'll add **@zen**".
+
+**Verified in the real app** against production data: `@zen`'s card renders, tapping *save* parks `[{"handle":"zen","at":…}]`, it survives the route change to `/`, no console errors, prod build clean. Eight logic branches unit-tested (dedup, case-fold, TTL, cap, forget, empty handle, corrupt JSON, **throwing localStorage never propagates**) — all pass.
+
+⚠️ **NOT verified end-to-end: the signed-in half.** Confirming "sign up → prompt appears → add" needs an email OTP I cannot receive. The logic is tested and the build is clean, but a human has not walked it.
+
+### 🚨 The remaining half needs a MIGRATION, not UI
+**`trainer.buddy.trainer_id` is a foreign key to `trainer.profile(id)`.** `add_buddy` itself only checks `auth.uid()` — the FK is the real gate. So a signed-in user with no claimed handle **physically cannot add anyone**, and picking a permanent screen name stays mandatory before any social action. 027 pins it to one change per 30 days and reserves released handles forever, so it is chosen under pressure and is effectively irreversible. "Sign in → add them → name yourself later" is impossible until that FK changes.
+
+### Product notes from the mockups
+- **The SCRYCHECK block on commander-id is a licensing term, not decoration.** 034 records that Adam approved showing the five vectors *on a self-report basis with attribution and a link back*. Ben's "analysis powered by SCRYCHECK" panel plus a QR to scrycheck.com IS that term. It also fixes the v4 caption, which genuinely does not fit (96px column, ~193px line, wraps to four lines in the browser too).
+- **LGS Yelp is already the right shape; only the name is wrong.** Ben explicitly does not want star ratings — he wants two verifiable facts: does this store run a night for format X, and when. His chips (Success / Review / Pending) are a **verification state, not a score**, which keeps it clear of the standing "no aggregate score, rank or power level anywhere" rule that killed `trust_level()`.
+- Landscape on the printed commander-id is load-bearing: it is the one card in the box that is not 63×88mm, so it reads as *not a Magic card* by shape alone.
+
+
 ## 2026-08-25 — ✅ **DECK ID CARD SHIPS: print-ready 300dpi card generator, batch, in `magikdex/scripts/`**
 
 Ben asked for the Deck ID Card from `deck-id-card-mockup-v4.html` — the reference card that goes in a deck box next to the physical deck. Built as a Node script, no browser, no new heavy dependency.
@@ -1107,6 +1136,14 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 - 3 empty test-only anon users remain (`25d64369`, `43143805`, `45b16f05`) — I was blocked from deleting auth users (correctly; destructive auth op). Safe to delete by hand.
 
 ## Cold Start Prompt
+
+Priority (**2026-08-26**): **WALK THE SIGN-UP ON A PHONE, THEN DECIDE ABOUT THE HANDLE FK.** The scan now survives sign-up (`pendingScan.js` + `PendingBuddies`), but **the signed-in half has never been walked by a human** — it needs an email OTP. Scan a card signed out, tap save, sign up, and confirm the "you kept @zen's card" prompt appears and adds.
+
+Then the one real decision: **`trainer.buddy.trainer_id` is a foreign key to `trainer.profile(id)`**, so nobody can add a buddy before claiming a permanent screen name — chosen under pressure at a table, changeable once per 30 days, released handles reserved forever. Making "sign in → add them → name yourself later" possible is a **migration** (nullable profile, or an auto-created handle-less profile row), plus a privacy decision about what a handle-less row means. Everything social is gated behind this.
+
+Also open, in rough order: **ritual landing** (nothing exists; the blackletter "swipe to start" mock), **commander-id ritual** (the online deck page — the vector taxonomy, proportional bars and null-is-not-zero rule are already written and reusable from the generator), **buddy list groups** (Ben's mock has `Slinging Spells > LGS (3/35)`; the backend has no grouping), and **LGS Yelp** (needs a name and a schema; keep it two facts — format night yes/no, and when — never a rating).
+
+Smaller: apply Ben's mockup-7 revision to the printed commander-id (SCRYCHECK attribution block replaces the broken caption) — needs either a v5 HTML to measure or permission to derive the px. And `035_scrycheck_link.sql`'s header still wrongly says "NOT YET APPLIED TO PRODUCTION".
 
 Priority (**2026-08-25**): **PRINT ONE DECK ID CARD AND PUT IT IN A DECK BOX.** The generator is done and verified — `cd magikdex && npm run gen:deck-cards` writes 1050×750 @ 300dpi PNGs to `dist/deck-cards/`. What has never happened is one coming off a printer. **Two things to settle, both design calls only Ben can make** (full detail in the 2026-08-25 entry at the top):
 1. **The QR caption does not fit — in the mockup either**, which wraps it to four lines rather than the two its `<br>` implies. Shorter caption, caption under the QR, or wider right column?
