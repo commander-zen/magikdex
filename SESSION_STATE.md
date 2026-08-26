@@ -1,5 +1,24 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-26 (print) — ✅ **PRINT PAGE IS AIM, AND THE 3×3 IS ACTUALLY A 3×3**
+
+Ben: *"that seems to inform the 'print your card' so that also needs updating. and the 9 per sheet should be a 3x3 grid (like how proxy cards are printed)."*
+
+### 🐛 The sheet was never a 3×3 on screen
+`.print-sheet` used `grid-template-columns: repeat(auto-fit, 63mm)`. **auto-fit sizes to the VIEWPORT**, so nine cards landed four or five across on a desktop and the on-screen sheet did not match the page. The file's own comment claimed "a 3x3 grid of 63mm cards is 189mm × 264mm" — the INTENT was always 3×3, the CSS just never enforced it. It happened to come out right in print only because the printable width could not fit a fourth column.
+
+Now `repeat(3, 63mm)`, explicitly. **Measured after the change: 3 columns × 3 rows, each cell 238.104px (= 63mm at 96dpi) × 332.594px (= 88mm).** 189mm × 264mm clears Letter (206 × 269mm printable) and A4 (200 × 287mm) at the 5mm margin — so the fixed grid is also the largest that still fits, not an arbitrary number. The single-card option overrides to one column inline, so it centres instead of sitting in the left cell of an empty 3-wide grid.
+
+Label changed from "9 per sheet" to "3 × 3 sheet" — it names the thing a proxy printer is looking for.
+
+### The chrome
+The control panel is now an AIM window on the dark desktop, matching every other surface: beveled title bar reading "print & sleeve", back arrow in the bar, beveled buttons. **The selected count is drawn PRESSED IN** (inverted bevel + inset shadow) rather than just recoloured — on paper chrome a colour change alone is too quiet to read as state.
+
+⚠️ **A patch script left the page briefly unreadable and the build did not care.** The token substitutions applied while the structural replacements silently MISSED (CRLF vs `\n` in the template literals again), so the panel ended up with ink-coloured text on the `#08090c` ground — invisible, and `vite build` passed. Same lesson as the `setLinks` bug: **a green build says nothing about whether a scripted edit landed.** Fixed by redoing it with exact-match edits and checking the rendered result.
+
+**The printed card itself is unchanged** — still the dark `BadgeCard` at 63 × 88mm. That is the artifact, not chrome.
+
+
 ## 2026-08-26 (settings) — ✅ **SETTINGS IS AIM NOW** — and the dead code from the rewrite is gone
 
 Ben: *"settings needs to be updated too it has the old design."*
