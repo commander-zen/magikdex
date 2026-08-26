@@ -5,6 +5,7 @@ import BadgeCard from "../components/BadgeCard.jsx";
 import BuddyList from "./BuddyList.jsx";
 import SettingsSheet from "./SettingsSheet.jsx";
 import RitualLanding from "./RitualLanding.jsx";
+import RitualDeck from "./RitualDeck.jsx";
 import { Segmented } from "./CardFields.jsx";
 import {
   getSession, getMyProfile, claimHandle, myDecks, myLinks, updateMyProfile,
@@ -43,6 +44,7 @@ export default function MyCard() {
   // rather than inside it — a signed-out visitor should not see a "TRAINER"
   // header and a settings gear behind the front door.
   const [started, setStarted] = useState(false);
+  const [manageOpen, setManageOpen] = useState(false);
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -136,6 +138,49 @@ export default function MyCard() {
   // signed-in user while the session is still being read.
   if (!loading && !session?.userId && !started) {
     return <RitualLanding onStart={() => setStarted(true)} />;
+  }
+
+  // SIGNED IN AND SET UP → RITUAL, the swipeable stack. This REPLACES the old
+  // two-tab card/buddies screen, which is what made the app read as a settings
+  // page with a card in it. Editing, privacy and sign-out all still exist and
+  // all still live behind the gear, which the deck carries in its header.
+  if (!loading && session?.userId && profile) {
+    return (
+      <>
+        <RitualDeck
+          profile={profile}
+          decks={decks}
+          onOpenSettings={() => setSettingsOpen(true)}
+          onManageBuddies={() => setManageOpen(true)}
+          onSaved={() => refresh()}
+          banner={<PendingBuddies myHandle={profile.handle} />}
+        />
+
+        {/* The full buddy list — add by handle, notes, remove, block. Still the
+            dark styling; the AIM card is the view, this is the workbench. */}
+        {manageOpen && (
+          <div style={{
+            position: "fixed", inset: 0, background: t.base, zIndex: 40,
+            overflowY: "auto", padding: "18px 20px 44px",
+          }}>
+            <div style={{ maxWidth: 460, margin: "0 auto", display: "flex", flexDirection: "column", gap: 14 }}>
+              <button onClick={() => { setManageOpen(false); refresh(); }} style={{
+                alignSelf: "flex-start", background: "transparent", border: "none",
+                ...mono, fontSize: 11, color: t.dim, cursor: "pointer", padding: "10px 0",
+              }}>← back to ritual</button>
+              <BuddyList />
+            </div>
+          </div>
+        )}
+        <SettingsSheet
+          open={settingsOpen}
+          onClose={() => setSettingsOpen(false)}
+          profile={profile}
+          session={session}
+          onSaved={() => refresh()}
+        />
+      </>
+    );
   }
 
   return (

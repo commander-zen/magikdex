@@ -1,5 +1,28 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-26 (later still) — ✅ **RITUAL IS THE APP NOW** — the swipeable AIM stack replaced the two-tab screen
+
+Ben, twice: *"this looks the same."* He was right both times and the reason was the same — I was adding things at the edges (a landing only visible signed-out, a prompt only visible mid-flow) while the surface he actually opens, **signed in**, was untouched. His instruction: *"i dont care if you rip edh-id to the studs and build ritual in its place."*
+
+**The old signed-in view (Segmented CARD / BUDDIES tabs) is gone.** In its place: one horizontal scroll-snap rail of AIM windows — `player-id` → one `commander-id` per deck → `buddy list` → `local game stores`, with dots.
+
+- `src/ui/aim.jsx` (new) — the shared window chrome: beveled bars, `Window`, `Field`, `Slashed`. One home, or every screen drifts within a week. **The AIM window is the one place border-radius is allowed** (same exception the card object already had).
+- `src/screens/RitualDeck.jsx` (new) — the rail. **Native `scroll-snap-type: x mandatory`, not a carousel lib**: real touch/trackpad/keyboard/screen-reader behaviour for free, and it cannot desync from its own index. The dots READ `scrollLeft` rather than owning it.
+- **Buddy list runs on REAL data, grouped by `met_venue`**, with `(ready_to_pod / total)` counts — exactly AIM's online/total, and the only "who's around" signal this schema has. It is a claim the person made, never presence inferred from activity.
+
+### ⚠️ Two things nearly lost to the rewrite, both restored
+The early return orphaned `ReadyToggle` and the full `BuddyList`. Ripping to the studs is not the same as silently dropping features:
+- **`ready_to_pod`** rebuilt in AIM styling on the player-id card. It is load-bearing, not a toy — it fills the buddy-list counts.
+- **Full `BuddyList`** (add by handle, notes, remove, block) reachable via *manage* in the buddy card footer. Still dark-styled; the AIM card is the VIEW, that is the workbench. Restyling it is a follow-up.
+
+### Known gaps, deliberate
+- **The five bars on `commander-id` render as em dashes.** They cannot be filled from this app: the vectors are on magikdex's `public.decks` (034), while `trainer.deck` holds only name, two URLs and the overall rating. **Reading across needs an RPC + migration.** Drawing them at zero would be a lie — same null-is-not-zero rule as the radar and the printed card.
+- **`local game stores` has no schema** and shows an honest empty state. Fabricating "Game Universe · Success" would be inventing a fact about a real business. Chips are a **verification state, not a rating** — that is what keeps it clear of the no-scores rule.
+- Onboarding past the landing is still the plain email sign-in.
+
+Verified by mounting `RitualDeck` against stub props in a throwaway entry (deleted): all five cards render, no console errors, `cEDH` capitalises correctly via a `SPECIAL` label map since no naive transform produces it.
+
+
 ## 2026-08-26 (later) — ✅ **RITUAL LANDING IS LIVE** — the first thing a signed-out visitor sees
 
 Built Ben's landing mock as drawn: Y2K AIM window, beveled title and action bars, blackletter `Ritual` wordmark (UnifrakturMaguntia, added to `index.html`), the "daily practice / one time burst of resources" copy, and a "swipe to start →" bar that takes both a swipe and a tap — half of everyone taps a thing that says swipe.
