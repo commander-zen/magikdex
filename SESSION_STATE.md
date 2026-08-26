@@ -1,5 +1,27 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-26 (the card itself) — ✅ **BADGECARD IS THE MSCHF FRAME** — the settings preview was the tell
+
+Ben, pointing at the card preview inside settings → *"the preview panel is still the old version, this is the last spot (in settings)."*
+
+**Why this could not be a preview-only fix.** `BadgeCard` renders BOTH the live editor preview AND the public page at `/t/<handle>` — that one-renderer property is stated at the top of the file and is the reason the preview is trustworthy. Restyling only the preview would have produced a preview that LIES about what a stranger loads. So the card moved, and the preview followed for free. **`/t/<handle>` now looks different to every scanner** — that is a consequence of the fix, not a side quest.
+
+Done as a palette inversion, the same trick that made settings cheap: the `C` tokens flip to the deck-id values (cream `#F5F1E6`, ink `#161311`, the yellow bar `#F5C400`, track `#E1DACB`) and the two font roles repoint — `slab` → Archivo Black, `mono` → JetBrains Mono. Every call site is untouched.
+
+Four things the flip alone got wrong, fixed individually:
+- **`fontWeight: 600` on the handle.** Archivo Black ships ONE weight, so anything but 400 asks the browser to synthesise a bold over an already-black face and it smears.
+- **The philosophy type line used the display face** with `fontWeight: on ? 700 : 400` — same synthesis problem, and the lit/unlit distinction would have read as a rendering artefact. Moved to JetBrains Mono 800/500, which is what the mockup's tag actually uses.
+- **The commander art wash.** `opacity: 0.28` over a DARK panel was a subtle tint; the same value over cream is a flat grey smear. Now `mix-blend-mode: multiply` at 0.35 — it lays down like ink on paper, light areas drop out, and the QR's white quiet zone stays genuinely white.
+- **Both collector lines sat on `C.edge`**, which is now the ink rule — a dark strip across the foot of a cream card and needless ink on a print. Moved to the track colour.
+
+The handle also steps down 17 → 14 → 12u by length and ellipsises, since `[a-z0-9_]` means it can never wrap.
+
+### 🚨 NOT VERIFIED — the machine ran out of RAM
+`vite build` dies with `WebAssembly.instantiate(): Out of memory` and `npx vite` dies with `ERR_MEMORY_ALLOCATION_FAILED`. **0.75 GB free of 7.87 GB** (Firefox ~780MB across two processes, Memory Compression 679MB, Signal 300MB). Not a code fault — Rolldown's WASM simply cannot get a heap.
+
+Pushed regardless, and that is safe for a specific reason: **a build failure on Vercel fails the DEPLOY and leaves prod on the previous bundle**, so it cannot white-screen the live site. The changes are styling with one guarded expression (`card.handle?.length`). **Someone still needs to look at it.** If a future session needs a local build, free memory first.
+
+
 ## 2026-08-26 (print card) — ✅ **THE PRINTED PLAYER-ID IS THE MSCHF CARD NOW**
 
 Ben sent `deck-id-card-mockup-v4.html` again: *"i want that updated as well so it prints like the MSCHF inspired mockup that i had."*

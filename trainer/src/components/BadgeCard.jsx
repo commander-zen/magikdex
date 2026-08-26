@@ -9,24 +9,35 @@ import { PHILOSOPHY_CHOICES } from "../lib/trainer.js";
 // ONE renderer for the public page and the live editor preview, so what you see
 // while editing is literally what a stranger loads.
 //
-// The frame is dark rather than a colour: on a real card the border colour comes
-// from colour identity, which this card does not have. Letting the commander's art
-// supply all the colour keeps every card consistent and stops the frame competing
-// with the artwork.
-
+// ── The MSCHF frame (was dark) ───────────────────────────────────────────────
+// Same palette and type as scripts/reference/deck-id-card-mockup-v4.html: cream
+// paper, ink rule, the yellow bar, Archivo Black over JetBrains Mono.
+//
+// THE PREVIEW IS WHY THIS CHANGED. This component renders BOTH the live editor
+// preview in settings AND the public page at /t/<handle>. Restyling only the
+// preview would have made it a preview that lies about what a stranger loads —
+// so the card itself moved, and the preview followed for free. That is the same
+// property the file was built on: one renderer, no divergence.
+//
+// The old note here argued the frame should be dark so the commander's art
+// supplies all the colour. That still holds as a principle — the frame does not
+// compete with the art — it just resolves to cream now instead of near-black,
+// and cream costs a fraction of the ink when this ends up on a home printer.
 const C = {
-  edge:    "#0a0a0c",  // black border, like a modern card
-  frame:   "#1a1d24",
-  panel:   "#12151a",
-  bar:     "#232833",
-  ink:     "#e8eaed",
-  dim:     "#8892a0",
-  faint:   "#5a6672",
-  accent:  "#38bdf8",
-  line:    "#2a3138",
+  edge:    "#161311",  // the ink rule; on a real card, the black border
+  frame:   "#F5F1E6",  // paper
+  panel:   "#EFEAD9",  // the art/QR well, a shade down from paper
+  bar:     "#F5C400",  // the yellow bar — the spine colour from the deck-id card
+  ink:     "#161311",
+  dim:     "#6B6459",
+  faint:   "#6B6459",
+  accent:  "#161311",  // a claimed philosophy is ink and bold, not a colour
+  line:    "#E1DACB",
 };
-const slab = { fontFamily: "'Zilla Slab', serif" };
-const mono = { fontFamily: "'Noto Sans Mono', monospace" };
+// Named for their ROLE, not their typeface, so the mapping lives in one place:
+// `slab` is the display face and `mono` is the label face.
+const slab = { fontFamily: "'Archivo Black', sans-serif" };
+const mono = { fontFamily: "'JetBrains Mono', monospace" };
 
 // Everything inside the card is sized in `cqw` — percentages of the CARD's own
 // width — so one renderer works at any size. Numbers below are still written as
@@ -100,7 +111,16 @@ export default function BadgeCard({ card, decks = [], links = [], width = null, 
               {/* Title bar — screen name only. No mana cost: the Magic card is a
                   model for size and rhythm here, not a system to reimplement. */}
               <Bar>
-                <span style={{ ...slab, fontSize: u(17), fontWeight: 600, color: C.ink }}>
+                {/* No fontWeight: Archivo Black ships ONE weight, so any value
+                    other than 400 asks the browser to synthesise a bold on top
+                    of an already-black face — which smears it. A handle is
+                    3–20 chars and cannot wrap ([a-z0-9_] only, no space to break
+                    on), so it shrinks to fit rather than overflowing the bar. */}
+                <span style={{
+                  ...slab, fontSize: u(card.handle?.length > 12 ? 12 : card.handle?.length > 8 ? 14 : 17),
+                  color: C.ink, minWidth: 0,
+                  overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                }}>
                   @{card.handle}
                 </span>
               </Bar>
@@ -130,7 +150,14 @@ export default function BadgeCard({ card, decks = [], links = [], width = null, 
                   <img src={card.commander_art_url} alt=""
                        style={{
                          position: "absolute", inset: 0, width: "100%", height: "100%",
-                         objectFit: "cover", opacity: 0.28,
+                         objectFit: "cover",
+                         // multiply, not plain opacity. 0.28 opacity over a DARK
+                         // panel read as a subtle wash; the same value over cream
+                         // washes the art out to a flat grey smear. Multiply lays
+                         // it down like ink on paper — the light areas drop away
+                         // and the cream shows through — which is also what keeps
+                         // the QR's white quiet zone genuinely white.
+                         mixBlendMode: "multiply", opacity: 0.35,
                        }} />
                 )}
                 <QrPanel handle={card.handle} />
@@ -145,11 +172,17 @@ export default function BadgeCard({ card, decks = [], links = [], width = null, 
                     const on = card.philosophy?.includes(v);
                     return (
                       <span key={v} style={{ display: "flex", alignItems: "baseline", gap: u(4) }}>
-                        {i > 0 && <span style={{ ...mono, fontSize: u(9), color: C.line }}>//</span>}
+                        {i > 0 && <span style={{ ...mono, fontSize: u(9), color: C.dim, opacity: 0.55 }}>//</span>}
+                        {/* Mono, not the display face: Archivo Black ships a
+                            single weight, so `fontWeight: 700` here would be a
+                            synthesised bold and the lit/unlit distinction would
+                            read as a rendering artefact. JetBrains Mono has real
+                            800 and 500, which is also what the mockup's tag uses. */}
                         <span style={{
-                          ...slab, fontSize: u(12),
-                          fontWeight: on ? 700 : 400,
+                          ...mono, fontSize: u(11),
+                          fontWeight: on ? 800 : 500,
                           color: on ? C.accent : C.faint,
+                          opacity: on ? 1 : 0.5,
                         }}>
                           {label(v)}
                         </span>
@@ -165,9 +198,9 @@ export default function BadgeCard({ card, decks = [], links = [], width = null, 
               {/* Collector line — the artist credit lives here, exactly where a
                   real card puts it. Scryfall asks for it and the frame wants it. */}
               <div style={{
-                flex: "0 0 auto", background: C.edge, padding: `${u(5)} ${u(10)}`,
+                flex: "0 0 auto", background: C.line, padding: `${u(5)} ${u(10)}`,
                 display: "flex", justifyContent: "space-between", gap: u(8),
-                ...mono, fontSize: u(8), color: C.faint,
+                ...mono, fontSize: u(8), color: C.dim,
               }}>
                 <span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
                   {card.display_name}
@@ -256,8 +289,8 @@ export default function BadgeCard({ card, decks = [], links = [], width = null, 
               </div>
 
               <div style={{
-                flex: "0 0 auto", background: C.edge, padding: `${u(5)} ${u(10)}`,
-                ...mono, fontSize: u(8), color: C.faint,
+                flex: "0 0 auto", background: C.line, padding: `${u(5)} ${u(10)}`,
+                ...mono, fontSize: u(8), color: C.dim,
                 display: "flex", justifyContent: "space-between",
               }}>
                 <span>@{card.handle}</span>
