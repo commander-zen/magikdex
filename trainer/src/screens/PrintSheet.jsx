@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { bevel, INK, PAPER, SUBTLE, aimBtn } from "../ui/aim.jsx";
-import BadgeCard from "../components/BadgeCard.jsx";
+import PrintCard from "../components/PrintCard.jsx";
 import { getSession, getMyProfile } from "../lib/trainer.js";
 
 // PRINT IT, CUT IT, SLEEVE IT.
@@ -156,7 +156,7 @@ export default function PrintSheet() {
           }}>
             {Array.from({ length: count }, (_, i) => (
               <div className="print-cell" key={i}>
-                <BadgeCard card={profile} width="63mm" flat />
+                <PrintCard card={profile} width="63mm" />
               </div>
             ))}
           </div>

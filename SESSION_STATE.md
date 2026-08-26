@@ -1,5 +1,25 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-26 (print card) — ✅ **THE PRINTED PLAYER-ID IS THE MSCHF CARD NOW**
+
+Ben sent `deck-id-card-mockup-v4.html` again: *"i want that updated as well so it prints like the MSCHF inspired mockup that i had."*
+
+`src/components/PrintCard.jsx` (new) — cream paper `#F5F1E6`, ink `#161311`, the yellow spine strip, Archivo Black hero over JetBrains Mono labels. Added both faces to `index.html`; they are the artifact's identity, not substitutable the way a UI font is.
+
+**Same language, different geometry, and that is not a shortcut.** The deck-id card is landscape 3.5 × 2.5in *so it stands out in a deck box*; the player-id is portrait 63 × 88mm *so it fits a sleeve next to real cards*. The palette, type and motifs transfer; the layout cannot.
+
+**Why not just recolour BadgeCard:** the dark card is right on screen and wrong on paper — a full-bleed near-black card burns a cartridge, bands on plain paper, and puts the QR on a dark ground, the worst case for a scanner. The v4 mockup's own note says it: cream keeps ink coverage low AND lets the QR scan at full contrast. **BadgeCard is untouched and still owns `/t/<handle>`.** This is print-only.
+
+- **The hero steps down by handle length.** A handle is 3–20 chars and CANNOT wrap — the shape check allows only `[a-z0-9_]`, so there is no space to break on. A single size overflows at 20 or wastes half the card at 4. Five steps, each checked against the 300px content width at the 340px basis.
+- Sized in `cqw` on the same 340px basis as BadgeCard, so a width in millimetres resolves every font and gap to physical units.
+- The QR takes the leftover vertical space, so a profile with no play style gets a *bigger* code rather than a hole — strictly better for scanning. `margin: 4` carried over; that quiet zone is the spec.
+- An unset game style renders nothing at all — an empty yellow box reads as a printing fault, not as "not answered".
+
+**Verified on a rendered 3×3 sheet** (9 cells, 3 rows): cards exactly 238 × 333px = 63 × 88mm, paper `rgb(245,241,230)`, both fonts genuinely loaded, QR drawn. **Zero overflowing elements across four profiles** — including a 17-character handle (hero steps 40.6px → 14.0px) and a profile with no styles set.
+
+⚠️ Could not screenshot — the browser pane would not composite in this session, so this was verified by measurement rather than by eye.
+
+
 ## 2026-08-26 (print) — ✅ **PRINT PAGE IS AIM, AND THE 3×3 IS ACTUALLY A 3×3**
 
 Ben: *"that seems to inform the 'print your card' so that also needs updating. and the 9 per sheet should be a 3x3 grid (like how proxy cards are printed)."*
