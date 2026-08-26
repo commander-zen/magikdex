@@ -1,5 +1,21 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-26 (later) — ✅ **RITUAL LANDING IS LIVE** — the first thing a signed-out visitor sees
+
+Built Ben's landing mock as drawn: Y2K AIM window, beveled title and action bars, blackletter `Ritual` wordmark (UnifrakturMaguntia, added to `index.html`), the "daily practice / one time burst of resources" copy, and a "swipe to start →" bar that takes both a swipe and a tap — half of everyone taps a thing that says swipe.
+
+**Light window on the dark page, deliberately.** The mock is light and the app is dark (`#08090c`); that is not a conflict to resolve, it is how AIM looked — light chrome on whatever desktop was behind it. Page ground stays dark, window is light, nothing else had to be restyled.
+
+- `src/screens/RitualLanding.jsx` (new), rendered from `MyCard` when signed out and not yet started.
+- **Gated on `!loading`** so it cannot flash in front of a signed-in user while the session is still being read.
+- **Nothing is persisted about having seen it.** A "seen it" flag means a returning signed-out visitor — including Ben, two minutes after shipping — never sees the landing again. The cost of showing it is one tap.
+- **`/t/<handle>` is NOT gated by it** — verified. The scan target is a different route and must never sit behind a front door.
+
+Verified in-browser at 375×812: renders, the blackletter font actually loads (`document.fonts.check` true, not a serif fallback), start → sign-in works, no console errors, `/t/zen` unaffected.
+
+**Onboarding past the landing is still TBD** — "swipe to start" currently goes straight to the existing email sign-in.
+
+
 ## 2026-08-26 — ✅ **THE SCAN NOW SURVIVES SIGN-UP** (+ edh-id is now called **ritual**)
 
 Ben renamed the product: **edh-id → ritual**, and mocked up seven surfaces. The repo, the `trainer/` subdir and the `edh-id.vercel.app` deploy all still carry the old name — only the vocabulary moved.

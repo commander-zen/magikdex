@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase.js";
 import BadgeCard from "../components/BadgeCard.jsx";
 import BuddyList from "./BuddyList.jsx";
 import SettingsSheet from "./SettingsSheet.jsx";
+import RitualLanding from "./RitualLanding.jsx";
 import { Segmented } from "./CardFields.jsx";
 import {
   getSession, getMyProfile, claimHandle, myDecks, myLinks, updateMyProfile,
@@ -38,6 +39,10 @@ export default function MyCard() {
   const [loadErr, setLoadErr] = useState(null);
   const [tab, setTab] = useState("card");
   const [settingsOpen, setSettingsOpen] = useState(false);
+  // The landing owns the whole screen, so it renders BEFORE the app chrome
+  // rather than inside it — a signed-out visitor should not see a "TRAINER"
+  // header and a settings gear behind the front door.
+  const [started, setStarted] = useState(false);
 
   const [email, setEmail] = useState("");
   const [code, setCode] = useState("");
@@ -125,6 +130,13 @@ export default function MyCard() {
 
   const normalized = normalizeHandle(handle);
   const problem = normalized ? handleProblem(normalized) : null;
+
+  // The front door. Signed out and not yet started → the landing, full screen.
+  // Gated on `!loading` so it cannot flash up for half a second in front of a
+  // signed-in user while the session is still being read.
+  if (!loading && !session?.userId && !started) {
+    return <RitualLanding onStart={() => setStarted(true)} />;
+  }
 
   return (
     <div style={{ minHeight: "100dvh", background: t.base, display: "flex", justifyContent: "center" }}>
