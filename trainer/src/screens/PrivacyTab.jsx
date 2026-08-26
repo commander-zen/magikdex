@@ -1,9 +1,12 @@
 import { useState } from "react";
-import { t } from "../theme.js";
+import { aimTheme as t, aimInput, aimBtn } from "../ui/aim.jsx";
 import { updateMyProfile, getPublicCard, VISIBILITY_CHOICES } from "../lib/trainer.js";
 import { Label } from "./CardFields.jsx";
 
-const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
+// Neutralised for the AIM window: these screens inherit the page sans now.
+// Kept as a spread-in object rather than deleted so the ~20 call sites that
+// spread it stay untouched.
+const mono = {};
 
 // Who can see your card, on its own surface — it is a different decision from
 // what the card says, and mixing them was most of why the old screen felt like a
@@ -110,10 +113,4 @@ export default function PrivacyTab({ profile, onSaved }) {
   );
 }
 
-const btn = (primary, disabled) => ({
-  minHeight: 48, flex: 1, background: "transparent",
-  border: `1px solid ${disabled ? t.muted : primary ? t.accent : t.dim}`,
-  color: disabled ? t.dim : primary ? t.accent : t.dim,
-  ...mono, fontSize: 12,
-  cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
-});
+const btn = aimBtn;

@@ -1,12 +1,15 @@
 import { useEffect, useState } from "react";
-import { t } from "../theme.js";
+import { aimTheme as t, aimInput, aimBtn } from "../ui/aim.jsx";
 import {
   myDecks, saveDeck, clearDeck,
   MAX_DECKS, DECK_NAME_LEN, RATING_MAX, SCRYCHECK_URL,
   deckUrlProblem, scrycheckProblem,
 } from "../lib/trainer.js";
 
-const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
+// Neutralised for the AIM window: these screens inherit the page sans now.
+// Kept as a spread-in object rather than deleted so the ~20 call sites that
+// spread it stay untouched.
+const mono = {};
 
 // The card's text box: three decks you chose to show.
 //
@@ -161,15 +164,5 @@ function Label({ children }) {
     </span>
   );
 }
-const input = {
-  width: "100%", boxSizing: "border-box", minHeight: 44,
-  background: "transparent", color: t.white, ...mono, fontSize: 12,
-  border: `1px solid ${t.muted}`, padding: "0 10px", borderRadius: 0, outline: "none",
-};
-const btn = (primary, disabled) => ({
-  minHeight: 44, flex: 1, background: "transparent",
-  border: `1px solid ${disabled ? t.muted : primary ? t.accent : t.dim}`,
-  color: disabled ? t.dim : primary ? t.accent : t.dim,
-  ...mono, fontSize: 11,
-  cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
-});
+const input = aimInput;
+const btn = aimBtn;

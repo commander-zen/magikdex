@@ -1,12 +1,14 @@
 import { createPortal } from "react-dom";
-import { t } from "../theme.js";
+import { bevel, INK, PAPER, SUBTLE, aimBtn } from "../ui/aim.jsx";
 import { supabase } from "../lib/supabase.js";
 import CardFields from "./CardFields.jsx";
 import DecksTab from "./DecksTab.jsx";
 import LinksTab from "./LinksTab.jsx";
 import PrivacyTab from "./PrivacyTab.jsx";
 
-const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
+// Neutralised for the AIM window — this sheet inherits the page sans now.
+// Kept as a spread-in object so the call sites that spread it stay untouched.
+const mono = {};
 
 // Everything that isn't the card or your buddies.
 //
@@ -42,20 +44,23 @@ export default function SettingsSheet({ open, onClose, profile, session, onSaved
       }}>
         <div style={{
           width: "100%", maxWidth: 520, maxHeight: "88dvh",
-          background: t.base, borderTop: `1px solid ${t.muted}`,
+          background: PAPER, border: `2px solid ${INK}`,
+          borderRadius: "12px 12px 0 0",
           display: "flex", flexDirection: "column", overflow: "hidden",
         }}>
           {/* Pinned: the × is always reachable no matter how long the body gets. */}
           <div style={{
-            flexShrink: 0, display: "flex", alignItems: "center",
-            justifyContent: "space-between", padding: "18px 20px 10px",
+            ...bevel, flexShrink: 0, justifyContent: "space-between",
+            padding: "4px 8px 4px 16px", margin: 10,
           }}>
-            <span style={cap}>settings</span>
+            <span style={{ fontFamily: "'Zilla Slab', serif", fontSize: 22, fontWeight: 600, color: INK }}>
+              settings
+            </span>
             <button onClick={onClose} aria-label="Close" style={{
               width: 44, height: 44, margin: "-10px -10px -10px 0",
               display: "flex", alignItems: "center", justifyContent: "center",
               background: "transparent", border: "none", padding: 0,
-              color: t.dim, cursor: "pointer", ...mono, fontSize: 18,
+              color: INK, cursor: "pointer", fontSize: 18,
             }}>✕</button>
           </div>
 
@@ -86,11 +91,11 @@ export default function SettingsSheet({ open, onClose, profile, session, onSaved
                     only moment it matters. Both are free and neither needs us. */}
                 <Section title="keep it on you">
                   <a href="/print" style={rowLink}>print &amp; sleeve it ↗</a>
-                  <span style={{ ...mono, fontSize: 10, color: t.dim, lineHeight: 1.7 }}>
+                  <span style={{ ...mono, fontSize: 10, color: SUBTLE, lineHeight: 1.7 }}>
                     prints at real card size — 63&thinsp;×&thinsp;88&nbsp;mm — so it fits a
                     sleeve and rides in your deck box.
                   </span>
-                  <span style={{ ...mono, fontSize: 10, color: t.dim, lineHeight: 1.7 }}>
+                  <span style={{ ...mono, fontSize: 10, color: SUBTLE, lineHeight: 1.7 }}>
                     or add it to your home screen: <strong>share&nbsp;→ add to home
                     screen</strong>. it opens straight to your card, no browser.
                     better than a screenshot, which sinks under your camera roll.
@@ -101,31 +106,28 @@ export default function SettingsSheet({ open, onClose, profile, session, onSaved
 
             <Section title="account">
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 12 }}>
-                <span style={{ ...mono, fontSize: 11, color: t.dim, overflow: "hidden", textOverflow: "ellipsis" }}>
+                <span style={{ ...mono, fontSize: 11, color: SUBTLE, overflow: "hidden", textOverflow: "ellipsis" }}>
                   {session?.email}
                 </span>
-                <button onClick={() => supabase.auth.signOut()} style={{
-                  minHeight: 44, padding: "0 16px", background: "transparent",
-                  border: `1px solid ${t.muted}`, color: t.dim,
-                  ...mono, fontSize: 11, cursor: "pointer", flexShrink: 0,
-                }}>sign out</button>
+                <button onClick={() => supabase.auth.signOut()}
+                  style={{ ...aimBtn(false, false), flex: "none", flexShrink: 0 }}>sign out</button>
               </div>
             </Section>
 
             {/* Required verbatim by the Fan Content Policy — it is the permission
                 this app displays card art under, same as magikdex. Not paraphrasable. */}
-            <div style={{ ...mono, fontSize: 10, lineHeight: 1.7, color: t.dim }}>
+            <div style={{ ...mono, fontSize: 10, lineHeight: 1.7, color: SUBTLE }}>
               unofficial Fan Content permitted under the{" "}
               <a href="https://company.wizards.com/en/legal/fancontentpolicy"
                  target="_blank" rel="noopener noreferrer"
-                 style={{ color: t.accent, textDecoration: "none" }}>
+                 style={{ color: "#1e4f8a", textDecoration: "none" }}>
                 Fan Content Policy
               </a>
               . Not approved/endorsed by Wizards. Portions of the materials used are
               property of Wizards of the Coast. ©Wizards of the Coast LLC. Card art
               and data from{" "}
               <a href="https://scryfall.com" target="_blank" rel="noopener noreferrer"
-                 style={{ color: t.accent, textDecoration: "none" }}>Scryfall</a>.
+                 style={{ color: "#1e4f8a", textDecoration: "none" }}>Scryfall</a>.
             </div>
           </div>
         </div>
@@ -138,18 +140,17 @@ export default function SettingsSheet({ open, onClose, profile, session, onSaved
 function Section({ title, children }) {
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ ...cap, borderBottom: `1px solid ${t.border}`, paddingBottom: 8 }}>{title}</div>
+      <div style={{ ...cap, borderBottom: `1px solid ${"#ddd8cc"}`, paddingBottom: 8 }}>{title}</div>
       {children}
     </div>
   );
 }
 
 const cap = {
-  fontSize: 9, fontWeight: 500, letterSpacing: "0.18em",
-  textTransform: "uppercase", color: t.dim,
+  fontSize: 11, fontWeight: 600, letterSpacing: "0.14em",
+  textTransform: "uppercase", color: SUBTLE,
 };
 const rowLink = {
-  ...mono, fontSize: 11, color: t.accent, textDecoration: "none",
-  border: `1px solid ${t.muted}`, minHeight: 44,
-  display: "flex", alignItems: "center", justifyContent: "center",
+  ...bevel, fontSize: 14, color: INK, textDecoration: "none",
+  minHeight: 44, justifyContent: "center",
 };

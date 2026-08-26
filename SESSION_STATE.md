@@ -1,5 +1,24 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-26 (settings) — ✅ **SETTINGS IS AIM NOW** — and the dead code from the rewrite is gone
+
+Ben: *"settings needs to be updated too it has the old design."*
+
+**The trick that made it cheap.** `SettingsSheet` wraps four sub-screens (`CardFields`, `DecksTab`, `LinksTab`, `PrivacyTab`) that style ~120 call sites off the dark theme's `t`. Rewriting each by hand is a hundred edits and a hundred chances to miss one. Instead the **tokens were inverted and the call sites left alone** — each file now imports `aimTheme as t`, so `t.white` (brightest on dark) becomes the darkest ink on paper, `t.muted` becomes a light rule, and so on. One import line per file. `aim.jsx` also grew `aimInput` / `aimBtn`, and each file's local `input`/`btn` consts point at them.
+
+⚠️ **`aimTheme`'s keys must stay in sync with `theme.js`.** A token added there and missing here renders `undefined`, which CSS silently drops — it fails invisibly.
+
+### 🐛 A browser default that only surfaced now
+**Form controls do not inherit the page font.** A `<button>` with no `font-family` falls back to the browser's own — Arial on Windows. This went unnoticed for as long as every control was explicitly monospaced; the moment the AIM screens stopped setting a family, buttons rendered in a different typeface from the text beside them. Fixed globally in `index.html`: `button, input, textarea, select { font: inherit; color: inherit; }`. Verified 34/34 controls correct.
+
+### Dead code from the RitualDeck rewrite, removed
+The early return had orphaned a whole branch. Removed: the unreachable `Segmented`/`BadgeCard`/`BuddyList` tab block, the old dark `ReadyToggle` (its AIM replacement lives in `RitualDeck`), and the `BadgeCard`/`Segmented` imports plus `tab`, `links`, `myLinks`, `updateMyProfile`, `readyNoteProblem`, `READY_NOTE_MAX`.
+
+🚨 **Caught a runtime bug the build could not.** Deleting the `links` state left `setLinks(l.links)` still being called in `refresh()` — `vite build` passes that happily and it throws `ReferenceError` on every load for a signed-in user. Found by auditing for identifiers that are USED but no longer DECLARED, not by the compiler. **A green build is not evidence that a deletion was complete.** Links are still edited in settings and still render on `/t/<handle>`, which fetches its own, so nothing was lost — and it is one less query per load.
+
+**Not changed, on purpose:** the `BadgeCard` preview inside "your card" is still dark. That is the card object itself — what a stranger actually sees at `/t/<handle>` — not chrome.
+
+
 ## 2026-08-26 (later still) — ✅ **RITUAL IS THE APP NOW** — the swipeable AIM stack replaced the two-tab screen
 
 Ben, twice: *"this looks the same."* He was right both times and the reason was the same — I was adding things at the edges (a landing only visible signed-out, a prompt only visible mid-flow) while the surface he actually opens, **signed in**, was untouched. His instruction: *"i dont care if you rip edh-id to the studs and build ritual in its place."*

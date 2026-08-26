@@ -89,3 +89,51 @@ export function Slashed({ items, empty = "—" }) {
     </span>
   );
 }
+
+// ── The palette, remapped ────────────────────────────────────────────────────
+// The settings sub-screens (CardFields, DecksTab, LinksTab, PrivacyTab) each
+// style ~30 call sites off the dark theme's `t`. Rewriting every one by hand
+// would be a hundred edits and a hundred chances to miss one.
+//
+// So instead the TOKENS are inverted and the call sites are left alone: each of
+// those files imports this as `t` and every `t.white` (the brightest text on a
+// dark ground) becomes the darkest ink on a light one, `t.muted` becomes a light
+// rule, and so on. The semantic meaning of each token is preserved while the
+// value flips. One import line per file.
+//
+// ⚠️ THE KEYS MUST STAY IN SYNC WITH theme.js. A token added there and not here
+// renders as `undefined` — which CSS silently drops, so it fails invisibly.
+export const aimTheme = {
+  base:    PAPER,
+  surface: CHROME_LO,
+  // AIM's selected-state blue, not the dark app's cyan — cyan on paper is
+  // unreadable, and this matches the chip colours in the mocks.
+  accent:  "#1e4f8a",
+  white:   INK,      // "brightest text" → "darkest text"
+  muted:   "#c9c4b8",
+  border:  "#ddd8cc",
+  dim:     SUBTLE,
+  red:     "#a3261a",
+};
+
+// Inputs are white wells with an ink rule — the beveled bars are for CHROME
+// (bars, buttons), and giving a text field the same treatment makes it look
+// pressed rather than editable.
+export const aimInput = {
+  width: "100%", boxSizing: "border-box", minHeight: 44,
+  background: "#fff", color: INK,
+  font: "inherit", fontSize: 15,
+  border: `2px solid ${INK}`, borderRadius: 8,
+  padding: "0 10px", outline: "none",
+};
+
+export const aimBtn = (primary, disabled) => ({
+  ...bevel,
+  minHeight: 44, flex: 1, justifyContent: "center",
+  font: "inherit", fontSize: 14,
+  color: disabled ? SUBTLE : primary ? INK : "#3a3730",
+  fontWeight: primary ? 600 : 400,
+  cursor: disabled ? "default" : "pointer",
+  opacity: disabled ? 0.55 : 1,
+  padding: "0 14px",
+});

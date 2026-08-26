@@ -1,11 +1,14 @@
 import { useEffect, useState } from "react";
-import { t } from "../theme.js";
+import { aimTheme as t, aimInput, aimBtn } from "../ui/aim.jsx";
 import {
   myLinks, saveLink, clearLink,
   MAX_LINKS, LINK_LABEL_MAX, LINK_VALUE_MAX, LINK_KIND_CHOICES, linkValueProblem,
 } from "../lib/trainer.js";
 
-const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
+// Neutralised for the AIM window: these screens inherit the page sans now.
+// Kept as a spread-in object rather than deleted so the ~20 call sites that
+// spread it stay untouched.
+const mono = {};
 
 // The back of the card: a linktree for EDH.
 //
@@ -138,15 +141,5 @@ function LinkEditor({ userId, row, onChanged }) {
   );
 }
 
-const input = {
-  width: "100%", boxSizing: "border-box", minHeight: 46,
-  background: "transparent", color: t.white, ...mono, fontSize: 13,
-  border: `1px solid ${t.muted}`, padding: "0 12px", borderRadius: 0, outline: "none",
-};
-const btn = (primary, disabled) => ({
-  minHeight: 44, flex: 1, background: "transparent",
-  border: `1px solid ${disabled ? t.muted : primary ? t.accent : t.dim}`,
-  color: disabled ? t.dim : primary ? t.accent : t.dim,
-  ...mono, fontSize: 11,
-  cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
-});
+const input = aimInput;
+const btn = aimBtn;

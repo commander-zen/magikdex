@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { t } from "../theme.js";
+import { aimTheme as t, aimInput, aimBtn } from "../ui/aim.jsx";
 import BadgeCard from "../components/BadgeCard.jsx";
 import { searchCommanders } from "../lib/scryfall.js";
 import {
@@ -8,7 +8,10 @@ import {
   FOUND_AT_MAX, foundAtProblem,
 } from "../lib/trainer.js";
 
-const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
+// Neutralised for the AIM window: these screens inherit the page sans now.
+// Kept as a spread-in object rather than deleted so the ~20 call sites that
+// spread it stay untouched.
+const mono = {};
 
 // Your card: LIVE PREVIEW on top, editor underneath. The preview renders from the
 // DRAFT using the same component the public page uses, so it is literally what a
@@ -248,18 +251,8 @@ function fromProfile(p) {
   };
 }
 
-const input = {
-  width: "100%", boxSizing: "border-box", minHeight: 46,
-  background: "transparent", color: t.white, ...mono, fontSize: 13,
-  border: `1px solid ${t.muted}`, padding: "0 12px", borderRadius: 0, outline: "none",
-};
-const btn = (primary, disabled) => ({
-  minHeight: 46, flex: 1, background: "transparent",
-  border: `1px solid ${disabled ? t.muted : primary ? t.accent : t.dim}`,
-  color: disabled ? t.dim : primary ? t.accent : t.dim,
-  ...mono, fontSize: 12,
-  cursor: disabled ? "default" : "pointer", opacity: disabled ? 0.55 : 1,
-});
+const input = aimInput;
+const btn = aimBtn;
 
 export function Label({ children }) {
   return (

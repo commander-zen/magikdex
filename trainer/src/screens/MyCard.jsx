@@ -1,28 +1,28 @@
 import { useEffect, useState } from "react";
 import { t } from "../theme.js";
 import { supabase } from "../lib/supabase.js";
-import BadgeCard from "../components/BadgeCard.jsx";
 import BuddyList from "./BuddyList.jsx";
 import SettingsSheet from "./SettingsSheet.jsx";
 import RitualLanding from "./RitualLanding.jsx";
 import RitualDeck from "./RitualDeck.jsx";
-import { Segmented } from "./CardFields.jsx";
 import {
-  getSession, getMyProfile, claimHandle, myDecks, myLinks, updateMyProfile,
-  normalizeHandle, handleProblem, readyNoteProblem, READY_NOTE_MAX,
-  myBuddies, addBuddy,
+  getSession, getMyProfile, claimHandle, myDecks,
+  normalizeHandle, handleProblem, myBuddies, addBuddy,
 } from "../lib/trainer.js";
 import { pendingScans, forgetScan } from "../lib/pendingScan.js";
 
 const mono = { fontFamily: "'Noto Sans Mono', monospace", letterSpacing: "0.06em" };
 
-// TWO SURFACES AND A GEAR.
+// THE ROUTER FOR "/" — three states, and this file now only owns the two you
+// pass THROUGH.
 //
-// You open this app to look at your card or to look at your people. Everything
-// else — editing fields, listing decks, privacy, signing out — is configuration,
-// and configuration goes behind the gear. Four peer tabs implied four
-// destinations of equal standing; two of them were things you look at and two were
-// things you set up once.
+//   signed out, not started  → RitualLanding, full screen
+//   signed in, no handle yet → Claim
+//   signed in and set up     → RitualDeck, the swipeable AIM stack
+//
+// The old CARD / BUDDIES tab screen is gone. Configuration — editing fields,
+// decks, links, privacy, signing out — still lives behind the gear, which the
+// deck carries in its own header.
 //
 // EMAIL-ONLY SIGN-IN. Migration 028 enforces the same rule in the database, so
 // this is the UI agreeing with the schema rather than guarding it: 027 reserves a
@@ -35,10 +35,8 @@ export default function MyCard() {
   const [session, setSession] = useState(null);
   const [profile, setProfile] = useState(null);
   const [decks, setDecks] = useState([]);
-  const [links, setLinks] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadErr, setLoadErr] = useState(null);
-  const [tab, setTab] = useState("card");
   const [settingsOpen, setSettingsOpen] = useState(false);
   // The landing owns the whole screen, so it renders BEFORE the app chrome
   // rather than inside it — a signed-out visitor should not see a "TRAINER"
@@ -66,12 +64,15 @@ export default function MyCard() {
         const { profile: p, error } = await getMyProfile(s.userId);
         setProfile(p);
         setLoadErr(error);
-        // Decks and links both render on the card's BACK, so the card is not
-        // complete without them — they load with it, not after. In parallel:
-        // they are independent reads and serialising them is a visible wait.
+        // Decks feed the player-id card and one commander-id card each.
+        //
+        // Links are NOT fetched here any more: this screen no longer renders the
+        // BadgeCard that displayed them. They are still edited in settings and
+        // still shown publicly on /t/<handle>, which fetches its own — so
+        // nothing is lost and this is one less query on every load.
         if (p) {
-          const [d, l] = await Promise.all([myDecks(s.userId), myLinks(s.userId)]);
-          setDecks(d.decks); setLinks(l.links);
+          const { decks: d } = await myDecks(s.userId);
+          setDecks(d);
         }
       } else {
         setProfile(null);
@@ -215,35 +216,11 @@ export default function MyCard() {
         ) : !session?.userId ? (
           <SignIn {...{ email, setEmail, code, setCode, sent, setSent, msg, setMsg, busy, sendCode, verify }} />
 
-        ) : !profile ? (
+        ) : (
+          // Signed in, no handle claimed yet. The signed-in-WITH-profile case
+          // never reaches here — it returns RitualDeck further up.
           <Claim {...{ handle, setHandle, displayName, setDisplayName, normalized, problem, busy, submitClaim, err, setErr }}
                  pendingHandle={pendingScans().at(-1) ?? null} />
-
-        ) : (
-          <>
-            {/* Above the tabs on purpose: it is the reason a lot of people made
-                an account at all, and it must not be hiding behind a tab they
-                have no reason to open yet. It removes itself once answered. */}
-            <PendingBuddies myHandle={profile.handle} />
-
-            <Segmented
-              value={tab}
-              options={[["card", "CARD"], ["buddies", "BUDDIES"]]}
-              onChange={setTab}
-            />
-
-            {tab === "card" ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: 14 }}>
-                <BadgeCard card={profile} decks={decks} links={links} />
-                <span style={{ ...mono, fontSize: 10, color: t.dim }}>
-                  {location.host}/t/{profile.handle}
-                </span>
-                <ReadyToggle profile={profile} onSaved={refresh} />
-              </div>
-            ) : (
-              <BuddyList />
-            )}
-          </>
         )}
       </div>
 
@@ -343,93 +320,6 @@ function PendingBuddies({ myHandle }) {
       {err && (
         <span style={{ ...mono, fontSize: 11, color: t.red, lineHeight: 1.7 }}>{err}</span>
       )}
-    </div>
-  );
-}
-
-// "ready to pod up" — ON THE CARD TAB, NOT BEHIND THE GEAR.
-//
-// The gear holds things you set up once. This is the opposite: a two-second
-// answer about tonight, flipped while you are packing up, and burying it three
-// taps deep would mean nobody ever turns it on — or worse, nobody ever turns it
-// off. It sits under the card because it is a fact about you right now, the same
-// way the card is.
-//
-// SAVES IMMEDIATELY, no draft and no save button. Matching the CommanderPicker
-// rather than the CardFields form: a toggle whose effect you can see has nothing
-// to confirm.
-//
-// IT NEVER EXPIRES ON ITS OWN. No timeout, no last-seen, no background job —
-// anything that clears this automatically has to know when you were last active,
-// and that is a presence system. So the honest copy says how it actually behaves
-// ("stays on until you turn it off") instead of implying it lapses tonight.
-function ReadyToggle({ profile, onSaved }) {
-  const [note, setNote] = useState(profile.ready_note ?? "");
-  const [busy, setBusy] = useState(false);
-  const [err, setErr] = useState(null);
-
-  const on = !!profile.ready_to_pod;
-  const noteErr = readyNoteProblem(note);
-  const noteDirty = note !== (profile.ready_note ?? "");
-
-  async function write(patch) {
-    setBusy(true); setErr(null);
-    const { profile: p, error } = await updateMyProfile(profile.id, patch);
-    setBusy(false);
-    if (error) { setErr(error); return; }
-    onSaved?.(p);
-  }
-
-  return (
-    <div style={{
-      width: "100%", border: `1px solid ${on ? t.accent : t.border}`,
-      padding: 12, display: "flex", flexDirection: "column", gap: 10,
-    }}>
-      <button
-        onClick={() => write({ ready_to_pod: !on })}
-        disabled={busy}
-        aria-pressed={on}
-        style={{
-          minHeight: 46, background: "transparent",
-          border: `1px solid ${busy ? t.muted : on ? t.accent : t.dim}`,
-          color: busy ? t.dim : on ? t.accent : t.white,
-          ...mono, fontSize: 12, cursor: busy ? "default" : "pointer",
-          opacity: busy ? 0.55 : 1,
-        }}
-      >
-        {busy ? "…" : on ? "◆ ready to pod up" : "◇ not right now"}
-      </button>
-
-      {/* Free text, deliberately. A dropdown of formats would be matchable, and
-          matchable is one step from ranked — which is the thing this product has
-          removed twice already. */}
-      {on && (
-        <>
-          <input
-            value={note}
-            onChange={e => { setErr(null); setNote(e.target.value.slice(0, READY_NOTE_MAX)); }}
-            placeholder="looking for: cEDH · casual only tonight"
-            style={{
-              width: "100%", boxSizing: "border-box", minHeight: 44,
-              background: "transparent", color: t.white, ...mono, fontSize: 12,
-              border: `1px solid ${noteErr ? t.red : t.muted}`,
-              padding: "0 12px", borderRadius: 0, outline: "none",
-            }}
-          />
-          {noteErr && <span style={{ ...mono, fontSize: 10, color: t.red }}>{noteErr}</span>}
-          {noteDirty && !noteErr && (
-            <button onClick={() => write({ ready_note: note.trim() || null })} disabled={busy}
-                    style={btn(true, busy)}>save note</button>
-          )}
-        </>
-      )}
-
-      <span style={{ ...mono, fontSize: 10, color: t.dim, lineHeight: 1.6 }}>
-        {on
-          ? "shows on your card and to your buddies. stays on until you turn it off."
-          : "flip this when you're up for a game."}
-      </span>
-      {err && <span style={{ ...mono, fontSize: 11, color: t.red, lineHeight: 1.7 }}>{err}</span>}
     </div>
   );
 }

@@ -34,6 +34,12 @@
     <link href="https://fonts.googleapis.com/css2?family=UnifrakturMaguntia&family=Zilla+Slab:wght@500;600;700&family=Noto+Sans:wght@300;400;500;600&family=Noto+Sans+Mono:wght@400;500;600;700&display=swap" rel="stylesheet" />
     <style>
       *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+      /* Form controls do NOT inherit the page font by default — a <button> with
+         no font-family falls back to the browser's own (Arial on Windows). That
+         went unnoticed while every control was explicitly monospaced; the moment
+         the AIM screens stopped setting a family, buttons started rendering in a
+         different typeface from the text beside them. */
+      button, input, textarea, select { font: inherit; color: inherit; }
       html, body, #root { min-height: 100%; width: 100%; background: #08090c; }
       body { font-family: 'Noto Sans', sans-serif; }
     </style>
