@@ -41,7 +41,6 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
   const [tags, setTags] = useState([]);
   const [query, setQuery] = useState("");
   const [themes, setThemes] = useState([]);
-  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -55,7 +54,7 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
     setGameStyle(deck?.self_game_style ?? "");
     // Recombined for editing in the order the card prints them: plan first.
     setTags([...(deck?.self_plan ?? []), ...(deck?.self_play_style ?? [])]);
-    setQuery(""); setErr(null); setSaved(false); setExpanded(false);
+    setQuery(""); setErr(null); setSaved(false);
   }, [deck]);
 
   // EDHREC's tags for THIS commander, in EDHREC's own rank order — a short
@@ -104,12 +103,14 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
       .map(t => ({ value: t, label: t.replace(/-/g, " "), wrec: true })),
   ].filter(x => !tags.some(v => v.toLowerCase() === x.value.toLowerCase()));
 
-  // Typing searches the whole list; resting shows the top of it. Ninety chips
-  // at once is a wall, and the ranking is what makes a short list defensible.
-  const matches = pool.filter(x => !q || x.label.toLowerCase().includes(q));
-  const collapsed = !q && !expanded;
-  const suggestions = collapsed ? matches.slice(0, 12) : matches.slice(0, 40);
-  const hidden = collapsed ? matches.length - suggestions.length : 0;
+  // ⚠️ NOTHING IS SHOWN UNTIL YOU TYPE. Ben: "i dont want all the chips just
+  // the search bar cause i looked up storm and i couldnt find it but if i hit
+  // enter it populated. so i want it to show if its available and then click
+  // the chip." A resting wall of chips is a menu of ~90 things nobody read; the
+  // search bar is the interface, and the chips are its results.
+  const suggestions = q
+    ? pool.filter(x => x.label.toLowerCase().includes(q)).slice(0, 12)
+    : [];
 
   function add(v) {
     const s = String(v ?? "").trim();
@@ -160,7 +161,15 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
   });
   const input = {
     width: "100%", boxSizing: "border-box", minHeight: 44,
-    background: "transparent", color: t.white, fontSize: 14,
+    background: "transparent", color: t.white,
+    // ⚠️ 16 EXACTLY, AND NEVER LESS. Ben: "you do the weird zoom in thing on
+    // iphone every time i click something to type its goddamn annoying." iOS
+    // Safari auto-zooms any focused field whose text is under 16px and does not
+    // zoom back out — it is not a preference and there is no flag for it. The
+    // fix is the font size; a maximum-scale viewport also stops it but by
+    // disabling pinch zoom for the whole app, which is an accessibility
+    // regression to fix one input.
+    fontSize: 16,
     border: `1px solid ${t.border}`, borderRadius: 0, padding: "0 12px", outline: "none",
   };
   const cap = { fontSize: 11, letterSpacing: "0.12em", textTransform: "uppercase", color: t.dim };
@@ -208,19 +217,17 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
               {x.label}
             </button>
           ))}
-          {hidden > 0 && (
-            <button onClick={() => setExpanded(true)}
-                    style={{ ...chip(false, t.accent), color: t.accent, borderStyle: "dashed" }}>
-              +{hidden} more
-            </button>
-          )}
         </div>
       )}
+      {/* Said only while typing, so an empty box stays quiet. Enter always
+          works — the point of a free-text field is that "chair tribal" is a
+          real answer EDHREC will never list. */}
+      {!full && q && suggestions.length === 0 && (
+        <div style={help}>no match — press enter to use &ldquo;{query.trim()}&rdquo; anyway.</div>
+      )}
       <div style={help}>
-        {oracleId
-          ? "EDHREC's themes for this commander, in their order — or type anything. "
-          : "type anything. "}
-        up to three. the red ones also tag matching cards as your PLAN in WREC.
+        search EDHREC&rsquo;s themes for this commander, or type your own and press
+        enter. up to three. the red ones also tag matching cards as your PLAN in WREC.
       </div>
 
       <button onClick={save} disabled={busy || !deck?.id}

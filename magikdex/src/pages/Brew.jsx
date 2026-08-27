@@ -1686,7 +1686,8 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
                       width: "100%", boxSizing: "border-box", minHeight: 44,
                       background: "transparent",
                       color: "var(--text)",
-                      fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
+                      // 16 or iOS zooms the whole deck screen on focus.
+                      fontFamily: "'Noto Sans Mono', monospace", fontSize: 16,
                       border: "1px solid var(--muted)",
                       padding: "0 12px", borderRadius: 0, outline: "none",
                     }}

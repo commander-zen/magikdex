@@ -440,7 +440,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                       background: "transparent",
                       color: textColor,
                       fontFamily: "'Noto Sans', sans-serif",
-                      fontSize: 14,
+                      fontSize: 16, // 16 or iOS zooms the sheet on focus
                       border: "none",
                       borderBottom: `1px solid ${borderColor}`,
                       padding: "8px 0",

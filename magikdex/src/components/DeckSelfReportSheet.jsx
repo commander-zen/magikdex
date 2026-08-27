@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { tokens as t } from "../theme/tokens.js";
 import { fetchDeckForLegend } from "../lib/deckSelect.js";
 import { resolveLegendDeck } from "../lib/legendDeck.js";
+import { getCardData } from "../lib/scryfall.js";
 import DeckSelfReport from "./DeckSelfReport.jsx";
 
 // The self-report, opened from an icon in the deck header.
@@ -25,6 +26,24 @@ import DeckSelfReport from "./DeckSelfReport.jsx";
 // half-applied database degrades identically in both places.
 export default function DeckSelfReportSheet({ open, onClose, legendId, oracleId, deckName }) {
   const [row, setRow] = useState(null);
+  const [foundOracle, setFoundOracle] = useState(null);
+
+  // ⚠️ RESOLVE THE ORACLE ID OURSELVES WHEN THE CALLER HAS NONE.
+  // ReviewScreen only loads `commanderFull` when you TAP the commander image,
+  // so on a freshly opened deck its oracle_id is null — and the themes query
+  // keyed on it silently returned nothing. Ben searched "storm" on a commander
+  // with 67 themes (Storm is EDHREC's #2 for Ral) and got no match at all.
+  // `legends` has no oracle_id column, so the name is the only handle we have;
+  // getCardData is the app's cached Scryfall lookup, already used for exactly
+  // this by the screen above. Front face only — Scryfall wants one name.
+  useEffect(() => {
+    if (!open || oracleId || !deckName) return;
+    let cancelled = false;
+    getCardData(String(deckName).split("//")[0].trim())
+      .then(card => { if (!cancelled && card?.oracle_id) setFoundOracle(card.oracle_id); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [open, oracleId, deckName]);
 
   useEffect(() => {
     if (!open || !legendId) return;
@@ -76,7 +95,7 @@ export default function DeckSelfReportSheet({ open, onClose, legendId, oracleId,
             </div>
 
             {row?.id
-              ? <DeckSelfReport deck={row} oracleId={oracleId} theme={t} onSaved={p => setRow(r => ({ ...r, ...p }))} />
+              ? <DeckSelfReport deck={row} oracleId={oracleId ?? foundOracle} theme={t} onSaved={p => setRow(r => ({ ...r, ...p }))} />
               : <div style={{ fontSize: 13, color: t.dim }}>loading…</div>}
           </div>
         </div>
