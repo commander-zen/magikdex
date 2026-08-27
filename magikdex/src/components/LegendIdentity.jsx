@@ -5,6 +5,9 @@ import { getCardData, getCardImage } from "../lib/scryfall.js";
 import { resolveLegendDeck } from "../lib/legendDeck.js";
 import ScryCheckRadar, { readVectors } from "./ScryCheckRadar.jsx";
 import ScryCheckSheet from "./ScryCheckSheet.jsx";
+// The same 3D flip the brew screens use — see the history at the top of that
+// file for why this is not an image swap.
+import FlipCard from "../brew-components/FlipCard.jsx";
 // The select ladder lives in lib/deckSelect.js so the print overlay reads the
 // same row shape — see the note there on why two copies would drift.
 import { DECK_SELECTS, MISSING_COLUMN } from "../lib/deckSelect.js";
@@ -107,16 +110,22 @@ export default function LegendIdentity({ legend }) {
   // Only faces that carry their OWN image_uris count. Split and adventure cards
   // also populate card_faces, but they share one image — flipping them would
   // swap a picture for the identical picture.
+  // ⚠️ USE FlipCard, not an image swap. The first pass here swapped the src,
+  // which works but is not what the rest of the app does — the brew screens turn
+  // the card over in 3D, and FlipCard.jsx carries the scar tissue from two
+  // failed attempts at that (a dead flip shipped to prod, then a JS timer that
+  // handed over at half the DURATION rather than half the ANGLE and read as a
+  // visible cut). Ben noticed the home screen was the odd one out immediately.
   const faces = oracleCard?.card_faces ?? null;
   const backImage = faces?.[1]?.image_uris
-    ? (faces[1].image_uris.normal ?? faces[1].image_uris.large ?? null)
+    ? getCardImage({ ...oracleCard, image_uris: faces[1].image_uris }, "normal")
     : null;
   const canFlip = Boolean(backImage);
 
-  const cardImage = flipped && backImage
-    ? backImage
-    : (oracleCard ? (getCardImage(oracleCard, "normal") ?? getCardImage(oracleCard, "large")) : null);
-  const faceName = flipped && faces?.[1]?.name ? faces[1].name : legend.name;
+  const frontImage = oracleCard
+    ? (getCardImage(oracleCard, "normal") ?? getCardImage(oracleCard, "large"))
+    : null;
+  const backAlt = faces?.[1]?.name ?? legend.name;
   const hasDeck = Boolean(deck?.id);
 
   // Selecting a different legend returns to page 1. Landing on the power page of
@@ -210,6 +219,10 @@ export default function LegendIdentity({ legend }) {
             flex: "0 0 100%", minWidth: 0,
             scrollSnapAlign: "start",
             display: "flex", alignItems: "center", justifyContent: "center",
+            // A SIZE container, so the card box below can ask about BOTH of this
+            // pane's axes in CSS. Without it there is no way to express "the
+            // smaller of the two" and the ratio breaks on one shape or the other.
+            containerType: "size",
           }}
         >
           {/* ⚠️ CONSTRAINED ON BOTH AXES, and it has to be.
@@ -224,18 +237,35 @@ export default function LegendIdentity({ legend }) {
               AND max-height is resolvable whichever axis binds — tall narrow
               phone, short wide one, or a future pane resize. object-fit
               contain is belt-and-braces for a non-standard source. */}
-          {cardImage ? (
-            // The wrapper shrink-wraps the image so the flip button can sit on
-            // the CARD's corner rather than the pane's — the image is centred
-            // and letterboxed, so those are not the same place.
-            <div style={{ position: "relative", display: "inline-flex", maxWidth: "100%", maxHeight: "100%" }}>
-              <img
-                src={cardImage}
-                alt={faceName}
-                draggable={false}
-                style={{
-                  maxWidth: "100%", maxHeight: "100%",
-                  objectFit: "contain", display: "block",
+          {frontImage ? (
+            // ⚠️ THE BOX HAS TO BE SIZED HERE, and naively is WRONG.
+            // FlipCard's faces are both absolute, so they contribute nothing to
+            // layout — an unsized parent collapses to zero. But the note above
+            // still holds: this pane binds on EITHER axis depending on the tray.
+            //
+            // `height:100% + aspect-ratio + max-width:100%` looks like the
+            // answer and is not: measured across pane shapes, the tall-narrow
+            // case (a phone) came out 343×529 at ratio 0.648 instead of 0.718 —
+            // max-width clamps the width without feeding back into the height,
+            // so the card squashes. Width-driven sizing fails the mirror case.
+            //
+            // So the box asks for the SMALLER of the two axes directly, in
+            // container-query units against the section above, and lets
+            // aspect-ratio derive the other side. Verified correct at 343×529,
+            // 343×300, 600×400, 200×800 and 500×500.
+            <div style={{
+              position: "relative",
+              height: "min(100cqh, calc(100cqw * 680 / 488))",
+              aspectRatio: "488 / 680",
+            }}>
+              <FlipCard
+                frontSrc={frontImage}
+                backSrc={backImage}
+                alt={legend.name}
+                backAlt={backAlt}
+                flipped={flipped}
+                containerStyle={{ width: "100%", height: "100%" }}
+                faceStyle={{
                   borderRadius: "4.8% / 3.4%",
                   boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
                 }}
@@ -245,7 +275,7 @@ export default function LegendIdentity({ legend }) {
                   onClick={() => setFlipped(f => !f)}
                   aria-label={flipped ? "Show front face" : "Show back face"}
                   style={{
-                    position: "absolute", right: 6, bottom: 6,
+                    position: "absolute", right: 6, bottom: 6, zIndex: 5,
                     width: 36, height: 36, padding: 0, borderRadius: "50%",
                     display: "flex", alignItems: "center", justifyContent: "center",
                     background: "rgba(8,9,12,0.72)", border: `1px solid ${theme.muted}`,
