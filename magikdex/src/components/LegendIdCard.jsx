@@ -132,6 +132,13 @@ const GAME_STYLE_LABEL = {
   jank: "jank", casual: "casual", trash_magic: "trash magic", cedh: "cEDH",
 };
 
+// otag slugs are kebab-case ("extra-turn"); the card wants words. No lookup
+// table — the slug IS the label once the hyphens go.
+function planLine(deck) {
+  const plan = (deck?.self_plan ?? []).filter(Boolean);
+  return plan.length ? plan.map(s => s.replace(/-/g, " ")).join(" · ") : null;
+}
+
 // "casual · graveyard · combo" — the register first, then what the deck does.
 // Returns null when nothing is set rather than an empty or half line: a blank
 // slot reads as unfinished, and this whole row is optional.
@@ -161,6 +168,7 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
   const heroSize = useHeroFit(name, nameRef);
   const tag = tagText(deck);
   const selfLine = selfReportLine(deck);
+  const plan = planLine(deck);
   const cat = catalogNo(deck?.id);
   const qrTarget = deck?.scrycheck_url || deck?.url || null;
   const [qr, setQr] = useState(null);
@@ -232,18 +240,26 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
               play it. Two different kinds of statement, kept visibly apart.
               (It used to repeat the commander's name, which said nothing the
               card did not already say.) */}
-          {selfLine && (
-            <div style={{
-              ...abs, top: u(434), left: u(46), ...mono,
-              fontSize: u(32), letterSpacing: "0.04em", color: GRAY,
-              fontWeight: 500, width: u(540),
-              // One row is all the layout has before the credit block; a long
-              // playstyle list ellipsises rather than colliding with it.
+          {/* Two optional rows under the tag, in order of specificity: the PLAN
+              (what this deck is trying to do) then the register and playstyle.
+              Rendered from a filtered list so a missing plan does not leave a
+              gap — whichever survives starts at 434. */}
+          {[plan, selfLine].filter(Boolean).map((line, i) => (
+            <div key={i} style={{
+              ...abs, top: u(434 + i * 44), left: u(46), ...mono,
+              // The plan is the louder claim of the two, so it takes the ink.
+              fontSize: u(i === 0 ? 32 : 28),
+              letterSpacing: "0.04em",
+              color: i === 0 && plan ? INK : GRAY,
+              fontWeight: i === 0 && plan ? 700 : 500,
+              width: u(540),
+              // One row each; a long list ellipsises rather than colliding with
+              // the credit block below.
               whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>
-              {selfLine}
+              {line}
             </div>
-          )}
+          ))}
 
           {/* ⚠️ ATTRIBUTION, NOT DECORATION. Migration 034 records that Adam
               approved magikdex showing these five numbers on a self-report basis

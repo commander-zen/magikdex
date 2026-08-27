@@ -31,7 +31,9 @@ export const LABEL_BY_TAG = Object.fromEntries(WREC_CHIPS.map(c => [c.tag, c.lab
 // Vault spec §4 — the icon-chip vocabulary. Icon carries the EXACT category,
 // color carries the FAMILY: warm amber = build yourself up (ramp, card
 // advantage), cool green = stop the table (disruption, mass disruption),
-// standout red = your payoff (plan — user-assigned only, never auto-derived).
+// standout red = your payoff (plan — assigned by the deck's owner, never
+// inferred from a card alone; see migration 037, which lets the owner name the
+// plan once as otags and suggest it across the deck).
 // Geometry lifted verbatim from the design reference (wrec-icons-preview.html):
 // stroke-based 24×24 glyphs, per-glyph stroke weight, legible at 13px in-row.
 const WREC_GLYPHS = {

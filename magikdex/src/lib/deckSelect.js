@@ -15,9 +15,11 @@ import { supabase } from "./supabase.js";
 const VECTOR_COLS = "scrycheck_speed, scrycheck_consistency, scrycheck_interaction, scrycheck_mana_base, scrycheck_threats";
 const LINK_COLS   = "url, platform, scrycheck_url, scrycheck_score, scrycheck_bracket, scrycheck_version, scrycheck_scored_at";
 const SELF_COLS   = "self_game_style, self_play_style";
+const PLAN_COLS   = "self_plan";
 
 // Most complete first. Each rung drops exactly one migration's worth.
 export const DECK_SELECTS = [
+  `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS}, ${LINK_COLS}, ${SELF_COLS}, ${PLAN_COLS})`, // 034+035+036+037
   `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS}, ${LINK_COLS}, ${SELF_COLS})`, // 034+035+036
   `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS}, ${LINK_COLS})`,               // 034 + 035
   `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS})`,                             // 034 only

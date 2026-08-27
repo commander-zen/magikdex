@@ -13,11 +13,24 @@ export const WREC_TAGS = [
 
 // otag → the WREC category it auto-suggests, straight from the ingest
 // taxonomy (the scripts import the same file, so app and pipeline can't
-// drift). `plan` never appears — it stays at the user's discretion by
-// standing rule, so it can never be auto-applied.
+// drift). `plan` never appears HERE, and that is still deliberate: it is not
+// derivable from a card's own tags.
+//
+// ⚠️ NARROWED 2026-08-27, NOT ABANDONED. plan CAN now be suggested — but only
+// once the deck's OWNER has named the plan as otags (decks.self_plan, migration
+// 037). That is still the user exercising discretion, just once for the deck
+// instead of ninety-nine times, and the write goes through applyAutoTags with
+// source 'auto', which never overwrites a manual row. Read 037 before
+// "restoring" this rule: it was a decision, not a drift.
 const OTAG_TO_WREC = new Map(
   TAXONOMY.filter(t => t.wrec).map(t => [t.tag, t.wrec]),
 );
+
+// The otags that carry NO WREC category — 24 of the 35 — which is exactly the
+// plan vocabulary: reanimate, mill, blink, extra-turn, landfall, burn and so
+// on. Offered as the plan picker's options because tagging a card that is
+// already ramp as "your plan" is not what the field is for.
+export const PLAN_OTAGS = TAXONOMY.filter(t => !t.wrec).map(t => t.tag);
 
 // Inverse view for category-seeded stacks: WREC category → its otags.
 export const WREC_TO_OTAGS = {};
@@ -29,18 +42,25 @@ for (const [otag, cat] of OTAG_TO_WREC) {
 // populated by the ingest scripts). One batched query for any number of
 // cards; returns Map(oracle_id → category[]). Cards with no WREC-core tag
 // simply don't appear.
-export async function autoWrecTags(oracleIds) {
+export async function autoWrecTags(oracleIds, planOtags = []) {
   const map = new Map();
   const ids = (oracleIds ?? []).filter(Boolean);
   if (ids.length === 0) return map;
+  // The deck's own plan otags fold into the SAME lookup, so this stays one
+  // query however the plan is set.
+  const plan = (planOtags ?? []).filter(Boolean);
+  const wanted = [...new Set([...OTAG_TO_WREC.keys(), ...plan])];
   const { data, error } = await supabase
     .from("card_tags")
     .select("oracle_id, tag")
     .in("oracle_id", ids)
-    .in("tag", [...OTAG_TO_WREC.keys()]);
+    .in("tag", wanted);
   if (error) throw error;
+  const planSet = new Set(plan);
   for (const row of data ?? []) {
-    const cat = OTAG_TO_WREC.get(row.tag);
+    // A named plan otag wins over its taxonomy category when it has both: the
+    // owner calling it their plan is the more specific statement.
+    const cat = planSet.has(row.tag) ? "plan" : OTAG_TO_WREC.get(row.tag);
     if (!cat) continue;
     const list = map.get(row.oracle_id) ?? [];
     if (!list.includes(cat)) list.push(cat);

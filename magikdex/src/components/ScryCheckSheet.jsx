@@ -4,6 +4,8 @@ import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase.js";
 import { SCRYCHECK_VECTORS, SCRYCHECK_MAX, SCRYCHECK_URL, readVectors } from "./ScryCheckRadar.jsx";
 import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
+// The 24 otags with no WREC category of their own — the plan vocabulary.
+import { PLAN_OTAGS } from "../lib/deckTags.js";
 
 // Manual entry for the five self-reported ScryCheck vectors.
 //
@@ -57,6 +59,10 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
   const [playList, setPlayList] = useState([]);
   const [playQuery, setPlayQuery] = useState("");
   const [themes, setThemes] = useState([]);
+  // The plan (037), as otag slugs. Same shape as playstyle, different source:
+  // these must be REAL otags or they can never match a card.
+  const [planList, setPlanList] = useState([]);
+  const [planQuery, setPlanQuery] = useState("");
 
   const textColor   = theme.white;
   const dimColor    = theme.dim;
@@ -78,6 +84,8 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
     setGameStyle(deck?.self_game_style ?? "");
     setPlayList(deck?.self_play_style ?? []);
     setPlayQuery("");
+    setPlanList(deck?.self_plan ?? []);
+    setPlanQuery("");
   }, [open, deck]);
 
   // ── EDHREC's own tags, for THIS commander ───────────────────────────────────
@@ -107,6 +115,20 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
       }, () => {});
     return () => { cancelled = true; };
   }, [open, oracleId]);
+
+  const planFull = planList.length >= MAX_PLAY;
+  const pq = planQuery.trim().toLowerCase();
+  const planSuggestions = PLAN_OTAGS
+    .filter(t => !planList.includes(t))
+    .filter(t => !pq || t.includes(pq))
+    .slice(0, 8);
+  function addPlan(v) {
+    const s = String(v ?? "").trim();
+    if (!s || planFull || !PLAN_OTAGS.includes(s)) return;
+    if (planList.includes(s)) { setPlanQuery(""); return; }
+    setPlanList(l => [...l, s]);
+    setPlanQuery("");
+  }
 
   const playFull = playList.length >= MAX_PLAY;
   const q = playQuery.trim().toLowerCase();
@@ -168,6 +190,13 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
     const play = [...playList, playQuery.trim()]
       .map(v => v.trim()).filter(Boolean).slice(0, MAX_PLAY);
     patch.self_play_style = play.length ? play : null;
+    const planned = [...planList, planQuery.trim()]
+      .map(v => v.trim()).filter(Boolean)
+      // Only real otags survive: a typo here would print on the card and match
+      // nothing, which is the one failure this field must not have.
+      .filter(v => PLAN_OTAGS.includes(v))
+      .slice(0, MAX_PLAY);
+    patch.self_plan = planned.length ? planned : null;
     const { error } = await supabase.from("decks").update(patch).eq("id", deck.id);
     setBusy(false);
     if (error) {
@@ -544,6 +573,82 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
                   ))}
                 </div>
               )}
+
+              {/* ── THE PLAN (037) ───────────────────────────────────────────
+                  Otags, not free text, and that is the whole point: card_tags
+                  already knows which cards carry each otag, so naming the plan
+                  here also tells the WREC band which cards are your payoff.
+                  A sentence could print but could never do that. */}
+              <div style={{
+                fontFamily: "'Noto Sans Mono', monospace", fontSize: 11,
+                letterSpacing: "0.12em", textTransform: "uppercase", color: dimColor,
+                paddingTop: 6,
+              }}>
+                the plan
+              </div>
+
+              {planList.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {planList.map(v => (
+                    <button key={v} onClick={() => setPlanList(l => l.filter(x => x !== v))}
+                      aria-label={`Remove ${v}`}
+                      style={{
+                        minHeight: 36, padding: "0 10px",
+                        display: "flex", alignItems: "center", gap: 6,
+                        background: "transparent", border: `1px solid ${theme.red}`,
+                        borderRadius: 0, color: theme.red,
+                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
+                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                      }}>
+                      {v.replace(/-/g, " ")}
+                      <span className="material-symbols-rounded" style={{ fontSize: 14 }}>close</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!planFull && (
+                <input
+                  value={planQuery}
+                  onChange={e => setPlanQuery(e.target.value)}
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPlan(planQuery.trim()); } }}
+                  placeholder="search: reanimate, extra-turn, landfall…"
+                  autoCapitalize="off"
+                  style={{
+                    width: "100%", boxSizing: "border-box", minHeight: 44,
+                    background: "transparent", color: textColor,
+                    fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
+                    border: `1px solid ${borderColor}`, borderRadius: 0,
+                    padding: "0 12px", outline: "none",
+                  }}
+                />
+              )}
+
+              {!planFull && planSuggestions.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {planSuggestions.map(t => (
+                    <button key={t} onClick={() => addPlan(t)}
+                      style={{
+                        minHeight: 34, padding: "0 10px",
+                        background: "transparent", border: `1px solid ${borderColor}`,
+                        borderRadius: 0, color: dimColor,
+                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
+                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                      }}>
+                      {t.replace(/-/g, " ")}
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              <div style={{
+                fontFamily: "'Noto Sans Mono', monospace", fontSize: 10,
+                color: dimColor, lineHeight: 1.5,
+              }}>
+                {planFull
+                  ? "three is the limit. tap a chip to remove one."
+                  : "prints on the card, and tags matching cards as your PLAN in WREC. pick from the list — a made-up tag would match nothing."}
+              </div>
 
               <div style={{
                 fontFamily: "'Noto Sans Mono', monospace", fontSize: 10,
