@@ -28,10 +28,13 @@ const GAME_STYLES = [
 
 export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
   const [gameStyle, setGameStyle] = useState("");
-  const [playList, setPlayList] = useState([]);
-  const [playQuery, setPlayQuery] = useState("");
-  const [planList, setPlanList] = useState([]);
-  const [planQuery, setPlanQuery] = useState("");
+  // ONE list, not two. Ben: "play style and the plan are the same thing in my
+  // eyes" — and he is right, it was the same question asked twice. They are
+  // still stored in two columns because only an OTAG can match a card and feed
+  // the WREC plan tag; an EDHREC theme like "Aristocrats" cannot. That split is
+  // an implementation detail and is resolved on save, not shown to the user.
+  const [tags, setTags] = useState([]);
+  const [query, setQuery] = useState("");
   const [themes, setThemes] = useState([]);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
@@ -44,9 +47,9 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setGameStyle(deck?.self_game_style ?? "");
-    setPlayList(deck?.self_play_style ?? []);
-    setPlanList(deck?.self_plan ?? []);
-    setPlayQuery(""); setPlanQuery(""); setErr(null); setSaved(false);
+    // Recombined for editing in the order the card prints them: plan first.
+    setTags([...(deck?.self_plan ?? []), ...(deck?.self_play_style ?? [])]);
+    setQuery(""); setErr(null); setSaved(false);
   }, [deck]);
 
   // EDHREC's tags for THIS commander, in EDHREC's own rank order — a short
@@ -69,31 +72,24 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
     return () => { cancelled = true; };
   }, [oracleId]);
 
-  const playFull = playList.length >= MAX;
-  const planFull = planList.length >= MAX;
-  const q = playQuery.trim().toLowerCase();
-  const pq = planQuery.trim().toLowerCase();
+  const full = tags.length >= MAX;
+  const q = query.trim().toLowerCase();
 
-  const playSuggestions = themes
-    .filter(x => !playList.some(p => p.toLowerCase() === x.toLowerCase()))
-    .filter(x => !q || x.toLowerCase().includes(q)).slice(0, 8);
-  const planSuggestions = PLAN_OTAGS
-    .filter(x => !planList.includes(x))
-    .filter(x => !pq || x.includes(pq)).slice(0, 8);
+  // Otags first and flagged, because they do something extra — they tag cards.
+  // Themes after, as plain labels. One list, two origins, ranked by usefulness.
+  const suggestions = [
+    ...PLAN_OTAGS.map(t => ({ value: t, label: t.replace(/-/g, " "), wrec: true })),
+    ...themes.map(t => ({ value: t, label: t, wrec: false })),
+  ]
+    .filter(x => !tags.some(v => v.toLowerCase() === x.value.toLowerCase()))
+    .filter(x => !q || x.label.toLowerCase().includes(q))
+    .slice(0, 10);
 
-  function addPlay(v) {
+  function add(v) {
     const s = String(v ?? "").trim();
-    if (!s || playFull) return;
-    if (playList.some(p => p.toLowerCase() === s.toLowerCase())) { setPlayQuery(""); return; }
-    setPlayList(l => [...l, s]); setPlayQuery("");
-  }
-  function addPlan(v) {
-    const s = String(v ?? "").trim();
-    // Validated against the real taxonomy: a typo would print on the card and
-    // match no cards at all, which is the one failure this field must not have.
-    if (!s || planFull || !PLAN_OTAGS.includes(s)) return;
-    if (planList.includes(s)) { setPlanQuery(""); return; }
-    setPlanList(l => [...l, s]); setPlanQuery("");
+    if (!s || full) return;
+    if (tags.some(x => x.toLowerCase() === s.toLowerCase())) { setQuery(""); return; }
+    setTags(l => [...l, s]); setQuery("");
   }
 
   async function save() {
@@ -101,9 +97,12 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
     setBusy(true); setErr(null);
     // Anything still sitting in a query box counts — nobody expects typed text
     // to evaporate because they hit save instead of enter.
-    const play = [...playList, playQuery.trim()].map(v => v.trim()).filter(Boolean).slice(0, MAX);
-    const plan = [...planList, planQuery.trim()]
-      .map(v => v.trim()).filter(Boolean).filter(v => PLAN_OTAGS.includes(v)).slice(0, MAX);
+    const all = [...tags, query.trim()].map(v => v.trim()).filter(Boolean).slice(0, MAX);
+    // THE SPLIT HAPPENS HERE, once, invisibly: anything that is a real otag goes
+    // to self_plan so it can tag cards; everything else is a label and goes to
+    // self_play_style. The user picked from one list and never sees this.
+    const plan = all.filter(v => PLAN_OTAGS.includes(v));
+    const play = all.filter(v => !PLAN_OTAGS.includes(v));
     const patch = {
       self_game_style: gameStyle || null,
       self_play_style: play.length ? play : null,
@@ -120,7 +119,7 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
         : error.message);
       return;
     }
-    setPlayList(play); setPlanList(plan); setPlayQuery(""); setPlanQuery("");
+    setTags([...plan, ...play]); setQuery("");
     setSaved(true); setTimeout(() => setSaved(false), 2000);
     onSaved?.(patch);
   }
@@ -153,61 +152,40 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
         ))}
       </div>
 
-      <div style={{ ...cap, paddingTop: 6 }}>play style</div>
-      {playList.length > 0 && (
+      <div style={{ ...cap, paddingTop: 6 }}>play style / the plan</div>
+      {tags.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {playList.map(v => (
-            <button key={v} onClick={() => setPlayList(l => l.filter(x => x !== v))}
-                    aria-label={`Remove ${v}`} style={chip(true, t.accent)}>
-              {v}<span className="material-symbols-rounded" style={{ fontSize: 14 }}>close</span>
-            </button>
-          ))}
-        </div>
-      )}
-      {!playFull && (
-        <input value={playQuery} onChange={e => setPlayQuery(e.target.value)}
-               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPlay(playQuery); } }}
-               placeholder={themes.length ? "search edhrec tags, or type your own" : "graveyard"}
-               autoCapitalize="off" style={input} />
-      )}
-      {!playFull && playSuggestions.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {playSuggestions.map(x => (
-            <button key={x} onClick={() => addPlay(x)} style={chip(false, t.accent)}>{x}</button>
-          ))}
-        </div>
-      )}
-
-      <div style={{ ...cap, paddingTop: 6 }}>the plan</div>
-      {planList.length > 0 && (
-        <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {planList.map(v => (
-            <button key={v} onClick={() => setPlanList(l => l.filter(x => x !== v))}
-                    aria-label={`Remove ${v}`} style={chip(true, t.red)}>
+          {tags.map(v => (
+            <button key={v} onClick={() => setTags(l => l.filter(x => x !== v))}
+                    aria-label={`Remove ${v}`}
+                    style={chip(true, PLAN_OTAGS.includes(v) ? t.red : t.accent)}>
               {v.replace(/-/g, " ")}
               <span className="material-symbols-rounded" style={{ fontSize: 14 }}>close</span>
             </button>
           ))}
         </div>
       )}
-      {!planFull && (
-        <input value={planQuery} onChange={e => setPlanQuery(e.target.value)}
-               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPlan(planQuery.trim()); } }}
-               placeholder="search: reanimate, extra-turn, landfall…"
+      {!full && (
+        <input value={query} onChange={e => setQuery(e.target.value)}
+               onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); add(query); } }}
+               placeholder="reanimate, tokens, landfall…"
                autoCapitalize="off" style={input} />
       )}
-      {!planFull && planSuggestions.length > 0 && (
+      {!full && suggestions.length > 0 && (
         <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-          {planSuggestions.map(x => (
-            <button key={x} onClick={() => addPlan(x)} style={chip(false, t.red)}>
-              {x.replace(/-/g, " ")}
+          {suggestions.map(x => (
+            // Red marks the ones that also tag cards in WREC. The colour is the
+            // only hint given — explaining the otag/theme split in the UI would
+            // be explaining our storage to someone who asked one question.
+            <button key={x.value} onClick={() => add(x.value)}
+                    style={chip(false, x.wrec ? t.red : t.accent)}>
+              {x.label}
             </button>
           ))}
         </div>
       )}
       <div style={help}>
-        the plan also tags matching cards as your PLAN in WREC. pick from the
-        list — a made-up tag would match nothing.
+        up to three. the red ones also tag matching cards as your PLAN in WREC.
       </div>
 
       <button onClick={save} disabled={busy || !deck?.id}
