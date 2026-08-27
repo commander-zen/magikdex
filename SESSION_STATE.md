@@ -1,5 +1,33 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 — 🔍 **SCRYFALL SWIPE SEARCH: the groundwork** (Ben: "sometimes i want to just generally look for cards or look for a new legend")
+
+**The feature is 90% BUILT ALREADY. It is gated, not missing.** That is the whole finding.
+
+`SwipeScreen.jsx` already has a full Scryfall search — a "name or scryfall syntax" input (~line 757) with `submitQuery` / `queryBusy` / `closeSearch`, which reseeds the swipe stack through `onEditQuery`. It works. It is simply unreachable in the case Ben wants, because of one line in `Brew.jsx`:
+
+```
+1584   onSearchAll={session ? runGlobalSearch : undefined}
+1585   onEditQuery={session ? runGlobalSearch : undefined}
+1635   onDeckSearch={session ? runGlobalSearch : undefined}
+```
+
+**`session` means a brew session with a legend already chosen.** So you must pick a commander and start brewing before you can search Scryfall at all — which is exactly backwards for "I want to browse" and for "I want to FIND a new legend".
+
+### The two things Ben actually asked for, and they differ
+1. **Browse cards generally** — swipe a Scryfall result set with no deck attached. Needs a swipe mode where a right-swipe does NOT add to a deck, because there is no deck. What should it do instead? Nothing (pure browse), or collect into a holding list?
+2. **Find a new legend** — swipe results filtered to legendary creatures, where choosing one STARTS a session with it as the commander. That is a different terminal action from browsing, and it already has a home: `AddLegendSheet` has a "search" tab. The swipe could be a second door to the same outcome.
+
+### What to work out first, before writing anything
+- **What does a right-swipe mean with no deck?** This is the whole design question. The existing swipe is "add to deck"; browse has no deck. Answer that and the rest follows.
+- `runGlobalSearch` (Brew.jsx:1213) is the search itself — check whether it assumes a session internally, or whether only the props are gated. If only the props, the change may genuinely be small.
+- Entry point: where does a user launch "browse"? Home has no obvious slot, and Ben has already had one control removed from the Box detail for being clutter.
+
+### Do NOT
+- Do not build a second search. The one in SwipeScreen works and is already wired to the stack.
+- Do not put the entry point on the Box detail pane without asking — Ben had the print icon removed from there for exactly that reason.
+
+
 ## 2026-08-27 — ✅ **THE OVERSIZED HERO IS BACK** (and the plan is findable)
 
 Ben: *"i actually miss the giant oversized font that was clipping stuff for the commander name. that was the vibe tbh of the MSCHF look it was fitting."* — He is right, and I over-corrected. The mockup's own "GRAVEYARD" measures ~589px inside a 540px column and is cut by the card's `overflow:hidden`. Shrinking every long name to fit made the card tidy and ordinary.
@@ -1501,6 +1529,14 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 - 3 empty test-only anon users remain (`25d64369`, `43143805`, `45b16f05`) — I was blocked from deleting auth users (correctly; destructive auth op). Safe to delete by hand.
 
 ## Cold Start Prompt
+
+Priority (**2026-08-27**): **SCRYFALL SEARCH FROM THE SWIPE — browse cards, and find a new legend.** Ben's ask, and the surprise is that it is **already built and merely gated**: `SwipeScreen` has a working "name or scryfall syntax" search that reseeds the stack via `onEditQuery`, and `Brew.jsx` lines 1584/1585/1635 hand it `session ? runGlobalSearch : undefined`. `session` means a legend is already chosen, so you must be brewing a deck before you can search — backwards for browsing, and impossible for finding a NEW legend. **Read the 2026-08-27 groundwork entry at the top before touching it**; the one real design question is *what a right-swipe means when there is no deck to add to*.
+
+Also still open, and both are cheap:
+- **PRINT ONE CARD ON REAL PAPER.** Everything has been verified on screen only. Three dialog settings bite exactly once — background graphics ON, scale 100%, and **landscape** for the 3×3. This is the test that says whether the whole print feature works, and whether the card feels right in the hand.
+- **The plan → WREC path has never been exercised end to end.** The data proves out (in a real deck `reanimate` matches 5 cards, `self-mill` 6), and `Brew` passes the plan to `autoWrecTags`, but nobody has set a plan and then watched cards pick up the WREC `plan` tag.
+
+Applied migrations: 034, 035, 036, 037 — all in production. **A migration can be applied from a session; it does not need Ben.** `magikdex/.env` has `SUPABASE_DB_URL` + `PGPASSWORD` and psql 17 is installed — see the procedure in [[magicdex-roadmap]], and always rehearse in `BEGIN … ROLLBACK` first (it caught a fatal subquery-in-CHECK in 036).
 
 Priority (**2026-08-26**): **WALK THE SIGN-UP ON A PHONE, THEN DECIDE ABOUT THE HANDLE FK.** The scan now survives sign-up (`pendingScan.js` + `PendingBuddies`), but **the signed-in half has never been walked by a human** — it needs an email OTP. Scan a card signed out, tap save, sign up, and confirm the "you kept @zen's card" prompt appears and adds.
 
