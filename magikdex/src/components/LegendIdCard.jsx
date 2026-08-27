@@ -247,9 +247,16 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
               ...abs, top: u(434), left: u(46), ...mono,
               fontSize: u(32), letterSpacing: "0.04em", color: GRAY,
               fontWeight: 500, width: u(540),
-              // One row; a long list ellipsises rather than colliding with the
-              // credit block below.
-              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
+              // IT WRAPS. Ben: "Landfall say '…' and we can have that wrap dont
+              // need to do the …". He is right — the ellipsis was solving a
+              // problem that does not exist here. There are ~198 units between
+              // this line and the credit block, which is four lines at 32/1.3,
+              // and the field is capped at three tags plus a game style. Three
+              // lines is the backstop, clamped so a cut lands BETWEEN lines
+              // rather than through the letterforms.
+              lineHeight: 1.3,
+              display: "-webkit-box", WebkitBoxOrient: "vertical",
+              WebkitLineClamp: 3, overflow: "hidden",
             }}>
               {selfLine}
             </div>
