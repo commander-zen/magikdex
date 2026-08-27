@@ -1,5 +1,16 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 — ✅ **THE RADAR FILLS ITS PANE** — 46% bigger pentagon (`747d7da`)
+
+Ben: *"can we make the pentagon here full screen? the label actually takes up a lot of the space."* Right on both counts.
+
+- 🧭 **The mechanism, because it is not obvious.** An SVG scales to `min(paneW/viewBoxW, paneH/viewBoxH)`. On a phone this pane is TALLER than the viewBox, so the fit is **width-limited** — every unit the labels claim horizontally comes straight off the radius, and the spare height was doing nothing.
+- ❌ **What was wasting it.** "CONSISTENCY" hung off the right vertex (`anchor: start`) and "INTERACTION" off the left (`anchor: end`). Those two vertices sit at the pentagon's **widest** point (cos 18° = 0.951), so a whole word was budgeted beyond the widest part of the shape, on each side.
+- ✅ Every label is now centred over its own vertex and stacked outward: half a word each side, and the idle height gets spent. **R 58 → 85** in the same 280-wide box.
+- ✅ **Verified in a browser across BOTH fit regimes** before shipping — a taller viewBox can cost radius on a short wide pane, so this was not safe to eyeball. `R/viewBoxW` 0.207 → 0.304 and `R/viewBoxH` 0.290 → 0.347: bigger whichever dimension binds. Bounding box inside the viewBox on all four sides; tightest margin 3.6 units on the right.
+
+⚠️ **The binding constraint is now vertex 1 (upper right):** `CX + 0.951·LR + halfWidth("CONSISTENCY") ≤ 280`. A longer vector name added to `SCRYCHECK_VECTORS` is what would break this, and it would push that label off the right edge silently.
+
 ## 2026-08-27 (UAT) — ✅ **THE WHOLE NAME, FITTED** — the hero saga ends (`9f66e55`)
 
 Ben: *"second half of ral is missing and thranduil is clipped still."* Both were mine: I dropped the `//` back face and clamped to three lines, to preserve the oversized look he had asked for.
