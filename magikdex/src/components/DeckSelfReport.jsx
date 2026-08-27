@@ -21,6 +21,11 @@ import { PLAN_OTAGS } from "../lib/deckTags.js";
 
 const MAX = 3;   // mirrors the CHECKs in 036 and 037, and the card's one row
 
+// otag slugs are kebab-case ("self-mill"), EDHREC theme names are title case
+// with punctuation ("Self-Mill", "Dragon's Approach"). Compared on a flattened
+// form so the same idea is not offered twice under two spellings.
+const norm = s => String(s ?? "").toLowerCase().replace(/[^a-z0-9]+/g, " ").trim();
+
 const GAME_STYLES = [
   ["jank", "jank"], ["casual", "casual"],
   ["trash_magic", "trash magic"], ["cedh", "cEDH"],
@@ -36,6 +41,7 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
   const [tags, setTags] = useState([]);
   const [query, setQuery] = useState("");
   const [themes, setThemes] = useState([]);
+  const [expanded, setExpanded] = useState(false);
   const [busy, setBusy] = useState(false);
   const [err, setErr] = useState(null);
   const [saved, setSaved] = useState(false);
@@ -49,7 +55,7 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
     setGameStyle(deck?.self_game_style ?? "");
     // Recombined for editing in the order the card prints them: plan first.
     setTags([...(deck?.self_plan ?? []), ...(deck?.self_play_style ?? [])]);
-    setQuery(""); setErr(null); setSaved(false);
+    setQuery(""); setErr(null); setSaved(false); setExpanded(false);
   }, [deck]);
 
   // EDHREC's tags for THIS commander, in EDHREC's own rank order — a short
@@ -64,7 +70,10 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
       .select("theme_name, theme_slug, rank")
       .eq("legend_oracle_id", oracleId)
       .order("rank", { ascending: true })
-      .limit(60)
+      // No meaningful cap. EDHREC lists 60–90 themes for a busy commander (Ral,
+      // Monsoon Mage has 67) and the old limit of 60 was quietly truncating the
+      // tail. Ranked, so the useful ones are at the front either way.
+      .limit(200)
       .then(({ data }) => {
         if (cancelled || !data) return;
         setThemes(data.map(r => r.theme_name || r.theme_slug).filter(Boolean));
@@ -75,15 +84,32 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
   const full = tags.length >= MAX;
   const q = query.trim().toLowerCase();
 
-  // Otags first and flagged, because they do something extra — they tag cards.
-  // Themes after, as plain labels. One list, two origins, ranked by usefulness.
-  const suggestions = [
-    ...PLAN_OTAGS.map(t => ({ value: t, label: t.replace(/-/g, " "), wrec: true })),
-    ...themes.map(t => ({ value: t, label: t, wrec: false })),
-  ]
-    .filter(x => !tags.some(v => v.toLowerCase() === x.value.toLowerCase()))
-    .filter(x => !q || x.label.toLowerCase().includes(q))
-    .slice(0, 10);
+  // ⚠️ EDHREC'S THEMES COME FIRST, IN EDHREC'S RANK ORDER.
+  // They were second, behind all 24 otags, under a slice(0, 10) — so the ten
+  // visible chips were always otags and not one theme ever appeared. Ben: "Are
+  // these the only play styles? EDHREC has like 80". They were all being
+  // fetched and all being cut. I had ranked the implementation detail (an otag
+  // also tags cards) above the actual answer to the question being asked.
+  const otagByLabel = new Map(PLAN_OTAGS.map(t => [norm(t), t]));
+  const themeItems = themes.map(name => {
+    // A theme that IS an otag keeps its ranked position and gains the otag's
+    // powers — "Burn" should not fall to the bottom of the list to be red.
+    const hit = otagByLabel.get(norm(name));
+    return hit ? { value: hit, label: name, wrec: true } : { value: name, label: name, wrec: false };
+  });
+  const claimed = new Set(themeItems.filter(x => x.wrec).map(x => x.value));
+  const pool = [
+    ...themeItems,
+    ...PLAN_OTAGS.filter(t => !claimed.has(t))
+      .map(t => ({ value: t, label: t.replace(/-/g, " "), wrec: true })),
+  ].filter(x => !tags.some(v => v.toLowerCase() === x.value.toLowerCase()));
+
+  // Typing searches the whole list; resting shows the top of it. Ninety chips
+  // at once is a wall, and the ranking is what makes a short list defensible.
+  const matches = pool.filter(x => !q || x.label.toLowerCase().includes(q));
+  const collapsed = !q && !expanded;
+  const suggestions = collapsed ? matches.slice(0, 12) : matches.slice(0, 40);
+  const hidden = collapsed ? matches.length - suggestions.length : 0;
 
   function add(v) {
     const s = String(v ?? "").trim();
@@ -182,9 +208,18 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
               {x.label}
             </button>
           ))}
+          {hidden > 0 && (
+            <button onClick={() => setExpanded(true)}
+                    style={{ ...chip(false, t.accent), color: t.accent, borderStyle: "dashed" }}>
+              +{hidden} more
+            </button>
+          )}
         </div>
       )}
       <div style={help}>
+        {oracleId
+          ? "EDHREC's themes for this commander, in their order — or type anything. "
+          : "type anything. "}
         up to three. the red ones also tag matching cards as your PLAN in WREC.
       </div>
 
