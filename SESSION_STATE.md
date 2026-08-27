@@ -1,5 +1,30 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (UAT round 2) — ✅ **9 PER PAGE, AND THE HERO SPILL IS ACTUALLY FIXED**
+
+Ben: *"the commander // deck ID is spilling over when its multiple per page. we can get 9 per page when its printed like proxys."*
+
+### 9 per page needs the PAGE turned, not the cards
+His proxy PDF, read structurally: **5 pages, 39 images all 488×680** (Scryfall's exact `normal` size), portrait US Letter — a 3 × 3 proxy sheet. But a proxy is 63 × 88mm PORTRAIT and this card is 3.5 × 2.5in LANDSCAPE, so the same 3 × 3 is 10.5 × 7.5in. **10.5in of card can never cross an 8.5in portrait page** — which is exactly why the previous version capped at 2 × 4 = 8.
+
+Now `@page { size: landscape; margin: 0.15in }` with a 3 × 3 grid. Measured in an isolated container: 3 cols, 3 rows, cells exactly 3.5 × 2.5in, sheet 10.5 × 7.5in — fits Letter AND A4 landscape, confirmed does NOT fit portrait. The dialog opens on Portrait, so the sheet now says so in accent text.
+
+⚠️ First measurement of this was WRONG (reported a 20.38in sheet) because the test grid inherited the preview page's flex layout. Re-run isolated. **A layout measurement taken inside someone else's layout is not a measurement.**
+
+### 🚨 The hero fit: third attempt, and the first two shipped broken
+Ben's spill was real — "PRODIGY" printed under the yellow tag. Arithmetic wrapping against an average glyph advance cannot predict where a real line breaks; 0.62 em/char was wrong and the *measured* 0.690 was still wrong. **Replaced entirely with a measuring loop**: render, read `scrollHeight`, step down until it clears the gap to the tag.
+
+Two bugs found while building it, both of which had ALREADY shipped in the estimator era:
+
+1. **`document.fonts.ready` is not enough.** It resolves as soon as nothing is *pending*, and a face the page has not requested yet is not pending — so the first pass measured a fallback. Use `document.fonts.load("86px 'Archivo Black'")`, which actually requests the face.
+2. **🐛 Never `el.style.fontSize = ""` on a React-styled element.** React sets that font-size through the same inline `style` prop, so clearing it wipes React's value — and when the loop lands on the size the state already holds, `setSize` is a no-op, no re-render fires, and nothing puts it back. The element inherits 16px from the page. Symptom: **every card rendered at an identical wrong size (50 in design units) while the loop was correctly computing 66 / 60 / 86 / 86 / 54.** Diagnosed by simulating the loop in the page and comparing its answer to what was actually rendered.
+
+Verified after: short names keep the mockup's 86 ("Graveyard Shift", "Slivers"), long ones step to 66 / 60 / 54, **zero collisions with the tag and zero width overflow** across five real names including both double-faced ones.
+
+### Still true
+No real paper yet — every UAT screenshot has been on-screen.
+
+
 ## 2026-08-27 (UAT round 1) — ✅ **THREE FIXES SHIPPED** (all screenshots, no paper yet)
 
 Ben ran UAT on the print feature and sent three items. Fixes were committed as they landed but **held from deploy until he called it** — he was testing against prod, and deploying mid-pass would have moved the ground under him.

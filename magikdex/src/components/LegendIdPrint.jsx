@@ -9,18 +9,26 @@ import { resolveLegendDeck } from "../lib/legendDeck.js";
 //
 // Ben: "just stick a print icon anywhere and have it print single or a full page."
 //
-// ── 2 × 4, and the arithmetic is the reason ──────────────────────────────────
-// The card is 3.5in × 2.5in LANDSCAPE. Two across is 7in and four down is 10in.
-// Letter at a 0.2in margin gives 8.1 × 10.6in of printable area; A4 gives
-// 7.87 × 11.3in. Two across by four down is therefore the largest whole grid
-// that clears BOTH papers — it is not a round number somebody liked.
+// ── 3 × 3 ON A LANDSCAPE PAGE, and the orientation is the whole trick ────────
+// Ben: "we can get 9 per page when its printed like proxys". A proxy sheet is
+// 3 × 3, and his own proxy PDF confirms it — 39 card images at Scryfall's exact
+// 488 × 680 across 5 portrait Letter pages.
+//
+// But a proxy is 63 × 88mm PORTRAIT and this card is 3.5 × 2.5in LANDSCAPE, so
+// the same 3 × 3 needs the PAGE turned: three across is 10.5in and three down
+// is 7.5in, which fits 11 × 8.5in landscape and cannot fit 8.5 × 11 portrait —
+// 10.5in of card will never cross an 8.5in page. That is why the portrait
+// version capped at 2 × 4 = 8.
+//
+// At a 0.15in margin the printable area is 10.7 × 8.2in: 10.5 and 7.5 both
+// clear it. Tight on width by 0.2in, which is the cost of nine.
 //
 // ⚠️ NEVER auto-fit the grid. The trainer app shipped `repeat(auto-fit, …)` for
 // its proxy sheet, which sizes to the VIEWPORT — nine cards went four or five
 // across on a desktop and the on-screen sheet did not match the page at all. A
 // print preview that lies is worse than no preview.
-const COLS = 2;
-const PER_SHEET = 8;
+const COLS = 3;
+const PER_SHEET = 9;
 
 // CSS inches at the browser's fixed 96dpi. The sheet is authored in PHYSICAL
 // units because that is what makes the print correct — but 2 × 3.5in is 672
@@ -73,9 +81,15 @@ export default function LegendIdPrint({ open, onClose, legend, deck, legendId })
   return createPortal(
     <>
       <style>{`
-        /* size:auto respects whatever paper is loaded; the grid above clears
-           both Letter and A4 at this margin. */
-        @page { size: auto; margin: 0.2in; }
+        /* LANDSCAPE, explicitly. The 3 x 3 grid is 10.5in wide and simply
+           cannot fit an 8.5in portrait page — the sheet has to turn, not the
+           cards. Asking for the orientation alone (not a named paper) leaves
+           the PAPER as whatever is loaded, so Letter and A4 both still work.
+           0.15in rather than 0.2: three cards across leaves only 0.2in of slack
+           on Letter, and the margin is where that slack comes from.
+           NOTE: no backticks in this block — it lives inside a template
+           literal, and one would end the string mid-stylesheet. */
+        @page { size: landscape; margin: 0.15in; }
 
         @media print {
           .lid-noprint { display: none !important; }
@@ -153,6 +167,16 @@ export default function LegendIdPrint({ open, onClose, legend, deck, legendId })
             so it does not look like another card in the box. cut on the guides.
           </span>
 
+          {/* Said because the dialog will show Portrait until it is changed, and
+              nine cards across 10.5in cannot fit an 8.5in page — the sheet
+              silently loses its third column instead of failing loudly. */}
+          {count > 1 && (
+            <span style={{ fontSize: 12, lineHeight: 1.6, color: t.accent }}>
+              set the print dialog to <strong>landscape</strong> — 3 across is
+              10.5&nbsp;in and will not fit a portrait page.
+            </span>
+          )}
+
           <div style={{ display: "flex", gap: 8 }}>
             {[1, PER_SHEET].map(n => (
               <button key={n} onClick={() => setCount(n)} style={{
@@ -161,7 +185,7 @@ export default function LegendIdPrint({ open, onClose, legend, deck, legendId })
                 color: count === n ? t.accent : t.dim,
                 fontSize: 13, cursor: "pointer", borderRadius: 0,
               }}>
-                {n === 1 ? "just one" : `${PER_SHEET} per sheet`}
+                {n === 1 ? "just one" : `${COLS} × ${PER_SHEET / COLS} sheet`}
               </button>
             ))}
           </div>
