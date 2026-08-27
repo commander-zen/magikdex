@@ -345,7 +345,16 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
               value={pasteText}
               onChange={e => setPasteText(e.target.value)}
               onFocus={pinViewportOnFocus}
-              placeholder={"paste a deck URL…\nmoxfield.com/decks/… or archidekt.com/decks/…\n\n(or a plain decklist, one card per line)"}
+              /* ⚠️ THE COPY NO LONGER PROMISES A URL. The URL path still EXISTS
+                 (isDeckUrl → prepareImportFromUrl) and Archidekt works, but
+                 Moxfield's bot filter 403s the fetch — the standing MOXFIELD_UA
+                 gap — so the old placeholder advertised a route that fails on
+                 the most common host. Ben, 2026-08-27: "my import function for
+                 magikdex is plaintext only ... nah i dont wanna mess with that
+                 until someone asks for it tbh."
+                 The CODE stays (pasting a URL still tries, and still works for
+                 Archidekt); only the promise goes. */
+              placeholder={"paste a decklist — one card per line\n\n1 Sol Ring\n1 Arcane Signet\n1 Cultivate\n…"}
               autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
               rows={6}
               style={{
