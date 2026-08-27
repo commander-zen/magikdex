@@ -1,5 +1,16 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (UAT) — ✅ **THE HERO CLIPS BETWEEN LINES NOW** (`f636a2a`)
+
+Ben, on two printed-preview screenshots: *"overflow is weird now not cute and cool. the original was the best still."* He was right and it was my bug, not a taste call.
+
+- ❌ **What broke it.** The hero was capped at `height: COL_H` where `COL_H = 352 − 82 = 270` — the raw gap to the yellow tag. At 86px/0.94 a line box is 80.84px, so 270 is **3.34 lines**: the fourth line rendered its top third and every long name was sheared through the waist ("BAL", "SILVAN"). A pixel height cannot be trusted to land between lines.
+- ✅ **`WebkitLineClamp: 3`** — cuts on a line boundary by construction. 3 × 80.84 = 242.5 from top 82 ends at 324.5, clear of the tag at 352.
+- ✅ **Front face only.** `frontFace()` splits on `//`. Both cards Ben printed were double faced, and the `//` tail is what pushed them past three lines to begin with. The card names the commander you cast; the back face is in the box an inch away.
+- ✅ **Horizontal bleed untouched** — no `overflowWrap`, so a word wider than the column still runs off toward the frame and is cut there. That overflow is the vibe; the vertical smear never was.
+
+⚠️ **The distinction to keep:** horizontal overflow = MSCHF, deliberate, keep. Vertical overflow = broken layout. A clip that is not a whole number of line boxes produces neither — it produces a rendering fault.
+
 ## 2026-08-27 — 🔍 **SCRYFALL SWIPE SEARCH: the groundwork** (Ben: "sometimes i want to just generally look for cards or look for a new legend")
 
 **The feature is 90% BUILT ALREADY. It is gated, not missing.** That is the whole finding.
