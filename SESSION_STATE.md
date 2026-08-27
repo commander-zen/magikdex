@@ -1,5 +1,29 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 — ✅ **EDHREC PLAYSTYLE PICKER** — their tags, this commander's, in their order
+
+Ben: *"for playstyle we should have the information from EDHREC and we can use their tags. its a lot but if we have it be a searchable field ... that is ideal."*
+
+**It is only "a lot" if you offer every theme in the game.** `legend_themes` is keyed by legend oracle id and carries EDHREC's own **rank**, so the picker offers THIS commander's themes in EDHREC's order — a short relevant list, not 141,421 rows to search. Verified against production:
+
+| legend | themes | top 6 by rank |
+|---|---|---|
+| Meren of Clan Nel Toth | 125 | Aristocrats · Reanimator · Graveyard · Sacrifice · Birthing Pod · Combo |
+| Ral, Monsoon Mage // Ral, Leyline Prodigy | 268 | Spellslinger · Storm · Combo · Spell Copy · Coin Flip · Burn |
+
+### The oracle-id bridge, which is not obvious
+`public.legends` has `scryfall_id` but **NO oracle_id**, while `legend_themes` is keyed by `legend_oracle_id`. The bridge already existed: **`getCardData()` returns `oracle_id`** (it is in `CARD_CACHE_COLS`), and `LegendIdentity` already holds that card as `oracleCard`. So `oracleId={oracleCard?.oracle_id}` — no join, no new query, no migration.
+
+### Behaviour
+Chips replace the old comma-separated text box — the values are discrete and the column is an array, so editing them as text meant re-parsing every save and hoping the user's commas matched ours. Type to filter; **Enter commits whatever is typed**, which is what keeps it a free-text field rather than a closed dropdown (036 deliberately does not constrain the vocabulary). Already-selected tags are filtered out of the suggestions. At three the input disappears and says why.
+
+Anything left sitting in the query box is included on save — nobody expects typed text to evaporate because they hit save instead of enter.
+
+**✅ RLS checked before building the UI on it:** `legend_themes` has row security ENABLED, but a permissive read policy covers it (reference data, not user data). Confirmed through the REST endpoint with the ANON key, not just as the DB owner — that distinction is the whole point of the check.
+
+Verified in a rendered sheet against the real Meren oracle id: suggestions load from EDHREC, an already-chosen tag is absent from them, typing "rean" narrows to "Reanimator", and the third selection hides the input with the cap message.
+
+
 ## 2026-08-27 — ✅ **MIGRATION 036 APPLIED TO PRODUCTION** (by Claude, with Ben's go-ahead)
 
 Ben: *"i think you can do the migration you should have teh supabase info."* Correct — `magikdex/.env` carries `SUPABASE_DB_URL` and `PGPASSWORD`, and PostgreSQL 17.10's psql is installed at `/c/Program Files/PostgreSQL/17/bin`. **This is how a migration can be applied from a session; it does not have to wait on Ben.**

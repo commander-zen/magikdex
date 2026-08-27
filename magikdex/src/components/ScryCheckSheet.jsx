@@ -35,7 +35,12 @@ function parseVector(raw) {
   return { value: n, error: null };
 }
 
-export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved }) {
+// MAX_PLAY mirrors the CHECK in migration 036. The database is the authority and
+// rejects a fourth regardless; this exists so the UI stops you before a round
+// trip, and because the cap is really the printed card's one-row line.
+const MAX_PLAY = 3;
+
+export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose, onSaved }) {
   const { theme } = useTheme();
   const [fields, setFields] = useState({});
   const [busy, setBusy] = useState(false);
@@ -44,10 +49,14 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
   const [grading, setGrading] = useState(false);
   const [gradeError, setGradeError] = useState(null);
   // The self-report (036): how YOU describe the deck, as opposed to how
-  // ScryCheck scores it. Stored as a comma-separated string while editing —
-  // splitting on save is simpler than managing chip state for three values.
+  // ScryCheck scores it.
   const [gameStyle, setGameStyle] = useState("");
-  const [playStyle, setPlayStyle] = useState("");
+  // Chips + a query box rather than one comma-separated string: the values are
+  // discrete and the database stores an array, so editing them as text meant
+  // re-parsing on every save and hoping the user's commas matched ours.
+  const [playList, setPlayList] = useState([]);
+  const [playQuery, setPlayQuery] = useState("");
+  const [themes, setThemes] = useState([]);
 
   const textColor   = theme.white;
   const dimColor    = theme.dim;
@@ -67,8 +76,52 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
     setDeckUrl(deck?.url ?? "");
     setGradeError(null);
     setGameStyle(deck?.self_game_style ?? "");
-    setPlayStyle((deck?.self_play_style ?? []).join(", "));
+    setPlayList(deck?.self_play_style ?? []);
+    setPlayQuery("");
   }, [open, deck]);
+
+  // ── EDHREC's own tags, for THIS commander ───────────────────────────────────
+  // Ben: "we should have the information from EDHREC and we can use their tags.
+  // its a lot but if we have it be a searchable field ... that is ideal."
+  //
+  // It is only "a lot" if you offer every theme in the game. legend_themes is
+  // keyed by legend oracle id and carries EDHREC's own RANK, so the list here is
+  // this commander's themes in the order EDHREC puts them — a short, relevant
+  // list rather than 141k rows to search. Suggestions only: 036 deliberately
+  // does not constrain the vocabulary, because "chair tribal" is a real answer
+  // EDHREC will never list.
+  useEffect(() => {
+    if (!open || !oracleId) return;
+    let cancelled = false;
+    supabase
+      .from("legend_themes")
+      .select("theme_name, theme_slug, rank")
+      .eq("legend_oracle_id", oracleId)
+      .order("rank", { ascending: true })
+      .limit(60)
+      .then(({ data }) => {
+        if (cancelled || !data) return;
+        // theme_name is EDHREC's display text; the slug is the fallback when a
+        // row predates the name column being populated.
+        setThemes(data.map(r => r.theme_name || r.theme_slug).filter(Boolean));
+      }, () => {});
+    return () => { cancelled = true; };
+  }, [open, oracleId]);
+
+  const playFull = playList.length >= MAX_PLAY;
+  const q = playQuery.trim().toLowerCase();
+  const suggestions = themes
+    .filter(t => !playList.some(p => p.toLowerCase() === t.toLowerCase()))
+    .filter(t => !q || t.toLowerCase().includes(q))
+    .slice(0, 8);
+
+  function addPlay(value) {
+    const v = String(value ?? "").trim();
+    if (!v || playFull) return;
+    if (playList.some(p => p.toLowerCase() === v.toLowerCase())) { setPlayQuery(""); return; }
+    setPlayList(list => [...list, v]);
+    setPlayQuery("");
+  }
 
   const parsed = Object.fromEntries(
     SCRYCHECK_VECTORS.map(x => [x.key, parseVector(fields[x.key] ?? "")])
@@ -110,7 +163,10 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
     // 036's two columns ride along on the same save. Capped at three to match
     // the CHECK — and to match the card, which has one row for this line.
     patch.self_game_style = gameStyle || null;
-    const play = playStyle.split(",").map(v => v.trim()).filter(Boolean).slice(0, 3);
+    // Anything still sitting in the query box counts — nobody expects typed
+    // text to evaporate because they hit save instead of enter.
+    const play = [...playList, playQuery.trim()]
+      .map(v => v.trim()).filter(Boolean).slice(0, MAX_PLAY);
     patch.self_play_style = play.length ? play : null;
     const { error } = await supabase.from("decks").update(patch).eq("id", deck.id);
     setBusy(false);
@@ -424,27 +480,80 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
                 })}
               </div>
 
-              <input
-                value={playStyle}
-                onChange={e => setPlayStyle(e.target.value)}
-                placeholder="graveyard, combo"
-                autoCapitalize="off"
-                style={{
-                  width: "100%", boxSizing: "border-box", minHeight: 44,
-                  background: "transparent", color: textColor,
-                  fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
-                  border: `1px solid ${borderColor}`, borderRadius: 0,
-                  padding: "0 12px", outline: "none",
-                }}
-              />
+              {/* Chosen playstyles, as removable chips. */}
+              {playList.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {playList.map(v => (
+                    <button
+                      key={v}
+                      onClick={() => setPlayList(list => list.filter(x => x !== v))}
+                      aria-label={`Remove ${v}`}
+                      style={{
+                        minHeight: 36, padding: "0 10px",
+                        display: "flex", alignItems: "center", gap: 6,
+                        background: "transparent",
+                        border: `1px solid ${accent}`, borderRadius: 0,
+                        color: accent,
+                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
+                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                      }}
+                    >
+                      {v}
+                      <span className="material-symbols-rounded" style={{ fontSize: 14 }}>close</span>
+                    </button>
+                  ))}
+                </div>
+              )}
+
+              {!playFull && (
+                <input
+                  value={playQuery}
+                  onChange={e => setPlayQuery(e.target.value)}
+                  // Enter commits whatever is typed, which is what makes this a
+                  // free-text field and not a closed dropdown.
+                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPlay(playQuery); } }}
+                  placeholder={themes.length ? "search edhrec tags, or type your own" : "graveyard"}
+                  autoCapitalize="off"
+                  style={{
+                    width: "100%", boxSizing: "border-box", minHeight: 44,
+                    background: "transparent", color: textColor,
+                    fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
+                    border: `1px solid ${borderColor}`, borderRadius: 0,
+                    padding: "0 12px", outline: "none",
+                  }}
+                />
+              )}
+
+              {!playFull && suggestions.length > 0 && (
+                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                  {suggestions.map(tName => (
+                    <button
+                      key={tName}
+                      onClick={() => addPlay(tName)}
+                      style={{
+                        minHeight: 34, padding: "0 10px",
+                        background: "transparent",
+                        border: `1px solid ${borderColor}`, borderRadius: 0,
+                        color: dimColor,
+                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
+                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                      }}
+                    >
+                      {tName}
+                    </button>
+                  ))}
+                </div>
+              )}
+
               <div style={{
                 fontFamily: "'Noto Sans Mono', monospace", fontSize: 10,
                 color: dimColor, lineHeight: 1.5,
               }}>
-                {/* Free text on purpose — the vocabulary of Commander playstyles
-                    is not ours to close. Three is the card's line length. */}
-                comma separated, up to three. free text — “lands matter” and
-                “chair tribal” are both real answers.
+                {playFull
+                  ? `three is the limit — that is the card's line length. tap a chip to remove it.`
+                  : themes.length
+                    ? `tags from edhrec for this commander, in their order. type anything else and press enter — “chair tribal” is a real answer they will never list.`
+                    : `type a playstyle and press enter. up to three.`}
               </div>
             </div>
 
