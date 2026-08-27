@@ -1,5 +1,13 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 — ✅ **3D FLIP CONFIRMED ON DEVICE** (Ben: "3d flip is good")
+
+The one thing this environment structurally could not verify.  warns that the browser pane here does not composite, so even a textbook pure-CSS flip reports an identity transform and never reveals its back — and that property checks are exactly what shipped a DEAD flip to prod once before.
+
+Ben confirmed it on a real phone: the Box detail (LegendIdentity) now turns the card over the same way the brew screens do. 's header no longer says "3rd pass pending".
+
+**Still unverified and unchanged:** no card has been printed on real paper. Background graphics, 100% scale, and now LANDSCAPE orientation are three dialog settings that only bite on an actual print.
+
 ## 2026-08-27 — ✅ **THE DECK PLAN: ONE INPUT, BOTH BIRDS** (migration 037 applied)
 
 Ben: *"i dont have a place to put in the decks plan (the tag that will go below the box. and i guess also inform the plan tag in the WREC scoring. can we kill two birds here?)"* — offered four readings, chose **"one input that sets the plan AND pre-tags matching cards"**, having been shown that it contradicts a standing rule.

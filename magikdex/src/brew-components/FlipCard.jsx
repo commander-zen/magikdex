@@ -26,7 +26,9 @@ import { rotationTransform } from "../lib/cardOrientation.js";
 //   places while the card still faced the viewer. Geometry has to decide the
 //   handover, not a clock — which is precisely what backface-visibility does.
 //
-// Verified on device (Ben, 3rd pass pending): the rotation itself renders. Note
+// ✅ CONFIRMED ON DEVICE by Ben: the brew screens, and on 2026-08-27 the Box
+// detail as well (LegendIdentity, which had been swapping the src instead of
+// using this). The rotation renders. Note
 // that this environment CANNOT confirm that — its browser pane doesn't
 // composite, so even a textbook pure-CSS flip card reports an identity
 // transform and never reveals its back here. Property checks (preserve-3d set,
