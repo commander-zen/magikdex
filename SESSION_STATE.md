@@ -1,5 +1,9 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (UAT) — ✅ **THE PLAY STYLE LINE WRAPS** (`7ee8ea9`)
+
+Ben: *"Landfall say '…' and we can have that wrap dont need to do the …"*. The ellipsis was solving a problem that does not exist — there are **~198 units** between this line and the credit block (four lines at 32/1.3), and the field is capped at three tags plus a game style. Clamped to three lines as a backstop, cutting BETWEEN lines per the hero lesson above.
+
 ## 2026-08-27 — ✅ **THE RADAR FILLS ITS PANE** — 46% bigger pentagon (`747d7da`)
 
 Ben: *"can we make the pentagon here full screen? the label actually takes up a lot of the space."* Right on both counts.
