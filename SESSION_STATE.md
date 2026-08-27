@@ -1,5 +1,40 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 — ✅ **PRINT THE LEGEND ID CARD, FROM INSIDE MAGIKDEX** (+ Ritual is descoped)
+
+Ben showed Ritual to his wife — non-MTG, non-IT, and he explicitly treats her as the valuable outside read. *"it looks like computer i don't like it."* His own conclusion: *"i'm scaffolding and building all this for an expectation of what people will want not what a user may actually say"*, and *"0 of them have shipped and they're all conceptual."*
+
+**Ritual is descoped to a print button in magikdex.** Not an app, not a buddy list. The signal worth keeping: the Y2K/AIM chrome reads as *dated software* to someone outside the bubble, while the MSCHF card reads as a printed object — and the card is what survived. **Do not rebuild the AIM app chrome.**
+
+Also recorded, because it reframes the whole repo: **magikdex is "a pokedex of your commander decks in your pocket"** — a CARRY/REFERENCE tool. Ben still edits on Moxfield on a desktop and does not want a mobile editor.
+
+### What shipped
+- `src/components/LegendIdCard.jsx` — the v4 mockup at its own values (1050 × 750 = 3.5 × 2.5in), sized in `cqw` off a 1050 basis so one renderer serves screen and paper.
+- `src/components/LegendIdPrint.jsx` — print overlay, single or 8-up.
+- Print icon in `LegendIdentity`'s page-dots row (absolutely positioned so it cannot shove the dots off centre).
+
+**No new query and no migration.** `LegendIdentity` already fetches `build_name`, all five vectors (034), and `scrycheck_score` / `scrycheck_bracket` / `scrycheck_url` (035). The card only draws what was already on screen.
+
+**2 × 4 = 8 per sheet, and the arithmetic is the reason:** two across is 7in, four down is 10in; Letter at a 0.2in margin gives 8.1 × 10.6in printable and A4 gives 7.87 × 11.3in. Largest whole grid clearing BOTH. Verified: 2 cols × 4 rows, cells exactly 336 × 240px = 3.5 × 2.5in at 96dpi. **Never `auto-fit`** — that mistake is documented in the trainer print sheet.
+
+### 🐛 The hero fit, and a measurement that mattered
+Sizing the deck name by total character count is the obvious approach and it is **wrong** — it shrinks names that would happily WRAP. "Graveyard Shift" is 15 characters but its longest word is 9, so it belongs at full size across two lines, which is exactly what the mockup draws with its `<br>`. The fit now greedy-wraps at each candidate size and accepts only when no word exceeds the column AND the block clears the 270px between name and tag.
+
+**The advance constant was measured, not assumed.** First pass used 0.62 em/char, a generic-sans figure. Canvas `measureText` against the real face: **uppercase Archivo Black averages 0.690** over realistic word mixes (0.769 for the bare alphabet, which has no spaces). At 0.62 the estimator placed a long name on four lines and the browser wrapped it to five, running past the tag. Now 0.70 — over-estimating width costs one size step, under-estimating overflows. (JetBrains Mono measures exactly 0.600, confirming the mono maths used elsewhere.)
+
+Verified across six names: 84px/2 lines for "Graveyard Shift", 86px/3 lines for "Mishra, Claimed by Gix", 56px for 44-char names, **zero overflowing elements on every card**.
+
+### Deliberate deviations from the mockup
+- **The tag prints the real number, not a band.** ScryCheck's scale runs "jank at 1 through cEDH at 10", so the mockup's "cEDH · Bracket 5" is a band derived from a score. Deriving one would put a CLAIM on a printed card that ScryCheck never made, so the tag reads `power 9.7 · bracket 5`.
+- **The archetype slot carries the commander.** Nothing in the schema stores an archetype; the legend is honest and never blank.
+- **The QR caption became the ScryCheck credit, in the left column.** The mockup gives its caption 96px and its first line needs ~193px, so it wraps to four lines in the browser. Moving the credit to the left column at full width fixes the fit AND satisfies 034's attribution term. QR points at `scrycheck_url` — traffic to them, which is the good-steward answer Ben asked for.
+- An ungraded vector prints an em dash, never a zero.
+
+Lint clean (magikdex has ESLint — it caught a `set-state-in-effect` the trainer app would have shipped) and build green.
+
+**Next, per Ben:** the deck as a sheet of proxy cards with the legend ID included. `getCardImage()` already exists in `lib/scryfall.js`.
+
+
 ## 2026-08-26 (the card itself) — ✅ **BADGECARD IS THE MSCHF FRAME** — the settings preview was the tell
 
 Ben, pointing at the card preview inside settings → *"the preview panel is still the old version, this is the last spot (in settings)."*

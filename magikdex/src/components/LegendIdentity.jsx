@@ -5,6 +5,7 @@ import { getCardData, getCardImage } from "../lib/scryfall.js";
 import { resolveLegendDeck } from "../lib/legendDeck.js";
 import ScryCheckRadar, { readVectors } from "./ScryCheckRadar.jsx";
 import ScryCheckSheet from "./ScryCheckSheet.jsx";
+import LegendIdPrint from "./LegendIdPrint.jsx";
 import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
 
 // The detail pane of the storage-box Home — now a PAGED summary, the way a
@@ -63,6 +64,7 @@ export default function LegendIdentity({ legend }) {
   const [oracleCard, setOracleCard] = useState(null);
   const [deck, setDeck] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   const [page, setPage] = useState(0);
   const [grading, setGrading] = useState(false);
   const [gradeError, setGradeError] = useState(null);
@@ -302,10 +304,30 @@ export default function LegendIdentity({ legend }) {
           dot indicates nothing. */}
       {hasDeck && (
         <div style={{
-          flex: "0 0 auto",
+          flex: "0 0 auto", position: "relative",
           display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
           height: 18,
         }}>
+          {/* Print rides in the dots row rather than taking a row of its own: it
+              is an action ON this deck, and this pane's standing rule is that
+              nothing gets taller. Absolutely positioned so it cannot shove the
+              dots off centre. */}
+          <button
+            onClick={() => setPrintOpen(true)}
+            aria-label="Print deck ID card"
+            style={{
+              position: "absolute", right: -6, top: "50%", transform: "translateY(-50%)",
+              width: 34, height: 30, padding: 0,
+              display: "flex", alignItems: "center", justifyContent: "center",
+              background: "transparent", border: "none", borderRadius: 0,
+              cursor: "pointer", WebkitTapHighlightColor: "transparent",
+            }}
+          >
+            <span className="material-symbols-rounded" style={{ fontSize: 18, color: trackColor }}>
+              print
+            </span>
+          </button>
+
           {["Card", "Power level"].map((label, i) => (
             <button
               key={label}
@@ -331,6 +353,13 @@ export default function LegendIdentity({ legend }) {
           ))}
         </div>
       )}
+
+      <LegendIdPrint
+        open={printOpen}
+        onClose={() => setPrintOpen(false)}
+        legend={legend}
+        deck={deck}
+      />
 
       <ScryCheckSheet
         open={sheetOpen}
