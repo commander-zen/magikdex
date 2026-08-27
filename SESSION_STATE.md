@@ -1,5 +1,28 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (UAT round 1) — ✅ **THREE FIXES SHIPPED** (all screenshots, no paper yet)
+
+Ben ran UAT on the print feature and sent three items. Fixes were committed as they landed but **held from deploy until he called it** — he was testing against prod, and deploying mid-pass would have moved the ground under him.
+
+**1. Print button removed from the Box detail.** It was a second door to the same overlay; print lives in the export arrow now. Button, state, overlay render and import all gone; ReviewScreen still owns `LegendIdPrint`.
+
+**2. 🚨 The print dialog was printing the APP, not the cards.** The overlay is portaled to `document.body`, which makes it a **sibling of `#root`, not a child** — and `#root` comes first in document order, so the printer got the deck screen on page 1. The trainer app never hit this because its print sheet was a whole route with nothing behind it. `@media print { #root { display: none } }` fixes it, and the rule lives INSIDE the portal so it only exists while the overlay is open.
+
+**Same item: the sheet spilled off the phone.** It is authored in inches because that is what makes paper correct, but 2 × 3.5in is 672 CSS px against a ~390px screen. The sheet is now scaled to fit for preview only and the print rule undoes the transform. ⚠️ A transform does not change layout width, so the SCALED wrapper carries the size and the inner box uses a top-LEFT origin — centring the inner box leaves a 672px sheet overflowing and drags the centring with it. Verified at 375px: 343px wide, no sideways scroll, 8 cards, print rules confirmed present in the CSSOM.
+
+**3. The home screen used an image swap instead of the real 3D flip.** Ben: *"we spent all that time to get a beautiful flip ... but not on the home screen."* Correct — the brew screens use `FlipCard`; the Box detail got a hand-rolled src swap. Now uses the same component.
+
+### 🐛 The sizing lesson from item 3, worth keeping
+`FlipCard`'s faces are both absolute, so the container must be sized by the caller — and this pane binds on EITHER axis depending on the tray. **`height:100% + aspect-ratio + max-width:100%` looks correct and is not.** Measured across pane shapes, the tall-narrow case (a phone) came out **343×529 at ratio 0.648 instead of 0.718**: max-width clamps the width without feeding back into the height, so the card squashes. Width-driven sizing fails the mirror case. Neither adapts.
+
+The fix asks for the smaller of the two axes directly, in **container-query units** (`height: min(100cqh, calc(100cqw * 680 / 488))` against a `container-type: size` section) and lets aspect-ratio derive the other side. Verified at 343×529, 343×300, 600×400, 200×800, 500×500.
+
+### ⚠️ Still unverified, by nature
+**That the flip rotation RENDERS.** `FlipCard`'s own header records that this environment cannot confirm it — the browser pane does not composite, so even a textbook pure-CSS flip reports an identity transform here, and property checks are exactly what produced false confidence the first time it shipped dead to prod. **Needs Ben on device.** That is the first thing to check.
+
+Also still true: **no real paper has been printed yet.** Every UAT screenshot was on-screen, so background-graphics and scale settings remain untested.
+
+
 ## 2026-08-27 — ✅ **EDHREC PLAYSTYLE PICKER** — their tags, this commander's, in their order
 
 Ben: *"for playstyle we should have the information from EDHREC and we can use their tags. its a lot but if we have it be a searchable field ... that is ideal."*
