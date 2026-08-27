@@ -1,5 +1,27 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 — ✅ **THE OVERSIZED HERO IS BACK** (and the plan is findable)
+
+Ben: *"i actually miss the giant oversized font that was clipping stuff for the commander name. that was the vibe tbh of the MSCHF look it was fitting."* — He is right, and I over-corrected. The mockup's own "GRAVEYARD" measures ~589px inside a 540px column and is cut by the card's `overflow:hidden`. Shrinking every long name to fit made the card tidy and ordinary.
+
+### ⚠️ THE TWO OVERFLOWS ARE NOT THE SAME, and only one is the vibe
+This is the distinction that lets both his complaints be true at once:
+
+- **HORIZONTAL** — a word wider than the column bleeds toward the card edge and is cut by the frame. **Deliberate. Kept.**
+- **VERTICAL** — the name growing DOWN into the yellow tag. That is what he originally reported as "spilling over", and it reads as a broken layout rather than a design.
+
+So the hero is **fixed at the mockup's 86** and the block is **clipped at the tag's line** (`height: COL_H; overflow: hidden`). A long name loses its tail to a hard edge; it never collides.
+
+**`useHeroFit` is deleted.** Three sizing schemes were built (character count, greedy wrap against an average advance, then a real measuring loop) — **the measuring one WORKED**; Ben simply did not want it. The header now says do not "fix" this by shrinking it again, because it looks like an obvious bug to anyone who has not read this.
+
+Verified across four names: all render at 86, short ones bleed past the column, long ones clip vertically, **zero collide with the tag and zero escape the card edge**.
+
+### 🐛 "i still dont know where to put in plan"
+Not a missing feature — a **buried** one. The plan editor was at the very bottom of ScryCheckSheet, under the five vector inputs and their hint, in a sheet reached by **Box → swipe to page 2 → tap the radar**. Four levels deep and below the fold is the same as absent.
+
+The whole "your own read" block (game style, playstyle, plan) now sits **FIRST in the sheet**, above the one-tap grade path and the vectors. It also reads better in that order: what YOU say about the deck before what ScryCheck computed about it — the same order the printed card uses, your line under their tag.
+
+
 ## 2026-08-27 — ✅ **3D FLIP CONFIRMED ON DEVICE** (Ben: "3d flip is good")
 
 The one thing this environment structurally could not verify. `FlipCard.jsx` warns that the browser pane here does not composite, so even a textbook pure-CSS flip reports an identity transform and never reveals its back — and that property checks are exactly what shipped a DEAD flip to prod once before.

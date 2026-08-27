@@ -306,180 +306,19 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
               </div>
             )}
 
-            {/* ── THE ONE-TAP PATH ──────────────────────────────────────────
-                Paste the deck's Moxfield/Archidekt link and ScryCheck grades it
-                for you — this is the link Ben asked for, and the reason the
-                manual fields below exist at all is that it can't always apply:
-                ScryCheck analyses a deck FROM A URL, so a deck that only lives
-                inside magikdex has nothing to send. */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-              <label
-                htmlFor="sc-deck-url"
-                style={{ fontFamily: "'Zilla Slab', serif", fontSize: 14, color: textColor }}
-              >
-                Deck link
-              </label>
-              <input
-                id="sc-deck-url"
-                type="url"
-                value={deckUrl}
-                onChange={e => { setDeckUrl(e.target.value); setGradeError(null); }}
-                placeholder="moxfield.com/decks/… or archidekt.com/decks/…"
-                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
-                style={{
-                  width: "100%", boxSizing: "border-box",
-                  background: "transparent",
-                  color: textColor,
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 16, // 16 or iOS zooms the sheet on focus
-                  border: "none",
-                  borderBottom: `1px solid ${urlProblem ? theme.red : borderColor}`,
-                  borderRadius: 0,
-                  padding: "8px 0",
-                  outline: "none",
-                }}
-              />
-              <button
-                onClick={grade}
-                disabled={!canGrade}
-                style={{
-                  minHeight: 44,
-                  background: canGrade ? accent : "transparent",
-                  color: canGrade ? theme.base : dimColor,
-                  border: `1px solid ${canGrade ? accent : borderColor}`,
-                  borderRadius: 0,
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
-                  cursor: canGrade ? "pointer" : "default",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                {grading ? "grading…" : "grade with scrycheck"}
-              </button>
-              <span style={{
-                fontFamily: "'Noto Sans Mono', monospace",
-                fontSize: 10, lineHeight: 1.5,
-                color: gradeError ? theme.red : dimColor,
-              }}>
-                {gradeError
-                  ?? urlProblem
-                  ?? "ScryCheck grades a deck from its Moxfield or Archidekt page — it can't read a list. No link? Type the scores below."}
-              </span>
-            </div>
-
-            <div style={{
-              borderTop: `1px solid ${borderColor}`,
-              paddingTop: 12,
-              fontFamily: "'Noto Sans Mono', monospace",
-              fontSize: 10, letterSpacing: "0.14em",
-              color: dimColor,
-            }}>
-              OR ENTER THEM YOURSELF
-            </div>
-
-            {/* Grade on the site by hand, then type what you were shown. */}
-            <a
-              href={SCRYCHECK_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                minHeight: 44,
-                display: "flex", alignItems: "center",
-                borderBottom: `1px solid ${borderColor}`,
-                fontFamily: "'Noto Sans Mono', monospace",
-                fontSize: 12, letterSpacing: "0.06em",
-                color: accent,
-                textDecoration: "none",
-              }}
-            >
-              open scrycheck.com ↗
-            </a>
-
-            {SCRYCHECK_VECTORS.map(v => {
-              const err = parsed[v.key].error;
-              return (
-                <div key={v.key} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  <div style={{
-                    display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10,
-                  }}>
-                    <label
-                      htmlFor={`sc-${v.key}`}
-                      style={{
-                        fontFamily: "'Zilla Slab', serif",
-                        fontSize: 14,
-                        color: textColor,
-                      }}
-                    >
-                      {v.full}
-                    </label>
-                    <span style={{
-                      fontFamily: "'Noto Sans Mono', monospace",
-                      fontSize: 9, letterSpacing: "0.08em",
-                      color: err ? theme.red : dimColor,
-                      flexShrink: 0,
-                    }}>
-                      {err ?? `0–${SCRYCHECK_MAX}`}
-                    </span>
-                  </div>
-                  <input
-                    id={`sc-${v.key}`}
-                    type="text"
-                    // Numeric keypad without type="number": that type brings
-                    // spinners, accepts "1e3", and on iOS silently drops the
-                    // value when it can't parse — none of which a 0–100 field
-                    // wants. The regex in parseVector is the real gate.
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={3}
-                    value={fields[v.key] ?? ""}
-                    onChange={e => setFields(f => ({ ...f, [v.key]: e.target.value }))}
-                    placeholder="—"
-                    autoComplete="off" autoCorrect="off" spellCheck={false}
-                    style={{
-                      width: "100%", boxSizing: "border-box",
-                      background: "transparent",
-                      color: textColor,
-                      fontFamily: "'Noto Sans Mono', monospace",
-                      fontSize: 16, // 16 or iOS zooms the whole sheet on focus
-                      border: "none",
-                      borderBottom: `1px solid ${err ? theme.red : borderColor}`,
-                      borderRadius: 0,
-                      padding: "8px 0",
-                      outline: "none",
-                    }}
-                  />
-                  <span style={{
-                    fontFamily: "'Noto Sans Mono', monospace",
-                    fontSize: 10,
-                    color: dimColor,
-                  }}>
-                    {v.hint}
-                  </span>
-                </div>
-              );
-            })}
-
-            <div style={{
-              fontFamily: "'Noto Sans Mono', monospace",
-              fontSize: 10,
-              color: dimColor,
-              lineHeight: 1.5,
-            }}>
-              leave a field blank for “not graded”. the radar draws only when all
-              five are filled — a missing vertex would read as a zero, and zero is
-              a real score.
-            </div>
-
-            {/* ── YOUR OWN READING (036) ───────────────────────────────────────
-                Deliberately below the vectors and visibly separate: everything
-                above is ScryCheck's computed analysis, this is the owner's claim
-                about how the deck actually plays. The printed ID card keeps the
-                same split — their tag, then your line. */}
+            {/* ── YOUR OWN READING (036 + 037) ─────────────────────────────────
+                FIRST in the sheet, and that placement is the fix for a real
+                complaint: Ben could not find where to enter the plan. It was at
+                the very bottom, under the five vector inputs and their hint, in
+                a sheet reached by Box → swipe to page 2 → tap the radar. Four
+                levels deep and below the fold is the same as absent.
+                It also reads better this way: what YOU say about the deck comes
+                before what ScryCheck computed about it, which is the same order
+                the printed card uses — your line under their tag. */}
             <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4 }}>
               <div style={{
                 fontFamily: "'Noto Sans Mono', monospace", fontSize: 11,
                 letterSpacing: "0.12em", textTransform: "uppercase", color: dimColor,
-                borderTop: `1px solid ${borderColor}`, paddingTop: 14,
               }}>
                 your own read
               </div>
@@ -660,6 +499,170 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
                     ? `tags from edhrec for this commander, in their order. type anything else and press enter — “chair tribal” is a real answer they will never list.`
                     : `type a playstyle and press enter. up to three.`}
               </div>
+            </div>
+
+            {/* ── THE ONE-TAP PATH ──────────────────────────────────────────
+                Paste the deck's Moxfield/Archidekt link and ScryCheck grades it
+                for you — this is the link Ben asked for, and the reason the
+                manual fields below exist at all is that it can't always apply:
+                ScryCheck analyses a deck FROM A URL, so a deck that only lives
+                inside magikdex has nothing to send. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <label
+                htmlFor="sc-deck-url"
+                style={{ fontFamily: "'Zilla Slab', serif", fontSize: 14, color: textColor }}
+              >
+                Deck link
+              </label>
+              <input
+                id="sc-deck-url"
+                type="url"
+                value={deckUrl}
+                onChange={e => { setDeckUrl(e.target.value); setGradeError(null); }}
+                placeholder="moxfield.com/decks/… or archidekt.com/decks/…"
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                style={{
+                  width: "100%", boxSizing: "border-box",
+                  background: "transparent",
+                  color: textColor,
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 16, // 16 or iOS zooms the sheet on focus
+                  border: "none",
+                  borderBottom: `1px solid ${urlProblem ? theme.red : borderColor}`,
+                  borderRadius: 0,
+                  padding: "8px 0",
+                  outline: "none",
+                }}
+              />
+              <button
+                onClick={grade}
+                disabled={!canGrade}
+                style={{
+                  minHeight: 44,
+                  background: canGrade ? accent : "transparent",
+                  color: canGrade ? theme.base : dimColor,
+                  border: `1px solid ${canGrade ? accent : borderColor}`,
+                  borderRadius: 0,
+                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
+                  cursor: canGrade ? "pointer" : "default",
+                  WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                {grading ? "grading…" : "grade with scrycheck"}
+              </button>
+              <span style={{
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 10, lineHeight: 1.5,
+                color: gradeError ? theme.red : dimColor,
+              }}>
+                {gradeError
+                  ?? urlProblem
+                  ?? "ScryCheck grades a deck from its Moxfield or Archidekt page — it can't read a list. No link? Type the scores below."}
+              </span>
+            </div>
+
+            <div style={{
+              borderTop: `1px solid ${borderColor}`,
+              paddingTop: 12,
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 10, letterSpacing: "0.14em",
+              color: dimColor,
+            }}>
+              OR ENTER THEM YOURSELF
+            </div>
+
+            {/* Grade on the site by hand, then type what you were shown. */}
+            <a
+              href={SCRYCHECK_URL}
+              target="_blank"
+              rel="noopener noreferrer"
+              style={{
+                minHeight: 44,
+                display: "flex", alignItems: "center",
+                borderBottom: `1px solid ${borderColor}`,
+                fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 12, letterSpacing: "0.06em",
+                color: accent,
+                textDecoration: "none",
+              }}
+            >
+              open scrycheck.com ↗
+            </a>
+
+            {SCRYCHECK_VECTORS.map(v => {
+              const err = parsed[v.key].error;
+              return (
+                <div key={v.key} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
+                  <div style={{
+                    display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10,
+                  }}>
+                    <label
+                      htmlFor={`sc-${v.key}`}
+                      style={{
+                        fontFamily: "'Zilla Slab', serif",
+                        fontSize: 14,
+                        color: textColor,
+                      }}
+                    >
+                      {v.full}
+                    </label>
+                    <span style={{
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 9, letterSpacing: "0.08em",
+                      color: err ? theme.red : dimColor,
+                      flexShrink: 0,
+                    }}>
+                      {err ?? `0–${SCRYCHECK_MAX}`}
+                    </span>
+                  </div>
+                  <input
+                    id={`sc-${v.key}`}
+                    type="text"
+                    // Numeric keypad without type="number": that type brings
+                    // spinners, accepts "1e3", and on iOS silently drops the
+                    // value when it can't parse — none of which a 0–100 field
+                    // wants. The regex in parseVector is the real gate.
+                    inputMode="numeric"
+                    pattern="[0-9]*"
+                    maxLength={3}
+                    value={fields[v.key] ?? ""}
+                    onChange={e => setFields(f => ({ ...f, [v.key]: e.target.value }))}
+                    placeholder="—"
+                    autoComplete="off" autoCorrect="off" spellCheck={false}
+                    style={{
+                      width: "100%", boxSizing: "border-box",
+                      background: "transparent",
+                      color: textColor,
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 16, // 16 or iOS zooms the whole sheet on focus
+                      border: "none",
+                      borderBottom: `1px solid ${err ? theme.red : borderColor}`,
+                      borderRadius: 0,
+                      padding: "8px 0",
+                      outline: "none",
+                    }}
+                  />
+                  <span style={{
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 10,
+                    color: dimColor,
+                  }}>
+                    {v.hint}
+                  </span>
+                </div>
+              );
+            })}
+
+            <div style={{
+              fontFamily: "'Noto Sans Mono', monospace",
+              fontSize: 10,
+              color: dimColor,
+              lineHeight: 1.5,
+            }}>
+              leave a field blank for “not graded”. the radar draws only when all
+              five are filled — a missing vertex would read as a zero, and zero is
+              a real score.
             </div>
 
             {saveError && (

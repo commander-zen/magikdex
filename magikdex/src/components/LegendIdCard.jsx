@@ -1,4 +1,4 @@
-import { useEffect, useLayoutEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import QRCode from "qrcode";
 import { SCRYCHECK_VECTORS, readVectors } from "./ScryCheckRadar.jsx";
 
@@ -31,89 +31,15 @@ const TRACK = "#E1DACB";
 const display = { fontFamily: "'Archivo Black', sans-serif" };
 const mono = { fontFamily: "'JetBrains Mono', monospace" };
 
-// ── Fitting the hero ─────────────────────────────────────────────────────────
-// The deck name is the whole look, and real names run from "Slivers" to
-// "Mishra, Claimed by Gix". A fixed 86px does not hold — the mockup's OWN
-// example overflows its 540px column at that size.
-//
-// ⚠️ MEASURED, NOT ESTIMATED — and this is the third attempt, so the history
-// matters. Sizing by character count was wrong (it shrinks names that would
-// happily WRAP). Greedy-wrapping against an average glyph advance was wrong
-// twice over: 0.62 em/char under-counted badly, and even the measured 0.690
-// still put "Ral, Monsoon Mage // Ral, Leyline Prodigy" on fewer lines than the
-// browser actually produced, so PRODIGY printed underneath the yellow tag.
-//
-// An average cannot predict where a real line breaks. So the size is now found
-// by LAYING THE TEXT OUT AND MEASURING IT: render, read scrollHeight, step down
-// until it clears the gap between the name and the tag. Slower — a handful of
-// reflows on mount — and correct for every name, including ones nobody has
-// thought of yet.
+// ── The hero ─────────────────────────────────────────────────────────────────
+// ⚠️ FIXED AT 86 AND CLIPPED — do not "fix" this by shrinking it again.
+// It was shrink-to-fit for exactly one day. Three sizing schemes were tried
+// (character count, greedy wrap against an average advance, then a real
+// measuring loop) and the measuring one WORKED — Ben just did not want it. The
+// oversized type running off the edge is the look. See the render block below
+// for which overflow is the vibe and which is a bug.
 const COL_H = 352 - 82;          // the tag's top, minus the name's top
 const HERO_MAX = 86;             // the mockup's size
-const HERO_MIN = 30;
-
-/**
- * Shrink the hero until its laid-out height fits COL_H (in card units).
- * Returns the size in the 1050-wide design basis.
- */
-function useHeroFit(name, ref) {
-  const [size, setSize] = useState(HERO_MAX);
-
-  useLayoutEffect(() => {
-    const el = ref.current;
-    if (!el) return;
-    let cancelled = false;
-
-    const fit = () => {
-      if (cancelled || !el.isConnected) return;
-      const cardW = el.closest("[data-lid-card]")?.getBoundingClientRect().width ?? 0;
-      if (!cardW) return;
-      // COL_H is in design units; convert to this card's actual pixels.
-      const availPx = cardW * (COL_H / BASIS);
-      let next = HERO_MAX;
-      const apply = v => { el.style.fontSize = `${((v * 100) / BASIS).toFixed(4)}cqw`; };
-      apply(next);
-      // scrollHeight is the laid-out height including every wrapped line, which
-      // is exactly the thing the arithmetic kept getting wrong.
-      while (next > HERO_MIN && el.scrollHeight > availPx) { next -= 2; apply(next); }
-
-      // ⚠️ DO NOT CLEAR THE INLINE STYLE HERE. React sets this element's
-      // font-size through the same inline `style` prop, so `el.style.fontSize =
-      // ""` wipes React's value too — and when the loop lands on the size the
-      // state ALREADY holds, setSize is a no-op, no re-render happens, and
-      // nothing ever puts it back. The element then inherits 16px from the page.
-      // That is exactly what shipped: every card rendered at an identical
-      // wrong size while the loop itself was computing 66 / 60 / 86 / 86 / 54.
-      // Leaving the loop's final value applied is correct: React writes the same
-      // value on its next render, so the two never disagree.
-      if (!cancelled) setSize(next);
-    };
-
-    fit();
-
-    // ⚠️ document.fonts.ready IS NOT ENOUGH, and relying on it silently
-    // mis-sized every SHORT name: it resolves as soon as nothing is pending, and
-    // a face the page has not requested yet is not pending. The first pass
-    // therefore measured a fallback (wider, so more lines) and shrank
-    // "Graveyard Shift" to 50 when 86 fits fine.
-    //
-    // fonts.load() actually REQUESTS the face, so its promise means the real
-    // metrics are available. The size string matters only in that it must be a
-    // valid font shorthand.
-    if (typeof document !== "undefined" && document.fonts?.load) {
-      Promise.all([
-        document.fonts.load("86px 'Archivo Black'"),
-        document.fonts.load("26px 'JetBrains Mono'"),
-      ]).then(() => { if (!cancelled) fit(); }).catch(() => {});
-    }
-    const ro = typeof ResizeObserver === "function" ? new ResizeObserver(fit) : null;
-    const card = el.closest("[data-lid-card]");
-    if (ro && card) ro.observe(card);
-    return () => { cancelled = true; ro?.disconnect(); };
-  }, [name, ref]);
-
-  return size;
-}
 
 // ScryCheck publishes the overall power level as 1–10, "jank at 1 through cEDH
 // at 10". The mockup's tag says "cEDH · Bracket 5", but inventing a band label
@@ -164,8 +90,6 @@ function catalogNo(id) {
 export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
   const name = deck?.build_name || legend?.name || "untitled deck";
   const vectors = readVectors(deck);
-  const nameRef = useRef(null);
-  const heroSize = useHeroFit(name, nameRef);
   const tag = tagText(deck);
   const selfLine = selfReportLine(deck);
   const plan = planLine(deck);
@@ -194,10 +118,7 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
     <>
       <style>{`.lid-scene { container-type: inline-size; max-width: 100%; }`}</style>
       <div className="lid-scene" style={{ width }}>
-        {/* data-lid-card marks the box the hero-fit hook measures against — it
-            needs this card's real pixel width to convert the design-unit gap
-            between the name and the tag into something comparable. */}
-        <div data-lid-card="" style={{
+        <div style={{
           position: "relative", width: "100%", aspectRatio: "1050 / 750",
           background: PAPER, color: INK, overflow: "hidden",
           border: `${u(10)} solid ${INK}`,
@@ -214,10 +135,34 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
             Commander / Deck ID
           </div>
 
-          <div ref={nameRef} style={{
+          {/* ── THE HERO IS OVERSIZED AND CLIPS, ON PURPOSE ────────────────
+              Ben, after I "fixed" it by shrinking to fit: "i actually miss the
+              giant oversized font that was clipping stuff for the commander
+              name. that was the vibe tbh of the MSCHF look it was fitting."
+              He is right, and the mockup agrees — its own "GRAVEYARD" measures
+              ~589px inside a 540px column and is cut off by the card's
+              overflow:hidden. Shrinking every long name to fit made the card
+              tidy and ordinary.
+
+              But the two overflows are NOT the same, and only one is the vibe:
+
+                HORIZONTAL — a word wider than the column bleeds toward the
+                  card edge and gets cut by the frame. Deliberate. Kept.
+                VERTICAL — the name growing DOWN into the yellow tag, which is
+                  what Ben originally reported as spilling. That reads as a
+                  broken layout, not a design.
+
+              So the size is fixed at the mockup's 86 and the block is CLIPPED
+              at the tag's line instead. A long name loses its tail to a hard
+              edge, which is the MSCHF move; it never collides with anything. */}
+          <div style={{
             ...abs, top: u(82), left: u(44), width: u(540), ...display,
-            fontSize: u(heroSize), lineHeight: 0.94,
-            color: INK, textTransform: "uppercase", overflowWrap: "anywhere",
+            fontSize: u(HERO_MAX), lineHeight: 0.94,
+            color: INK, textTransform: "uppercase",
+            // Height is the gap to the tag; hidden makes that a cut, not a
+            // collision. No overflowWrap:anywhere — breaking a long word mid
+            // letter is the tidy answer, and tidy is what we just removed.
+            height: u(COL_H), overflow: "hidden",
           }}>
             {name}
           </div>
