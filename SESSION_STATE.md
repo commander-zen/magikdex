@@ -1,5 +1,17 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (UAT) — ✅ **EDHREC'S THEMES WERE FETCHED, THEN HIDDEN** (`9b1fcc2`)
+
+Ben, on the play-style sheet: *"Are these the only play styles? EDHREC has like 80"*. He was looking at 10 chips, all otags.
+
+- ❌ **The bug.** `legend_themes` holds **67 rows for Ral, Monsoon Mage** (Spellslinger, Storm, Combo, Spell Copy…) and the query was returning them. The suggestion list then put all 24 `PLAN_OTAGS` first and `.slice(0, 10)` — so the ten visible chips were **always** otags and not one theme could ever appear. I had ranked the implementation detail (an otag also tags cards) above the answer to the question being asked.
+- ✅ Themes first, in EDHREC's own rank order. Otags after.
+- ✅ A theme that IS an otag keeps its ranked position and gains the otag's powers — "Burn" no longer falls to the bottom of the list just to be red. Matched on a normalised form (`self-mill` ≡ `Self-Mill`) so one idea is not offered twice.
+- ✅ 12 shown, **"+N more"** reveals the rest, typing searches all ~90.
+- ✅ Query limit 60 → 200. 60 was already truncating a 67-theme commander.
+
+⚠️ **The pattern, twice in one session:** both this and the sheared hero were features that *worked* and were then destroyed by a cap — a `slice(0, 10)` and a `height` — applied without checking what fell outside it.
+
 ## 2026-08-27 (UAT) — ✅ **THE HERO CLIPS BETWEEN LINES NOW** (`f636a2a`)
 
 Ben, on two printed-preview screenshots: *"overflow is weird now not cute and cool. the original was the best still."* He was right and it was my bug, not a taste call.
