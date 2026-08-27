@@ -1,5 +1,9 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (UAT) — ✅ **SAVE DISMISSES THE PLAY STYLE SHEET** (`4a9f7bc`)
+
+Ben: *"when i hit save the tray for play style should close."* A 450ms beat first, so the button flips to "saved" and the write is visibly confirmed before the sheet goes — closing on the same frame leaves no evidence it landed, and this sheet's only other exit is a ✕ you have to go find. The local row is still patched on save, so the sheet is correct if it is ever reopened without a refetch.
+
 ## 2026-08-27 (UAT) — ✅ **THE THEMES QUERY HAD NO ORACLE ID** (`eddb41b`)
 
 Ben: *"i looked up storm and i couldnt find it but if i hit enter it populated"* — on a commander whose EDHREC **#2** theme is Storm.
