@@ -1,6 +1,24 @@
 -- 036_deck_self_report.sql — how YOU describe the deck, next to how ScryCheck scores it
 --
--- ⚠️ NOT YET APPLIED TO PRODUCTION.
+-- ✅ APPLIED TO PRODUCTION 2026-08-27. Applied with psql over SUPABASE_DB_URL,
+-- single transaction, ON_ERROR_STOP. Verified afterwards: both columns present
+-- and nullable, both constraints present with the expected definitions, all 9
+-- deck rows untouched (0 carry a self-report — nothing was backfilled).
+--
+-- ⚠️ AND `notify pgrst, 'reload schema'` WAS SENT. PostgREST caches the schema,
+-- so new columns are invisible to the API until it reloads — the symptom is
+-- PGRST204 on a write, which ScryCheckSheet already has copy for. Confirmed by
+-- selecting both columns through the REST endpoint afterwards: it returned an
+-- empty array (RLS, no rows for anon) rather than an unknown-column error.
+--
+-- ── The dry run earned its keep ─────────────────────────────────────────────
+-- This file was first run inside BEGIN … ROLLBACK against production before
+-- being applied for real, and the first draft FAILED: it counted valid array
+-- elements with a scalar subquery, and Postgres rejects that outright —
+-- "cannot use subquery in check constraint". Had it gone straight in, the
+-- ALTER would have aborted halfway. The rewritten constraint is below; the
+-- rollback rehearsal also proved all six accept/reject behaviours against a
+-- real deck row.
 --
 -- Ben, looking at the printed Legend ID card: "below the box is the users self
 -- report (jank or casual or trash magic or cEDH and then what the playstyle is
@@ -71,15 +89,25 @@ do $$ begin
     select 1 from pg_constraint
     where conrelid = 'public.decks'::regclass and conname = 'decks_self_play_style_shape'
   ) then
+    -- ⚠️ NO SUBQUERY. A CHECK constraint cannot contain one — the first draft
+    -- counted valid elements with `select count(*) from unnest(...)` and
+    -- Postgres rejects it outright: "cannot use subquery in check constraint".
+    -- Caught by dry-running this file inside a transaction before applying it.
+    --
+    -- So the guarantees are expressed with plain array functions instead, and
+    -- the per-element length cap becomes a cap on the WHOLE rendered string.
+    -- That is the more honest constraint anyway: the limit exists because the
+    -- printed card has exactly one row for this line, and what has to fit on
+    -- that row is the joined text, not any single label. 74 = 3 × 24 plus the
+    -- two " · " separators the card draws between them.
     alter table public.decks add constraint decks_self_play_style_shape
       check (
         self_play_style is null
         or (
           array_length(self_play_style, 1) between 1 and 3
-          and array_length(self_play_style, 1) = (
-            select count(*) from unnest(self_play_style) v
-            where v is not null and char_length(btrim(v)) between 1 and 24
-          )
+          and array_position(self_play_style, null) is null
+          and array_position(self_play_style, '') is null
+          and char_length(array_to_string(self_play_style, ' · ')) <= 74
         )
       );
   end if;
@@ -88,15 +116,14 @@ end $$;
 comment on column public.decks.self_game_style is
   'Self-reported register: jank | casual | trash_magic | cedh. One value — a deck is played in one register.';
 comment on column public.decks.self_play_style is
-  'Self-reported playstyle labels, 1-3 entries, <=24 chars each. Free text on purpose; never aggregated or ranked.';
+  'Self-reported playstyle labels, 1-3 entries, joined length <=74 chars (the card has one row). Free text on purpose; never aggregated or ranked.';
 
 -- ── Scope ────────────────────────────────────────────────────────────────────
 -- Two columns on public.decks. No new table, no policy, no grant: decks_own
 -- (001) is `for all` and column-agnostic, so ownership already covers these, and
 -- 024 left privileges at table level. Same footprint as 034.
 --
--- ⚠️ THE CLIENT MUST SURVIVE THIS BEING UNAPPLIED. Ben applies migrations by
--- hand, so a deployed build can be ahead of the database, and naming a missing
--- column fails the WHOLE select — which would blank the Box's detail pane for
+-- ⚠️ THE CLIENT MUST SURVIVE THIS BEING UNAPPLIED — still true for anyone on a
+-- database where it has not run. Naming a missing column fails the WHOLE select — which would blank the Box's detail pane for
 -- every deck rather than just hiding one line. LegendIdentity's DECK_SELECTS
 -- ladder gains a rung for this; do not collapse it.

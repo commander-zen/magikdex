@@ -1,5 +1,33 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 — ✅ **MIGRATION 036 APPLIED TO PRODUCTION** (by Claude, with Ben's go-ahead)
+
+Ben: *"i think you can do the migration you should have teh supabase info."* Correct — `magikdex/.env` carries `SUPABASE_DB_URL` and `PGPASSWORD`, and PostgreSQL 17.10's psql is installed at `/c/Program Files/PostgreSQL/17/bin`. **This is how a migration can be applied from a session; it does not have to wait on Ben.**
+
+Confirmed the target before touching it: 9 decks / 11 legends / **141,421 legend_themes** — that last figure matches the 2026-08-19 ingest record exactly, which is what proved it was the right project.
+
+### 🚨 THE DRY RUN CAUGHT A FATAL ERROR — always rehearse in a transaction
+The file was run inside `BEGIN … ROLLBACK` against production first, and **the first draft failed outright**:
+
+```
+ERROR:  cannot use subquery in check constraint
+```
+
+It counted valid array elements with `select count(*) from unnest(...)`. **Postgres forbids subqueries in CHECK constraints**, full stop. Applied straight, the ALTER would have aborted midway.
+
+The rewrite uses plain array functions — `array_length`, `array_position(…, null)`, `array_position(…, '')` — and turns the per-element length cap into a cap on the **whole rendered string** (`char_length(array_to_string(v, ' · ')) <= 74`). That is the truer constraint anyway: the limit exists because the printed card has exactly ONE ROW for that line, and what must fit is the joined text, not any single label.
+
+The same rehearsal then proved all six behaviours against a real deck row: valid 2-element accepted, 4 elements rejected, empty-string element rejected, over-long joined text rejected, invalid game style rejected, nulls accepted.
+
+### Applied, and verified after
+`psql --single-transaction -v ON_ERROR_STOP=1`. Both columns present and nullable, both constraints present with expected definitions, **all 9 deck rows untouched — 0 carry a self-report, nothing was backfilled.**
+
+### ⚠️ AND THE SCHEMA CACHE — the step that is easy to forget
+`notify pgrst, 'reload schema'` was sent afterwards. **PostgREST caches the schema, so new columns stay invisible to the API until it reloads** — the symptom is `PGRST204` on a write, which ScryCheckSheet already carries copy for. Verified by selecting both columns through the REST endpoint: it returned `[]` (RLS, no rows for anon) rather than an unknown-column error, which proves PostgREST accepted the names.
+
+**The self-report line on the printed card is now live end to end** — set it in the ScryCheck sheet under "your own read".
+
+
 ## 2026-08-27 (export menu) — ✅ **PRINT MOVED TO THE EXPORT ARROW**
 
 Ben screenshotted the `ios_share` arrow in **ReviewScreen's** header (commander + "100 cards") — that is "the deck page". Tapping it now opens a three-option sheet instead of firing one fixed export:
