@@ -2,9 +2,9 @@
 
 ## 2026-08-27 — ✅ **3D FLIP CONFIRMED ON DEVICE** (Ben: "3d flip is good")
 
-The one thing this environment structurally could not verify.  warns that the browser pane here does not composite, so even a textbook pure-CSS flip reports an identity transform and never reveals its back — and that property checks are exactly what shipped a DEAD flip to prod once before.
+The one thing this environment structurally could not verify. `FlipCard.jsx` warns that the browser pane here does not composite, so even a textbook pure-CSS flip reports an identity transform and never reveals its back — and that property checks are exactly what shipped a DEAD flip to prod once before.
 
-Ben confirmed it on a real phone: the Box detail (LegendIdentity) now turns the card over the same way the brew screens do. 's header no longer says "3rd pass pending".
+Ben confirmed it on a real phone: the Box detail (LegendIdentity) now turns the card over the same way the brew screens do. `FlipCard.jsx`'s header no longer says "3rd pass pending".
 
 **Still unverified and unchanged:** no card has been printed on real paper. Background graphics, 100% scale, and now LANDSCAPE orientation are three dialog settings that only bite on an actual print.
 
