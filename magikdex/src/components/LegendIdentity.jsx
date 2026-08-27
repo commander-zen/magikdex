@@ -6,6 +6,9 @@ import { resolveLegendDeck } from "../lib/legendDeck.js";
 import ScryCheckRadar, { readVectors } from "./ScryCheckRadar.jsx";
 import ScryCheckSheet from "./ScryCheckSheet.jsx";
 import LegendIdPrint from "./LegendIdPrint.jsx";
+// The select ladder lives in lib/deckSelect.js so the print overlay reads the
+// same row shape — see the note there on why two copies would drift.
+import { DECK_SELECTS, MISSING_COLUMN } from "../lib/deckSelect.js";
 import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
 
 // The detail pane of the storage-box Home — now a PAGED summary, the way a
@@ -32,34 +35,13 @@ import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
 // with no Ribbons has no Ribbons page. A page that can only ever say "nothing
 // here" is worse than the absence of the page.
 
-// The vector columns land in migration 034. Ben applies migrations by hand, so a
-// deployed client can be ahead of the database — and naming a column that
-// doesn't exist yet fails the WHOLE select, which would blank the detail pane
-// for every deck rather than just hiding the radar. Same hazard fetchDeckPartner
-// isolates itself against in lib/legendDeck.js. Hence two selects and a fallback.
+// The select ladder that guards against a half-applied database now lives in
+// lib/deckSelect.js — see the note there. It moved so the print overlay could
+// read the same row shape without a second copy to drift.
 //
 // deck_cards is deliberately NOT fetched: it was here only to count WREC tags.
 // One deck per legend is a schema constraint (decks_legend_id_unique), so
 // resolveLegendDeck has nothing to weigh and picks the single row regardless.
-// Tried in order, most complete first. Ben applies migrations by hand, so a
-// deployed client can be ahead of the database by one OR two migrations — and
-// dropping straight to the base select on a 034-applied/035-pending database
-// would throw away the vectors too. Each rung degrades by exactly one feature.
-const VECTOR_COLS = "scrycheck_speed, scrycheck_consistency, scrycheck_interaction, scrycheck_mana_base, scrycheck_threats";
-const LINK_COLS   = "url, platform, scrycheck_url, scrycheck_score, scrycheck_bracket, scrycheck_version, scrycheck_scored_at";
-const SELF_COLS   = "self_game_style, self_play_style";
-const DECK_SELECTS = [
-  `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS}, ${LINK_COLS}, ${SELF_COLS})`, // 034+035+036
-  `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS}, ${LINK_COLS})`, // 034 + 035
-  `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS})`,               // 034 only
-  "decks!decks_legend_id_fkey(id, status, build_name)",                                // neither
-];
-
-// 42703 is what a SELECT of an unknown column returns; PGRST204/PGRST202 are
-// PostgREST's schema-cache misses. Verified live: the select path returns 42703,
-// but all three are matched so a stale schema cache degrades to "fewer features"
-// rather than to an empty detail pane.
-const MISSING_COLUMN = new Set(["42703", "PGRST204", "PGRST202"]);
 
 export default function LegendIdentity({ legend }) {
   const { theme } = useTheme();

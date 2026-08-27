@@ -6,6 +6,7 @@ import FlipCard from "../FlipCard.jsx";
 import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { partnerVariant } from "../../lib/partners.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
+import LegendIdPrint from "../../components/LegendIdPrint.jsx";
 
 // Change 14 — how far left a decklist row must be dragged to commit a delete.
 const ROW_DELETE_AT = 88;
@@ -40,7 +41,11 @@ function groupByName(cards) {
 // cards get no hashtags. Pulled from cardTags (deck_cards quantity +
 // deck_card_tags), keyed `${section}:${name}` — only the decklist section
 // counts as "the deck" (maybeboard/pile are excluded).
-function buildMoxfieldExport(cardTags, commanderName) {
+// `withTags` false gives a plain decklist with no WREC #hashtags. Both forms are
+// valid Moxfield bulk-edit input; the tags are OURS, and pasting them somewhere
+// that does not understand them — a text message, a proxy printer, a judge — is
+// noise. Ben asked for the choice at the moment of export rather than a setting.
+function buildMoxfieldExport(cardTags, commanderName, { withTags = true } = {}) {
   // Lead with a "Commander" section header and a blank line after it. Moxfield
   // reads that header, and so does our own importer (parseMoxfieldText), which
   // resets the section on the blank line. Without it, re-importing this text
@@ -51,7 +56,7 @@ function buildMoxfieldExport(cardTags, commanderName) {
     if (!key.startsWith("decklist:")) continue;
     const name = key.slice("decklist:".length);
     const { quantity, tags } = cardTags[key];
-    const hashtags = (tags ?? []).map(t => `#${t}`).join(" ");
+    const hashtags = withTags ? (tags ?? []).map(t => `#${t}`).join(" ") : "";
     lines.push(hashtags ? `${quantity} ${name} ${hashtags}` : `${quantity} ${name}`);
   }
   return lines.join("\n");
@@ -269,6 +274,12 @@ export default function ReviewScreen({
   // null = name couldn't resolve (show "card data unavailable"), object = card.
   const [cardData, setCardData] = useState({});
   const [copied, setCopied] = useState(false);
+  // The share arrow used to fire one fixed export. Ben wanted the choice made
+  // HERE, at the moment of exporting, because the three destinations are
+  // genuinely different jobs: a decklist to paste, a decklist that carries our
+  // WREC tags, and a physical card.
+  const [exportMenu, setExportMenu] = useState(false);
+  const [printOpen, setPrintOpen] = useState(false);
   // WREC filter — tapping a category in the composition panel narrows the list
   // to that category's cards; tapping it again clears. One category at a time
   // (the panel is a composition readout, not a query builder).
@@ -498,8 +509,8 @@ export default function ReviewScreen({
   // Copy is the guaranteed part (works everywhere); the share sheet is a
   // best-effort bonus where supported — a cancelled/unsupported share never
   // blocks the copy or the confirmation toast.
-  async function handleExport() {
-    const text = buildMoxfieldExport(cardTags, commander?.name);
+  async function handleExport(withTags = true) {
+    const text = buildMoxfieldExport(cardTags, commander?.name, { withTags });
     try {
       await navigator.clipboard?.writeText(text);
       setCopied(true);
@@ -1153,8 +1164,8 @@ export default function ReviewScreen({
             {/* Export — Moxfield bulk-edit text, WREC tags as #hashtags. Copy
                 is guaranteed; the share sheet (where supported) is a bonus. */}
             <button
-              onClick={handleExport}
-              aria-label="Export deck as Moxfield text"
+              onClick={() => setExportMenu(true)}
+              aria-label="Export deck"
               style={{
                 width: 44, height: 44, flexShrink: 0,
                 display: "flex", alignItems: "center", justifyContent: "center",
@@ -1788,6 +1799,79 @@ export default function ReviewScreen({
           copied — paste into Moxfield bulk edit
         </div>
       )}
+
+      {/* ── Export menu ──────────────────────────────────────────────────────
+          Three destinations, genuinely different jobs rather than three formats
+          of one thing: a decklist to paste anywhere, the same list carrying our
+          WREC tags (which are noise outside magikdex), and a physical card.
+          Tapping the backdrop dismisses — a chooser escapable only by choosing
+          is a trap. */}
+      {exportMenu && (
+        <div
+          onClick={() => setExportMenu(false)}
+          style={{
+            position: "fixed", inset: 0, zIndex: 300,
+            background: "rgba(0,0,0,0.6)",
+            display: "flex", alignItems: "flex-end", justifyContent: "center",
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              width: "100%", maxWidth: 430,
+              background: "var(--surface, #12151a)",
+              borderTop: "1px solid var(--bevel-dark)",
+              padding: "10px 14px calc(env(safe-area-inset-bottom) + 18px)",
+              display: "flex", flexDirection: "column", gap: 8,
+            }}
+          >
+            {[
+              ["plain text", "content_copy", () => handleExport(false)],
+              ["plain text + moxfield tags", "sell", () => handleExport(true)],
+              ["commander ID card", "print", () => setPrintOpen(true)],
+            ].map(([label, icon, run]) => (
+              <button
+                key={label}
+                onClick={() => { setExportMenu(false); run(); }}
+                style={{
+                  minHeight: 50, width: "100%", padding: "0 14px",
+                  display: "flex", alignItems: "center", gap: 12,
+                  background: "transparent",
+                  border: "1px solid var(--bevel-dark)", borderRadius: 0,
+                  color: "var(--text, #e8eaed)",
+                  fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
+                  cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                <span className="material-symbols-rounded" style={{ fontSize: 20, color: "var(--muted)" }}>
+                  {icon}
+                </span>
+                {label}
+              </button>
+            ))}
+            <button
+              onClick={() => setExportMenu(false)}
+              style={{
+                minHeight: 44, background: "transparent", border: "none",
+                color: "var(--muted)", fontFamily: "'Noto Sans Mono', monospace",
+                fontSize: 12, cursor: "pointer",
+              }}
+            >
+              cancel
+            </button>
+          </div>
+        </div>
+      )}
+
+      {/* legendId, not a deck row: this screen only ever knows the legend
+          (deckKey is session.legend.id), so the overlay reads the deck itself
+          through the shared select ladder. */}
+      <LegendIdPrint
+        open={printOpen}
+        onClose={() => setPrintOpen(false)}
+        legend={commander}
+        legendId={deckKey}
+      />
     </div>
   );
 }

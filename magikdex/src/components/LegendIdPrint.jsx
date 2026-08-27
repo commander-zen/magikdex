@@ -1,7 +1,9 @@
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { tokens as t } from "../theme/tokens.js";
 import LegendIdCard from "./LegendIdCard.jsx";
+import { fetchDeckForLegend } from "../lib/deckSelect.js";
+import { resolveLegendDeck } from "../lib/legendDeck.js";
 
 // PRINT THE LEGEND / COMMANDER ID CARD.
 //
@@ -20,8 +22,27 @@ import LegendIdCard from "./LegendIdCard.jsx";
 const COLS = 2;
 const PER_SHEET = 8;
 
-export default function LegendIdPrint({ open, onClose, legend, deck }) {
+/**
+ * @param deck  the deck row, when the caller already has one (the Box detail).
+ * @param legendId  fetch it instead — the brew screen knows only the legend id
+ *                  (`deckKey` is `session.legend.id`), not the deck row.
+ */
+export default function LegendIdPrint({ open, onClose, legend, deck, legendId }) {
   const [count, setCount] = useState(PER_SHEET);
+  const [fetched, setFetched] = useState(null);
+
+  // Only fetch when the caller did NOT hand us a row, and only while open —
+  // this overlay is mounted by screens that keep it closed most of the time.
+  useEffect(() => {
+    if (!open || deck || !legendId) return;
+    let cancelled = false;
+    fetchDeckForLegend(legendId, resolveLegendDeck)
+      .then(row => { if (!cancelled) setFetched(row); })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [open, deck, legendId]);
+
+  const row = deck ?? fetched;
   if (!open) return null;
 
   return createPortal(
@@ -127,7 +148,7 @@ export default function LegendIdPrint({ open, onClose, legend, deck }) {
         }}>
           {Array.from({ length: count }, (_, i) => (
             <div className="lid-cell" key={i}>
-              <LegendIdCard legend={legend} deck={deck} width="3.5in" />
+              <LegendIdCard legend={legend} deck={row} width="3.5in" />
             </div>
           ))}
         </div>

@@ -1,5 +1,34 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (export menu) — ✅ **PRINT MOVED TO THE EXPORT ARROW**
+
+Ben screenshotted the `ios_share` arrow in **ReviewScreen's** header (commander + "100 cards") — that is "the deck page". Tapping it now opens a three-option sheet instead of firing one fixed export:
+
+| option | what it does |
+|---|---|
+| plain text | decklist, **no** WREC hashtags |
+| plain text + moxfield tags | the previous behaviour |
+| commander ID card | opens the print overlay |
+
+`buildMoxfieldExport` gained a `withTags` option. The WREC tags are OURS — pasting them into a text message or a proxy printer is noise — so the choice belongs at the moment of export, not in a setting. Backdrop tap dismisses; a chooser escapable only by choosing is a trap.
+
+### 🔑 The plumbing problem, and how it was solved
+**ReviewScreen has no deck row** — its props are `decklist / commander / cardTags / deckKey`, and **`deckKey` is `session.legend.id`, the LEGEND id, not the deck id.** So the print overlay could not be handed a deck the way the Box detail hands it one.
+
+`LegendIdPrint` now takes **either** `deck` (Box detail, already has the row) **or** `legendId` (brew screen, fetches it). The fetch goes through a new `src/lib/deckSelect.js`, which is the **select ladder extracted out of LegendIdentity**. That extraction is the point: two copies of a ladder that degrades per-migration would drift the first time a migration landed, and the drift would stay invisible until a user with a half-applied database hit whichever copy was not updated. LegendIdentity now imports it, so there is exactly one.
+
+### ❗ Still open — the EDHREC playstyle picker
+Ben: *"for playstyle we should have the information from EDHREC and we can use their tags. its a lot but if we have it be a searchable field (like a user can type or use a drop down) to select their decks intention // playstyle that is ideal."*
+
+**The data is already ingested.** `public.legend_themes(legend_oracle_id, theme_slug, theme_name, deck_count, rank)` — 141,421 rows as of the 2026-08-19 refresh. Keyed by legend ORACLE id and **ranked**, so the picker should offer THIS commander's themes in rank order rather than a flat list of every theme in the game — contextual and short, instead of "it's a lot".
+
+Design settled, not yet built:
+- Combobox in `ScryCheckSheet`'s "your own read" section, replacing the plain free-text input.
+- Type to filter; the dropdown is `legend_themes` for this legend, `order by rank`.
+- **Free text must still be accepted** — 036 deliberately does NOT constrain the vocabulary, and "chair tribal" is a real answer EDHREC will never list.
+- ⚠️ Needs the legend's **oracle id** plumbed into `ScryCheckSheet`, which currently receives only `deck` and `deckName`. Check whether `public.legends` carries an oracle_id column before wiring.
+
+
 ## 2026-08-27 (later) — ✅ **THREE OF BEN'S FOUR NOTES** on the print feature
 
 1. **No way back from the print page.** The ✕ was there but easy to miss against a full-screen white sheet, and it scrolled away on an 8-up. Now a labelled `← back` and the control bar is **sticky** — a way out that scrolls off the top is a way out only for the first screenful.
