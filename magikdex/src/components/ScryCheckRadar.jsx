@@ -64,15 +64,40 @@ export function isGraded(vectors) {
 }
 
 // ── Geometry ─────────────────────────────────────────────────────────────────
-// A regular pentagon, first vertex at the top (-90°), going clockwise. The
-// viewBox is much wider than the polygon because the vertex LABELS live outside
-// it: "CONSISTENCY" hangs off the right vertex and "INTERACTION" off the left,
-// so the box has to hold R + LR + half a word on each side. The polygon itself
-// stays centred and regular.
+// A regular pentagon, first vertex at the top (-90°), going clockwise.
+//
+// ⚠️ THE PENTAGON'S SIZE IS SET BY THE LABELS, NOT BY THE PANE.
+// Ben: "can we make the pentagon here full screen? the label actually takes up
+// a lot of the space." Exactly right, and the mechanism is worth writing down.
+// The SVG scales to min(paneW/viewBoxW, paneH/viewBoxH), and on a phone this
+// pane is TALLER than the viewBox is — so the fit is width-limited and every
+// unit of horizontal space the labels claim comes straight off the radius.
+// Vertical space, meanwhile, was going unused.
+//
+// The old layout hung "CONSISTENCY" off the right vertex (anchor start) and
+// "INTERACTION" off the left (anchor end). Those two vertices sit at the
+// pentagon's WIDEST point — cos 18° = 0.951 — so a whole word was budgeted
+// beyond the widest part of the shape on each side, twice.
+//
+// Now every label is centred over its own vertex and stacked outward, which
+// costs only HALF a word each side and spends the height that was idle. Same
+// 280-wide box, R 58 → 85: a 46% bigger pentagon and roughly double the area.
+//
+// Measured in a browser across both fit regimes before shipping, because a
+// TALLER viewBox costs radius on a short wide pane: R/viewBoxW went 0.207 →
+// 0.304 and R/viewBoxH went 0.290 → 0.347, so the pentagon is bigger whichever
+// dimension happens to bind. Rendered bounding box 3.6 → 276.4 wide and 0.4 →
+// 238.9 tall: inside the box on all four sides, with the right edge (that
+// CONSISTENCY label again) the tightest at 3.6 units.
+//
+// The binding constraint is now vertex 1 (upper right):
+//   CX + 0.951·LR + halfWidth("CONSISTENCY") <= 280
+// Widening LR past ~110 pushes that label off the right edge. If a longer
+// vector name is ever added, THAT is the number to recheck.
 const CX = 140;
-const CY = 96;
-const R  = 58;   // radius at 100 — the outer ring
-const LR = 74;   // radius the labels sit at
+const CY = 129;
+const R  = 85;   // radius at 100 — the outer ring
+const LR = 108;  // radius the labels sit at
 
 function vertex(i, radius) {
   const angle = (-90 + i * 72) * (Math.PI / 180);
@@ -83,11 +108,11 @@ function ring(radius) {
   return SCRYCHECK_VECTORS.map((_, i) => vertex(i, radius).map(n => n.toFixed(1)).join(",")).join(" ");
 }
 
-// Vertex 0 is dead top; 1–2 are on the right, 3–4 on the left. Anchoring the
-// side labels outward (start on the right, end on the left) is what keeps them
-// from overlapping the polygon they annotate.
-const LABEL_ANCHOR = ["middle", "start", "start", "end", "end"];
-const LABEL_DY     = [-10, -1, 8, 8, -1];
+// Every label is centred on its vertex and pushed radially OUTWARD — up for the
+// three above the waist, down for the two below. LR sits 22 units beyond R, so
+// no label can reach the polygon it annotates even at a full 100 reading.
+const LABEL_ANCHOR = ["middle", "middle", "middle", "middle", "middle"];
+const LABEL_DY     = [-11, -10, 8, 8, -10];
 // The value sits on its OWN line under its label rather than trailing it. Run
 // together ("CONSISTENCY 64") the longest label plus a number overflows the
 // right edge of the viewBox, and the eye has to parse a word and a number out
@@ -125,7 +150,7 @@ export default function ScryCheckRadar({
 
   const Chart = (
     <svg
-      viewBox="0 0 280 200"
+      viewBox="0 0 280 245"
       style={{ width: "100%", height: "100%", display: "block", overflow: "visible" }}
       role="img"
       // The provenance in here has to match the provenance on screen. It said
