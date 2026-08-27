@@ -1,5 +1,19 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (UAT) — ✅ **THE WHOLE NAME, FITTED** — the hero saga ends (`9f66e55`)
+
+Ben: *"second half of ral is missing and thranduil is clipped still."* Both were mine: I dropped the `//` back face and clamped to three lines, to preserve the oversized look he had asked for.
+
+- 🧭 **The resolution, and why it is not a flip-flop.** On the MOCKUP the clipped word was a flourish on a word you could still read. On a REAL card it deletes the back face of a double-faced commander and shaves the L off THRANDUIL — which reads as a typo. **A flourish that deletes information is not a flourish.** The name is the one thing on this card that must be correct.
+- ✅ **86 is a CEILING, not a fixed size.** Short names get it and match the mockup exactly; long ones shrink until they fit.
+- ✅ **Binary search over the real layout.** Three earlier guesses failed (character count, 0.62em advance, measured 0.690em advance) — Archivo Black's per-glyph widths plus word wrapping defeat any per-character model. The browser is the only oracle.
+- ✅ **Verified before pushing**, in a throwaway harness against 8 names: **zero overflow on all 8**. Ral and Thranduil fit at 61/62 on 4 lines with both faces; Atraxa, Sythis, Kwain hold the full 86.
+
+⚠️ **Do not reinstate clipping.** It has now been tried twice at Ben's request and real names killed it both times.
+⚠️ **Never clear the inline `fontSize`** in the fit loop — React owns that element's `style`, so if `setHeroSize` lands on the value already in state nothing re-renders to restore it, and every card falls back to an inherited 16px. The loop always assigns the winner explicitly.
+
+📋 **THE REAL LESSON OF THIS ROUND:** three of today's four bugs were caps applied without checking what fell outside them (`slice(0, 10)`, `height: 270`, `line-clamp: 3`), and two of them shipped as "fixes" for symptoms whose cause was one layer down. **Measure the thing, then cap it.**
+
 ## 2026-08-27 (UAT) — ✅ **SAVE DISMISSES THE PLAY STYLE SHEET** (`4a9f7bc`)
 
 Ben: *"when i hit save the tray for play style should close."* A 450ms beat first, so the button flips to "saved" and the write is visibly confirmed before the sheet goes — closing on the same frame leaves no evidence it landed, and this sheet's only other exit is a ✕ you have to go find. The local row is still patched on save, so the sheet is correct if it is ever reopened without a refetch.
