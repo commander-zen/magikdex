@@ -1,45 +1,27 @@
 import { useEffect, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
-import { supabase } from "../lib/supabase.js";
-import { SCRYCHECK_VECTORS, SCRYCHECK_MAX, SCRYCHECK_URL, readVectors } from "./ScryCheckRadar.jsx";
+import { SCRYCHECK_URL } from "./ScryCheckRadar.jsx";
 import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
 
-// Manual entry for the five self-reported ScryCheck vectors.
+// ONE JOB: hand ScryCheck a deck URL and let it grade.
+//
+// Ben, 2026-08-27: "tapping the radar should only open up an option to drop in
+// your moxfield or archidekt URL that would fire to scrycheck." So that is all
+// this is now.
+//
+// ── What used to be here, and where it went ─────────────────────────────────
+// MANUAL VECTOR ENTRY — deleted. ScryCheck grades from a URL; a deck that only
+//   lives inside magikdex simply stays ungraded, and the card already draws
+//   that honestly as em dashes rather than zeroes.
+// THE SELF-REPORT (game style / playstyle / plan) — moved to the print sheet,
+//   see DeckSelfReport.jsx. It was unfindable four levels deep in here.
 //
 // A bottom sheet because that is this app's one overlay grammar (SettingsSheet,
-// AddLegendSheet) — backdrop, slide-up, a single × dismiss. There was no
-// existing deck-metadata editor to copy: build_name and status are written once
-// at import (Brew.jsx) and never edited, so this is the first one.
-//
-// You grade the deck AT SCRYCHECK and type what you were shown. The link out is
-// therefore part of the form, not a footnote: it is the only way to get the
-// numbers this form wants.
-
-// The DB stores nothing outside 0–100 (migration 034, one CHECK per column), so
-// the form refuses the same range rather than letting the round-trip fail with a
-// Postgres error string. Empty is legal and means "not graded" — that is null,
-// not zero. Zero is a real ScryCheck reading ("virtually absent").
-//
-// ⚠️ The error text must never READ THE SAME AS THE HINT. Caught in live
-// testing: an over-range value first reported `0–100`, which is character for
-// character what the field already says when it is fine. The only difference
-// was the colour, so the field looked identical to a working one and the SAVE
-// button just went dead with no stated reason.
-function parseVector(raw) {
-  const v = raw.trim();
-  if (v === "") return { value: null, error: null };
-  if (!/^\d{1,3}$/.test(v)) return { value: null, error: "whole numbers only" };
-  const n = Number(v);
-  if (n > SCRYCHECK_MAX) return { value: null, error: `too high — max ${SCRYCHECK_MAX}` };
-  return { value: n, error: null };
-}
+// AddLegendSheet) — backdrop, slide-up, a single × dismiss.
 
 export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved }) {
   const { theme } = useTheme();
-  const [fields, setFields] = useState({});
-  const [busy, setBusy] = useState(false);
-  const [saveError, setSaveError] = useState(null);
   const [deckUrl, setDeckUrl] = useState("");
   const [grading, setGrading] = useState(false);
   const [gradeError, setGradeError] = useState(null);
@@ -53,27 +35,18 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
   // discarded rather than lingering as a phantom unsaved state.
   useEffect(() => {
     if (!open) return;
-    const v = readVectors(deck) ?? {};
+    // Clearing stale state when the sheet REOPENS is this rule's legitimate
+    // case: without it the box would still hold the previous deck's URL.
     // eslint-disable-next-line react-hooks/set-state-in-effect
-    setFields(Object.fromEntries(
-      SCRYCHECK_VECTORS.map(x => [x.key, v[x.key] === null || v[x.key] === undefined ? "" : String(v[x.key])])
-    ));
-    setSaveError(null);
     setDeckUrl(deck?.url ?? "");
     setGradeError(null);
   }, [open, deck]);
-
-  const parsed = Object.fromEntries(
-    SCRYCHECK_VECTORS.map(x => [x.key, parseVector(fields[x.key] ?? "")])
-  );
-  const hasError = SCRYCHECK_VECTORS.some(x => parsed[x.key].error);
-  const canSave = Boolean(deck?.id) && !hasError && !busy;
 
   const trimmedUrl = deckUrl.trim();
   const urlProblem = trimmedUrl && !isSupportedDeckUrl(trimmedUrl)
     ? "Moxfield or Archidekt links only"
     : null;
-  const canGrade = Boolean(deck?.id) && Boolean(trimmedUrl) && !urlProblem && !grading && !busy;
+  const canGrade = Boolean(deck?.id) && Boolean(trimmedUrl) && !urlProblem && !grading;
 
   // One tap: analyse the deck at that URL and write every score back, including
   // the link to its graded page on ScryCheck. The sheet closes on success —
@@ -91,49 +64,6 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
     } finally {
       setGrading(false);
     }
-  }
-
-  async function save() {
-    if (!canSave) return;
-    setBusy(true);
-    setSaveError(null);
-    const patch = Object.fromEntries(
-      SCRYCHECK_VECTORS.map(x => [x.column, parsed[x.key].value])
-    );
-    const { error } = await supabase.from("decks").update(patch).eq("id", deck.id);
-    setBusy(false);
-    if (error) {
-      // NEVER swallow a failure on a primary control. A save button that does
-      // nothing on tap reads as a broken app, and the row would silently keep
-      // the old numbers while the radar showed the new ones.
-      // ⚠️ A WRITE to a column PostgREST doesn't know about comes back as
-      // PGRST204 ("could not find the column ... in the schema cache"), NOT as
-      // Postgres's 42703 — that one is what a SELECT of an unknown column
-      // returns. Verified live against the hosted project before 034 was
-      // applied; the first version of this mapping only checked 42703 and
-      // leaked the raw schema-cache string to the user. Both are matched here
-      // because the two paths genuinely return different codes for the same
-      // underlying cause.
-      const missingColumn = error.code === "PGRST204" || error.code === "42703";
-      setSaveError(
-        missingColumn
-          ? "this box is running ahead of its database — migration 034 or 036 hasn't been applied yet"
-          : error.code === "23514"
-            ? `every score has to be 0–${SCRYCHECK_MAX}`
-            : error.message
-      );
-      return;
-    }
-    onSaved?.(patch);
-    onClose();
-  }
-
-  // Clearing is the way back to ungraded. Without it a mistyped grading would be
-  // permanent, since blanking the inputs and saving is exactly this — the
-  // button just makes it findable.
-  function clearAll() {
-    setFields(Object.fromEntries(SCRYCHECK_VECTORS.map(x => [x.key, ""])));
-    setSaveError(null);
   }
 
   return createPortal(
@@ -270,159 +200,10 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
               </span>
             </div>
 
-            <div style={{
-              borderTop: `1px solid ${borderColor}`,
-              paddingTop: 12,
-              fontFamily: "'Noto Sans Mono', monospace",
-              fontSize: 10, letterSpacing: "0.14em",
-              color: dimColor,
-            }}>
-              OR ENTER THEM YOURSELF
-            </div>
-
-            {/* Grade on the site by hand, then type what you were shown. */}
-            <a
-              href={SCRYCHECK_URL}
-              target="_blank"
-              rel="noopener noreferrer"
-              style={{
-                minHeight: 44,
-                display: "flex", alignItems: "center",
-                borderBottom: `1px solid ${borderColor}`,
-                fontFamily: "'Noto Sans Mono', monospace",
-                fontSize: 12, letterSpacing: "0.06em",
-                color: accent,
-                textDecoration: "none",
-              }}
-            >
-              open scrycheck.com ↗
-            </a>
-
-            {SCRYCHECK_VECTORS.map(v => {
-              const err = parsed[v.key].error;
-              return (
-                <div key={v.key} style={{ display: "flex", flexDirection: "column", gap: 3 }}>
-                  <div style={{
-                    display: "flex", alignItems: "baseline", justifyContent: "space-between", gap: 10,
-                  }}>
-                    <label
-                      htmlFor={`sc-${v.key}`}
-                      style={{
-                        fontFamily: "'Zilla Slab', serif",
-                        fontSize: 14,
-                        color: textColor,
-                      }}
-                    >
-                      {v.full}
-                    </label>
-                    <span style={{
-                      fontFamily: "'Noto Sans Mono', monospace",
-                      fontSize: 9, letterSpacing: "0.08em",
-                      color: err ? theme.red : dimColor,
-                      flexShrink: 0,
-                    }}>
-                      {err ?? `0–${SCRYCHECK_MAX}`}
-                    </span>
-                  </div>
-                  <input
-                    id={`sc-${v.key}`}
-                    type="text"
-                    // Numeric keypad without type="number": that type brings
-                    // spinners, accepts "1e3", and on iOS silently drops the
-                    // value when it can't parse — none of which a 0–100 field
-                    // wants. The regex in parseVector is the real gate.
-                    inputMode="numeric"
-                    pattern="[0-9]*"
-                    maxLength={3}
-                    value={fields[v.key] ?? ""}
-                    onChange={e => setFields(f => ({ ...f, [v.key]: e.target.value }))}
-                    placeholder="—"
-                    autoComplete="off" autoCorrect="off" spellCheck={false}
-                    style={{
-                      width: "100%", boxSizing: "border-box",
-                      background: "transparent",
-                      color: textColor,
-                      fontFamily: "'Noto Sans Mono', monospace",
-                      fontSize: 16, // 16 or iOS zooms the whole sheet on focus
-                      border: "none",
-                      borderBottom: `1px solid ${err ? theme.red : borderColor}`,
-                      borderRadius: 0,
-                      padding: "8px 0",
-                      outline: "none",
-                    }}
-                  />
-                  <span style={{
-                    fontFamily: "'Noto Sans Mono', monospace",
-                    fontSize: 10,
-                    color: dimColor,
-                  }}>
-                    {v.hint}
-                  </span>
-                </div>
-              );
-            })}
-
-            <div style={{
-              fontFamily: "'Noto Sans Mono', monospace",
-              fontSize: 10,
-              color: dimColor,
-              lineHeight: 1.5,
-            }}>
-              leave a field blank for “not graded”. the radar draws only when all
-              five are filled — a missing vertex would read as a zero, and zero is
-              a real score.
-            </div>
-
-            {saveError && (
-              <div style={{
-                fontFamily: "'Noto Sans Mono', monospace",
-                fontSize: 11,
-                color: theme.red,
-                lineHeight: 1.5,
-              }}>
-                {saveError}
-              </div>
-            )}
-
-            <div style={{ display: "flex", gap: 10 }}>
-              <button
-                onClick={clearAll}
-                disabled={busy}
-                style={{
-                  flex: "0 0 auto", minHeight: 44, padding: "0 14px",
-                  background: "transparent",
-                  border: `1px solid ${borderColor}`,
-                  borderRadius: 0,
-                  color: dimColor,
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
-                  cursor: busy ? "default" : "pointer",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                clear
-              </button>
-              <button
-                onClick={save}
-                disabled={!canSave}
-                style={{
-                  flex: 1, minHeight: 44,
-                  background: canSave ? textColor : "transparent",
-                  color: canSave ? theme.base : dimColor,
-                  border: `1px solid ${borderColor}`,
-                  borderRadius: 0,
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
-                  cursor: canSave ? "pointer" : "default",
-                  WebkitTapHighlightColor: "transparent",
-                }}
-              >
-                {busy ? "saving…" : "save"}
-              </button>
-            </div>
-
-            {/* Attribution again, here, because this sheet is where the numbers
-                are entered and the credit belongs next to the claim. */}
+            {/* The ScryCheck credit. Migration 034 records that Adam approved
+                showing these numbers WITH attribution and a link back, so this
+                is a licence term, not decoration — it stays even though the
+                manual entry it used to sit under is gone. */}
             <div style={{
               fontFamily: "'Noto Sans Mono', monospace",
               fontSize: 10,
