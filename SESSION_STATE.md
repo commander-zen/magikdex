@@ -1,5 +1,16 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (UAT) — ✅ **THE THEMES QUERY HAD NO ORACLE ID** (`eddb41b`)
+
+Ben: *"i looked up storm and i couldnt find it but if i hit enter it populated"* — on a commander whose EDHREC **#2** theme is Storm.
+
+- ❌ **The real bug, underneath yesterday's slice fix.** `ReviewScreen` loads `commanderFull` ONLY inside `openCommander()` — i.e. when you tap the commander image. On a freshly opened deck it is `null`, so `oracleId={commanderFull?.oracle_id ?? null}` passed null and the `legend_themes` query never ran. The reorder shipped an hour earlier was correct and changed nothing visible, because the list it was reordering was empty. **Tell: the help text read "type anything", which is the `!oracleId` branch.**
+- ✅ `DeckSelfReportSheet` now resolves the oracle id itself from the commander name via `getCardData` (the app's cached Scryfall lookup). `legends` has **no `oracle_id` column** — checked — so the name is the only handle available.
+- ✅ **The resting chip wall is gone.** Suggestions render only while typing; an unmatched query says so and enter still takes it verbatim ("chair tribal" must stay possible).
+- ✅ **iOS focus-zoom killed app-wide.** Every text input is now 16px — Safari auto-zooms any focused field under 16 and does not zoom back. Fixed in `DeckSelfReport`, `AddLegendSheet`, and the scryfall-syntax box in `Brew.jsx`. `ScryCheckSheet` already had it. ⚠️ The alternative fix (`maximum-scale=1`) disables pinch zoom for the whole app — an accessibility regression to fix one input. Never do that.
+
+📋 **Answered for the record:** Storm IS near the top for Ral — EDHREC ranks Spellslinger 0, **Storm 1**, Combo 2. Nothing was down-ranking it; it was absent.
+
 ## 2026-08-27 (UAT) — ✅ **EDHREC'S THEMES WERE FETCHED, THEN HIDDEN** (`9b1fcc2`)
 
 Ben, on the play-style sheet: *"Are these the only play styles? EDHREC has like 80"*. He was looking at 10 chips, all otags.
