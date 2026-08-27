@@ -1,5 +1,31 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 — ✅ **THE DECK PLAN: ONE INPUT, BOTH BIRDS** (migration 037 applied)
+
+Ben: *"i dont have a place to put in the decks plan (the tag that will go below the box. and i guess also inform the plan tag in the WREC scoring. can we kill two birds here?)"* — offered four readings, chose **"one input that sets the plan AND pre-tags matching cards"**, having been shown that it contradicts a standing rule.
+
+### 🔑 The design call: OTAGS, not a sentence
+A free-text plan prints beautifully and can inform NOTHING — there is no route from prose to "which of my 99 cards execute this". Stored as **otags**, the same input does both jobs, because `card_tags` has known which cards carry which otag since 006.
+
+**24 of the 35 otags carry no WREC category of their own**, and they are exactly plan-shaped: reanimate, mill, self-mill, blink, clone, copy, extra-turn, extra-combat, counters-matter, landfall, lands-matter, sacrifice-outlet, burn. That is the vocabulary (`PLAN_OTAGS` in deckTags.js). **No new ingest, no new table.**
+
+Proven against production before shipping: in a real deck, `reanimate` matches **5** cards and `self-mill` matches **6**.
+
+### ⚠️ A STANDING RULE WAS NARROWED, ON PURPOSE
+`deckTags.js` said plan "can never be auto-applied"; `WrecBand.jsx` said "user-assigned only, never auto-derived". Both now record the narrowing:
+
+> plan is still never derived from a card's own tags. It IS derived once the deck's OWNER has named the plan — the same discretion, exercised once for the deck instead of ninety-nine times.
+
+The write goes through `applyAutoTags` with `source: 'auto'`, which **never overwrites a manual row**, so a hand-tagged card keeps its owner's decision. That is what keeps this a suggestion rather than a seizure. **All three files plus 037 say this was a decision, not drift** — do not "restore" it.
+
+### Wiring
+- **037** `decks.self_plan text[]` — 1–3 slugs, same no-subquery CHECK shape as 036. Applied to production after a BEGIN…ROLLBACK rehearsal (four behaviours proved), then `notify pgrst`.
+- **`autoWrecTags(oracleIds, planOtags)`** — plan otags fold into the SAME query, so it stays one round trip. A named plan otag beats its taxonomy category: the owner is the more specific statement.
+- **`Brew.jsx`** loads the deck's plan on `attachDeckId` and passes it to both call sites. Failure is swallowed — on a database without 037 the select 42703s, and losing a suggestion must never break brewing. Empty is exactly the pre-037 behaviour.
+- **Editor** in ScryCheckSheet under "the plan"; **validated against `PLAN_OTAGS` on save**, because a typo would print on the card and match nothing — the one failure this field must not have.
+- **Card** renders plan (ink, bold) above the game-style line, both optional, whichever survives starts at y434.
+
+
 ## 2026-08-27 (UAT round 2) — ✅ **9 PER PAGE, AND THE HERO SPILL IS ACTUALLY FIXED**
 
 Ben: *"the commander // deck ID is spilling over when its multiple per page. we can get 9 per page when its printed like proxys."*

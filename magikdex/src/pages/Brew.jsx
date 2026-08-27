@@ -347,6 +347,11 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // skips commander selection and lands directly on the search screen,
   // optionally attaching to that legend's in-progress deck.
   const [attachDeckId, setAttachDeckId]       = useState(null);
+  // The deck's own plan otags (037). Handed to autoWrecTags so the cards that
+  // actually execute the plan get suggested as WREC 'plan' — the second half of
+  // Ben's "kill two birds": naming the plan once for the ID card also tags the
+  // deck. Empty until loaded, and empty is the old behaviour exactly.
+  const [planOtags, setPlanOtags]             = useState([]);
   const [existingCardRows, setExistingCardRows] = useState([]);
   // The deck list's "add cards" search text. Device UAT — it lives HERE, not in
   // ReviewScreen: that screen unmounts on every view change, so a typed Scryfall
@@ -865,7 +870,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       // swallowed — the deck-list heal re-applies missing suggestions.
       if (oracleId) {
         try {
-          const suggestions = await autoWrecTags([oracleId]);
+          const suggestions = await autoWrecTags([oracleId], planOtags);
           await applyAutoTags(inserted.id, suggestions.get(oracleId) ?? []);
           markHealed(inserted.id); // offered — never re-suggest, even if cleared
         } catch { /* healed on next deck-list open */ }
@@ -1050,7 +1055,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
       const ids = [...new Set(
         bare.map(r => byName[r.card_name]?.oracle_id).filter(Boolean),
       )];
-      const suggestions = await autoWrecTags(ids);
+      const suggestions = await autoWrecTags(ids, planOtags);
       let touched = false;
       await Promise.all(bare.map(async r => {
         const oid = byName[r.card_name]?.oracle_id;
@@ -1072,6 +1077,27 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     if (brewView === "review" && attachDeckId) loadDeckTags(attachDeckId);
   }, [brewView, attachDeckId]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // Load the deck's plan otags (037). Failure is swallowed on purpose: on a
+  // database where 037 has not run this select returns 42703/PGRST204, and the
+  // plan is an ENHANCEMENT to tag suggestions — losing it must never break
+  // brewing. Empty is exactly the pre-037 behaviour.
+  useEffect(() => {
+    // Clearing stale state when the KEY changes is the legitimate case for this
+    // rule's exception — the same reason LegendIdentity disables it to drop the
+    // previous legend's card. Carrying one deck's plan into another would
+    // suggest the wrong cards as its payoff.
+    // eslint-disable-next-line react-hooks/set-state-in-effect
+    if (!attachDeckId) { setPlanOtags([]); return; }
+    let cancelled = false;
+    supabase
+      .from("decks").select("self_plan").eq("id", attachDeckId).single()
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        setPlanOtags(data?.self_plan ?? []);
+      }, () => {});
+    return () => { cancelled = true; };
+  }, [attachDeckId]);
 
   // Toggling a WREC tag is an immediate write — flick-is-a-write extends to
   // tagging, no save step. Optimistic, reverting on failure.
