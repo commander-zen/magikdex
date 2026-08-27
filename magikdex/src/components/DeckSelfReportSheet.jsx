@@ -95,7 +95,23 @@ export default function DeckSelfReportSheet({ open, onClose, legendId, oracleId,
             </div>
 
             {row?.id
-              ? <DeckSelfReport deck={row} oracleId={oracleId ?? foundOracle} theme={t} onSaved={p => setRow(r => ({ ...r, ...p }))} />
+              ? <DeckSelfReport
+                  deck={row}
+                  oracleId={oracleId ?? foundOracle}
+                  theme={t}
+                  onSaved={p => {
+                    // Still patch the local row: onSaved fires only on a
+                    // successful write, and if the close is ever removed the
+                    // sheet must not sit there showing pre-save values.
+                    setRow(r => ({ ...r, ...p }));
+                    // Save DISMISSES. Ben: "when i hit save the tray for play
+                    // style should close." The beat is for the button to flip
+                    // to "saved" first — closing on the same frame gives no
+                    // confirmation the write landed, and this sheet's only
+                    // other exit is a ✕ you have to go find.
+                    setTimeout(() => onClose?.(), 450);
+                  }}
+                />
               : <div style={{ fontSize: 13, color: t.dim }}>loading…</div>}
           </div>
         </div>
