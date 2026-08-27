@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useLayoutEffect, useRef, useState } from "react";
 import QRCode from "qrcode";
 import { SCRYCHECK_VECTORS, readVectors } from "./ScryCheckRadar.jsx";
 
@@ -31,29 +31,26 @@ const TRACK = "#E1DACB";
 const display = { fontFamily: "'Archivo Black', sans-serif" };
 const mono = { fontFamily: "'JetBrains Mono', monospace" };
 
-// ── The hero ─────────────────────────────────────────────────────────────────
-// ⚠️ FIXED AT 86 AND CLIPPED — do not "fix" this by shrinking it again.
-// It was shrink-to-fit for exactly one day. Three sizing schemes were tried
-// (character count, greedy wrap against an average advance, then a real
-// measuring loop) and the measuring one WORKED — Ben just did not want it. The
-// oversized type running off the edge is the look. See the render block below
-// for which overflow is the vibe and which is a bug.
-const HERO_MAX = 86;             // the mockup's size
+// ── THE HERO FITS. It took three rounds of real names to settle this ─────────
+// The mockup's 86 is a CEILING, not a fixed size. Short names get it and look
+// exactly like the mockup; long ones shrink until they fit the column.
+//
+// Ben asked for the oversized clipping look back after I first removed it, so I
+// fixed the size at 86 and clipped — first to a pixel height (which sheared
+// letters through the waist), then to three whole lines with the "//" tail
+// dropped. Then he printed two real cards: "second half of ral is missing and
+// thranduil is clipped still".
+//
+// That is the answer. On the MOCKUP the clipped word was a design flourish on a
+// word you could still read. On a real card it eats the back face of a
+// double-faced commander and shaves the L off THRANDUIL — which reads as a
+// typo, not a style. The name is the one thing on this card that has to be
+// correct, so it is fitted, and the "//" name is printed whole.
+const HERO_MAX = 86;             // the mockup's size, and the ceiling
+const HERO_MIN = 30;             // below this it is no longer a hero
 const HERO_LEAD = 0.94;          // the mockup's line-height
-// CLIP TO WHOLE LINES, NEVER TO A PIXEL HEIGHT.
-// The first attempt capped the block at the gap to the tag (352 − 82 = 270).
-// 270 is 3.34 line boxes, so a fourth line showed its top third and every long
-// name got sliced through the waist — Ben: "overflow is weird now not cute and
-// cool." Three lines, cut BETWEEN them, is the same clip the mockup makes.
-const HERO_LINES = 3;
-
-// Only the FRONT FACE goes on the card. Both names Ben printed were double
-// faced, and the "//" tail is what pushed them past three lines in the first
-// place. A physical reference card names the commander you cast; the back is on
-// the card itself, in the box, an inch away.
-function frontFace(name) {
-  return String(name ?? "").split("//")[0].trim() || String(name ?? "");
-}
+const HERO_W = 540;              // the left column
+const HERO_H = 352 - 82;         // the tag's top, minus the name's top
 
 // ScryCheck publishes the overall power level as 1–10, "jank at 1 through cEDH
 // at 10". The mockup's tag says "cEDH · Bracket 5", but inventing a band label
@@ -99,13 +96,67 @@ function catalogNo(id) {
 }
 
 export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
-  const name = frontFace(deck?.build_name || legend?.name || "untitled deck");
+  const name = deck?.build_name || legend?.name || "untitled deck";
   const vectors = readVectors(deck);
   const tag = tagText(deck);
   const selfLine = selfReportLine(deck);
   const cat = catalogNo(deck?.id);
   const qrTarget = deck?.scrycheck_url || deck?.url || null;
   const [qr, setQr] = useState(null);
+
+  // ⚠️ MEASURED, NOT ESTIMATED. Three guesses failed before this: a character
+  // count, a 0.62-em average advance, and a measured 0.690 advance. Archivo
+  // Black's real widths vary far too much per glyph ("MONSOON" vs "LIEGE") for
+  // any per-character model, and word wrapping makes the leftover space on each
+  // line unpredictable on top of that. The only reliable oracle is the browser.
+  const heroRef = useRef(null);
+  const [heroSize, setHeroSize] = useState(HERO_MAX);
+
+  useLayoutEffect(() => {
+    const el = heroRef.current;
+    if (!el) return;
+    let cancelled = false;
+
+    // Binary search the largest size that fits — ~6 layouts instead of 57.
+    const fit = () => {
+      if (cancelled || !el.clientWidth || !el.clientHeight) return;
+      const W = el.clientWidth, H = el.clientHeight;
+      // Written straight to the DOM inside the loop. Going through state here
+      // would need a render per probe, and the probes are throwaway.
+      const apply = s => { el.style.fontSize = `${((s * 100) / BASIS).toFixed(4)}cqw`; };
+      let lo = HERO_MIN, hi = HERO_MAX, best = HERO_MIN;
+      while (lo <= hi) {
+        const mid = Math.floor((lo + hi) / 2);
+        apply(mid);
+        // Half a pixel of slack: sub-pixel layout means an exact fit can report
+        // scrollWidth one hair over its own clientWidth.
+        if (el.scrollHeight <= H + 0.5 && el.scrollWidth <= W + 0.5) { best = mid; lo = mid + 1; }
+        else hi = mid - 1;
+      }
+      // ⚠️ ALWAYS assign the winner explicitly, and never clear the property.
+      // React owns this element's `style`, so if setHeroSize lands on the value
+      // already in state it is a no-op and no render restores anything — an
+      // earlier version cleared fontSize here and every card fell back to the
+      // inherited 16px.
+      apply(best);
+      setHeroSize(best);
+    };
+
+    fit();
+    // Fonts change every measurement, and document.fonts.ready resolves without
+    // waiting for a face nothing has requested yet — load() is the one that
+    // actually waits for Archivo Black.
+    document.fonts?.load?.(`${HERO_MAX}px 'Archivo Black'`)
+      .then(() => { if (!cancelled) fit(); })
+      .catch(() => {});
+
+    // The card is sized in cqw, so a fit found at one width holds at every
+    // width — but the FIRST measurement can happen at a width of zero (a print
+    // sheet builds off-screen), and that one has to be redone.
+    const ro = new ResizeObserver(fit);
+    ro.observe(el);
+    return () => { cancelled = true; ro.disconnect(); };
+  }, [name]);
 
   useEffect(() => {
     // No synchronous setQr(null) on the empty branch — setting state directly in
@@ -145,39 +196,26 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
             Commander / Deck ID
           </div>
 
-          {/* ── THE HERO IS OVERSIZED AND CLIPS, ON PURPOSE ────────────────
-              Ben, after I "fixed" it by shrinking to fit: "i actually miss the
-              giant oversized font that was clipping stuff for the commander
-              name. that was the vibe tbh of the MSCHF look it was fitting."
-              He is right, and the mockup agrees — its own "GRAVEYARD" measures
-              ~589px inside a 540px column and is cut off by the card's
-              overflow:hidden. Shrinking every long name to fit made the card
-              tidy and ordinary.
+          {/* ── THE HERO FILLS THE COLUMN, IT DOES NOT ESCAPE IT ──────────
+              The size is measured above: 86 when the name fits at 86, smaller
+              when it does not. Short names are identical to the mockup.
 
-              But the two overflows are NOT the same, and only one is the vibe:
-
-                HORIZONTAL — a word wider than the column bleeds toward the
-                  card edge and gets cut by the frame. Deliberate. Kept.
-                VERTICAL — the name growing DOWN into the yellow tag, which is
-                  what Ben originally reported as spilling. That reads as a
-                  broken layout, not a design.
-
-              And a vertical cut has to land BETWEEN lines. Clipping to the raw
-              gap above the tag put the edge a third of the way through a line
-              box, which shears the letterforms in half — not a design, just a
-              rendering fault. line-clamp cuts at a line boundary by
-              construction, so the tail is dropped whole and the horizontal
-              bleed is untouched. */}
-          <div style={{
-            ...abs, top: u(82), left: u(44), width: u(540), ...display,
-            fontSize: u(HERO_MAX), lineHeight: HERO_LEAD,
+              ⚠️ Do NOT reinstate clipping here. It was tried twice on Ben's own
+              request for the oversized look and both times real names killed it
+              — a pixel-height cut sheared letters through the waist, and a
+              3-line cut ate the back face of every double-faced commander plus
+              the last letter of THRANDUIL. "second half of ral is missing and
+              thranduil is clipped still". A flourish that deletes information
+              is not a flourish. overflow:hidden stays only as a backstop for a
+              name so long it hits HERO_MIN. */}
+          <div ref={heroRef} style={{
+            ...abs, top: u(82), left: u(44), width: u(HERO_W), ...display,
+            fontSize: u(heroSize), lineHeight: HERO_LEAD,
             color: INK, textTransform: "uppercase",
-            // No overflowWrap:anywhere — a word wider than the column should
-            // bleed right toward the frame and get cut there. That overflow is
-            // the vibe; breaking it mid-letter is the tidy answer, and tidy is
-            // what we removed on purpose.
-            display: "-webkit-box", WebkitBoxOrient: "vertical",
-            WebkitLineClamp: HERO_LINES, overflow: "hidden",
+            height: u(HERO_H), overflow: "hidden",
+            // A single unbreakable word longer than the column would otherwise
+            // force the fit down to HERO_MIN and still overflow.
+            overflowWrap: "anywhere",
           }}>
             {name}
           </div>
