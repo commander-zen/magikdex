@@ -4,8 +4,6 @@ import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase.js";
 import { SCRYCHECK_VECTORS, SCRYCHECK_MAX, SCRYCHECK_URL, readVectors } from "./ScryCheckRadar.jsx";
 import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
-// The 24 otags with no WREC category of their own — the plan vocabulary.
-import { PLAN_OTAGS } from "../lib/deckTags.js";
 
 // Manual entry for the five self-reported ScryCheck vectors.
 //
@@ -37,12 +35,7 @@ function parseVector(raw) {
   return { value: n, error: null };
 }
 
-// MAX_PLAY mirrors the CHECK in migration 036. The database is the authority and
-// rejects a fourth regardless; this exists so the UI stops you before a round
-// trip, and because the cap is really the printed card's one-row line.
-const MAX_PLAY = 3;
-
-export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose, onSaved }) {
+export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved }) {
   const { theme } = useTheme();
   const [fields, setFields] = useState({});
   const [busy, setBusy] = useState(false);
@@ -50,19 +43,6 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
   const [deckUrl, setDeckUrl] = useState("");
   const [grading, setGrading] = useState(false);
   const [gradeError, setGradeError] = useState(null);
-  // The self-report (036): how YOU describe the deck, as opposed to how
-  // ScryCheck scores it.
-  const [gameStyle, setGameStyle] = useState("");
-  // Chips + a query box rather than one comma-separated string: the values are
-  // discrete and the database stores an array, so editing them as text meant
-  // re-parsing on every save and hoping the user's commas matched ours.
-  const [playList, setPlayList] = useState([]);
-  const [playQuery, setPlayQuery] = useState("");
-  const [themes, setThemes] = useState([]);
-  // The plan (037), as otag slugs. Same shape as playstyle, different source:
-  // these must be REAL otags or they can never match a card.
-  const [planList, setPlanList] = useState([]);
-  const [planQuery, setPlanQuery] = useState("");
 
   const textColor   = theme.white;
   const dimColor    = theme.dim;
@@ -81,69 +61,7 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
     setSaveError(null);
     setDeckUrl(deck?.url ?? "");
     setGradeError(null);
-    setGameStyle(deck?.self_game_style ?? "");
-    setPlayList(deck?.self_play_style ?? []);
-    setPlayQuery("");
-    setPlanList(deck?.self_plan ?? []);
-    setPlanQuery("");
   }, [open, deck]);
-
-  // ── EDHREC's own tags, for THIS commander ───────────────────────────────────
-  // Ben: "we should have the information from EDHREC and we can use their tags.
-  // its a lot but if we have it be a searchable field ... that is ideal."
-  //
-  // It is only "a lot" if you offer every theme in the game. legend_themes is
-  // keyed by legend oracle id and carries EDHREC's own RANK, so the list here is
-  // this commander's themes in the order EDHREC puts them — a short, relevant
-  // list rather than 141k rows to search. Suggestions only: 036 deliberately
-  // does not constrain the vocabulary, because "chair tribal" is a real answer
-  // EDHREC will never list.
-  useEffect(() => {
-    if (!open || !oracleId) return;
-    let cancelled = false;
-    supabase
-      .from("legend_themes")
-      .select("theme_name, theme_slug, rank")
-      .eq("legend_oracle_id", oracleId)
-      .order("rank", { ascending: true })
-      .limit(60)
-      .then(({ data }) => {
-        if (cancelled || !data) return;
-        // theme_name is EDHREC's display text; the slug is the fallback when a
-        // row predates the name column being populated.
-        setThemes(data.map(r => r.theme_name || r.theme_slug).filter(Boolean));
-      }, () => {});
-    return () => { cancelled = true; };
-  }, [open, oracleId]);
-
-  const planFull = planList.length >= MAX_PLAY;
-  const pq = planQuery.trim().toLowerCase();
-  const planSuggestions = PLAN_OTAGS
-    .filter(t => !planList.includes(t))
-    .filter(t => !pq || t.includes(pq))
-    .slice(0, 8);
-  function addPlan(v) {
-    const s = String(v ?? "").trim();
-    if (!s || planFull || !PLAN_OTAGS.includes(s)) return;
-    if (planList.includes(s)) { setPlanQuery(""); return; }
-    setPlanList(l => [...l, s]);
-    setPlanQuery("");
-  }
-
-  const playFull = playList.length >= MAX_PLAY;
-  const q = playQuery.trim().toLowerCase();
-  const suggestions = themes
-    .filter(t => !playList.some(p => p.toLowerCase() === t.toLowerCase()))
-    .filter(t => !q || t.toLowerCase().includes(q))
-    .slice(0, 8);
-
-  function addPlay(value) {
-    const v = String(value ?? "").trim();
-    if (!v || playFull) return;
-    if (playList.some(p => p.toLowerCase() === v.toLowerCase())) { setPlayQuery(""); return; }
-    setPlayList(list => [...list, v]);
-    setPlayQuery("");
-  }
 
   const parsed = Object.fromEntries(
     SCRYCHECK_VECTORS.map(x => [x.key, parseVector(fields[x.key] ?? "")])
@@ -182,21 +100,6 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
     const patch = Object.fromEntries(
       SCRYCHECK_VECTORS.map(x => [x.column, parsed[x.key].value])
     );
-    // 036's two columns ride along on the same save. Capped at three to match
-    // the CHECK — and to match the card, which has one row for this line.
-    patch.self_game_style = gameStyle || null;
-    // Anything still sitting in the query box counts — nobody expects typed
-    // text to evaporate because they hit save instead of enter.
-    const play = [...playList, playQuery.trim()]
-      .map(v => v.trim()).filter(Boolean).slice(0, MAX_PLAY);
-    patch.self_play_style = play.length ? play : null;
-    const planned = [...planList, planQuery.trim()]
-      .map(v => v.trim()).filter(Boolean)
-      // Only real otags survive: a typo here would print on the card and match
-      // nothing, which is the one failure this field must not have.
-      .filter(v => PLAN_OTAGS.includes(v))
-      .slice(0, MAX_PLAY);
-    patch.self_plan = planned.length ? planned : null;
     const { error } = await supabase.from("decks").update(patch).eq("id", deck.id);
     setBusy(false);
     if (error) {
@@ -305,201 +208,6 @@ export default function ScryCheckSheet({ open, deck, deckName, oracleId, onClose
                 {deckName}
               </div>
             )}
-
-            {/* ── YOUR OWN READING (036 + 037) ─────────────────────────────────
-                FIRST in the sheet, and that placement is the fix for a real
-                complaint: Ben could not find where to enter the plan. It was at
-                the very bottom, under the five vector inputs and their hint, in
-                a sheet reached by Box → swipe to page 2 → tap the radar. Four
-                levels deep and below the fold is the same as absent.
-                It also reads better this way: what YOU say about the deck comes
-                before what ScryCheck computed about it, which is the same order
-                the printed card uses — your line under their tag. */}
-            <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4 }}>
-              <div style={{
-                fontFamily: "'Noto Sans Mono', monospace", fontSize: 11,
-                letterSpacing: "0.12em", textTransform: "uppercase", color: dimColor,
-              }}>
-                your own read
-              </div>
-
-              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                {[["jank", "jank"], ["casual", "casual"], ["trash_magic", "trash magic"], ["cedh", "cEDH"]].map(([v, lbl]) => {
-                  const on = gameStyle === v;
-                  return (
-                    <button
-                      key={v}
-                      // Tapping the active one clears it — a single-value field
-                      // with no way back to "unset" is a trap.
-                      onClick={() => setGameStyle(on ? "" : v)}
-                      style={{
-                        minHeight: 40, padding: "0 14px",
-                        background: on ? accent : "transparent",
-                        border: `1px solid ${on ? accent : borderColor}`,
-                        borderRadius: 0,
-                        color: on ? theme.base : dimColor,
-                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
-                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
-                      }}
-                    >
-                      {lbl}
-                    </button>
-                  );
-                })}
-              </div>
-
-              {/* Chosen playstyles, as removable chips. */}
-              {playList.length > 0 && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {playList.map(v => (
-                    <button
-                      key={v}
-                      onClick={() => setPlayList(list => list.filter(x => x !== v))}
-                      aria-label={`Remove ${v}`}
-                      style={{
-                        minHeight: 36, padding: "0 10px",
-                        display: "flex", alignItems: "center", gap: 6,
-                        background: "transparent",
-                        border: `1px solid ${accent}`, borderRadius: 0,
-                        color: accent,
-                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
-                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
-                      }}
-                    >
-                      {v}
-                      <span className="material-symbols-rounded" style={{ fontSize: 14 }}>close</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!playFull && (
-                <input
-                  value={playQuery}
-                  onChange={e => setPlayQuery(e.target.value)}
-                  // Enter commits whatever is typed, which is what makes this a
-                  // free-text field and not a closed dropdown.
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPlay(playQuery); } }}
-                  placeholder={themes.length ? "search edhrec tags, or type your own" : "graveyard"}
-                  autoCapitalize="off"
-                  style={{
-                    width: "100%", boxSizing: "border-box", minHeight: 44,
-                    background: "transparent", color: textColor,
-                    fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
-                    border: `1px solid ${borderColor}`, borderRadius: 0,
-                    padding: "0 12px", outline: "none",
-                  }}
-                />
-              )}
-
-              {!playFull && suggestions.length > 0 && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {suggestions.map(tName => (
-                    <button
-                      key={tName}
-                      onClick={() => addPlay(tName)}
-                      style={{
-                        minHeight: 34, padding: "0 10px",
-                        background: "transparent",
-                        border: `1px solid ${borderColor}`, borderRadius: 0,
-                        color: dimColor,
-                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
-                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
-                      }}
-                    >
-                      {tName}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {/* ── THE PLAN (037) ───────────────────────────────────────────
-                  Otags, not free text, and that is the whole point: card_tags
-                  already knows which cards carry each otag, so naming the plan
-                  here also tells the WREC band which cards are your payoff.
-                  A sentence could print but could never do that. */}
-              <div style={{
-                fontFamily: "'Noto Sans Mono', monospace", fontSize: 11,
-                letterSpacing: "0.12em", textTransform: "uppercase", color: dimColor,
-                paddingTop: 6,
-              }}>
-                the plan
-              </div>
-
-              {planList.length > 0 && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {planList.map(v => (
-                    <button key={v} onClick={() => setPlanList(l => l.filter(x => x !== v))}
-                      aria-label={`Remove ${v}`}
-                      style={{
-                        minHeight: 36, padding: "0 10px",
-                        display: "flex", alignItems: "center", gap: 6,
-                        background: "transparent", border: `1px solid ${theme.red}`,
-                        borderRadius: 0, color: theme.red,
-                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
-                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
-                      }}>
-                      {v.replace(/-/g, " ")}
-                      <span className="material-symbols-rounded" style={{ fontSize: 14 }}>close</span>
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              {!planFull && (
-                <input
-                  value={planQuery}
-                  onChange={e => setPlanQuery(e.target.value)}
-                  onKeyDown={e => { if (e.key === "Enter") { e.preventDefault(); addPlan(planQuery.trim()); } }}
-                  placeholder="search: reanimate, extra-turn, landfall…"
-                  autoCapitalize="off"
-                  style={{
-                    width: "100%", boxSizing: "border-box", minHeight: 44,
-                    background: "transparent", color: textColor,
-                    fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
-                    border: `1px solid ${borderColor}`, borderRadius: 0,
-                    padding: "0 12px", outline: "none",
-                  }}
-                />
-              )}
-
-              {!planFull && planSuggestions.length > 0 && (
-                <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
-                  {planSuggestions.map(t => (
-                    <button key={t} onClick={() => addPlan(t)}
-                      style={{
-                        minHeight: 34, padding: "0 10px",
-                        background: "transparent", border: `1px solid ${borderColor}`,
-                        borderRadius: 0, color: dimColor,
-                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
-                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
-                      }}>
-                      {t.replace(/-/g, " ")}
-                    </button>
-                  ))}
-                </div>
-              )}
-
-              <div style={{
-                fontFamily: "'Noto Sans Mono', monospace", fontSize: 10,
-                color: dimColor, lineHeight: 1.5,
-              }}>
-                {planFull
-                  ? "three is the limit. tap a chip to remove one."
-                  : "prints on the card, and tags matching cards as your PLAN in WREC. pick from the list — a made-up tag would match nothing."}
-              </div>
-
-              <div style={{
-                fontFamily: "'Noto Sans Mono', monospace", fontSize: 10,
-                color: dimColor, lineHeight: 1.5,
-              }}>
-                {playFull
-                  ? `three is the limit — that is the card's line length. tap a chip to remove it.`
-                  : themes.length
-                    ? `tags from edhrec for this commander, in their order. type anything else and press enter — “chair tribal” is a real answer they will never list.`
-                    : `type a playstyle and press enter. up to three.`}
-              </div>
-            </div>
 
             {/* ── THE ONE-TAP PATH ──────────────────────────────────────────
                 Paste the deck's Moxfield/Archidekt link and ScryCheck grades it

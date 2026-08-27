@@ -4,6 +4,7 @@ import { tokens as t } from "../theme/tokens.js";
 import LegendIdCard from "./LegendIdCard.jsx";
 import { fetchDeckForLegend } from "../lib/deckSelect.js";
 import { resolveLegendDeck } from "../lib/legendDeck.js";
+import DeckSelfReport from "./DeckSelfReport.jsx";
 
 // PRINT THE LEGEND / COMMANDER ID CARD.
 //
@@ -41,7 +42,7 @@ const CARD_H_PX = 2.5 * 96;   // 240
  * @param legendId  fetch it instead — the brew screen knows only the legend id
  *                  (`deckKey` is `session.legend.id`), not the deck row.
  */
-export default function LegendIdPrint({ open, onClose, legend, deck, legendId }) {
+export default function LegendIdPrint({ open, onClose, legend, deck, legendId, oracleId }) {
   const [count, setCount] = useState(PER_SHEET);
   const [fetched, setFetched] = useState(null);
 
@@ -75,7 +76,10 @@ export default function LegendIdPrint({ open, onClose, legend, deck, legendId })
   // Never scale UP — a sheet blown past 1:1 on a desktop would misrepresent it.
   const fit = Math.min(1, (vw - 32) / sheetW);
 
-  const row = deck ?? fetched;
+  // Saved edits are merged locally so the preview updates instantly — a
+  // refetch would be a slower way to learn what we just wrote.
+  const [patched, setPatched] = useState(null);
+  const row = { ...(deck ?? fetched ?? {}), ...(patched ?? {}) };
   if (!open) return null;
 
   return createPortal(
@@ -197,6 +201,25 @@ export default function LegendIdPrint({ open, onClose, legend, deck, legendId })
           }}>
             print
           </button>
+
+          {/* THE SELF-REPORT LIVES HERE, not in the ScryCheck sheet. This is
+              the surface where you are already looking at the card these lines
+              print on, so you set them at the moment you care. */}
+          {row?.id && (
+            <div style={{
+              borderTop: `1px solid ${t.muted}`, paddingTop: 14, marginTop: 4,
+            }}>
+              <div style={{ fontSize: 13, color: t.white, marginBottom: 10 }}>
+                what goes under the tag
+              </div>
+              <DeckSelfReport
+                deck={row}
+                oracleId={oracleId}
+                theme={t}
+                onSaved={patch => setPatched(prev => ({ ...(prev ?? {}), ...patch }))}
+              />
+            </div>
+          )}
 
           {/* Said once, because it is the one dialog setting that ruins the
               output and it is off by default in most browsers. */}

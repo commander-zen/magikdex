@@ -1871,6 +1871,10 @@ export default function ReviewScreen({
         onClose={() => setPrintOpen(false)}
         legend={commander}
         legendId={deckKey}
+        // The self-report editor inside the print sheet needs an oracle id
+        // for its EDHREC theme picker — commanderFull is the resolved card,
+        // and `commander` alone does not carry one.
+        oracleId={commanderFull?.oracle_id ?? null}
       />
     </div>
   );

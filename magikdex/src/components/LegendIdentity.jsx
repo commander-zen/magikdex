@@ -394,9 +394,7 @@ export default function LegendIdentity({ legend }) {
         open={sheetOpen}
         deck={deck}
         deckName={deck?.build_name || legend.name}
-        // EDHREC themes are keyed by oracle id, and getCardData already returns
-        // one — legends has scryfall_id but no oracle_id of its own.
-        oracleId={oracleCard?.oracle_id ?? null}
+
         onClose={() => setSheetOpen(false)}
         // Patch in place rather than re-running the select: the update already
         // succeeded, so a refetch would only be a slower way to learn what we
