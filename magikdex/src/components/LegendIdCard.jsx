@@ -88,6 +88,24 @@ function tagText(deck) {
   return parts.join(" · ");
 }
 
+// Neither of these is derivable from the stored value: 'trash_magic' is two
+// words and 'cEDH' has a lowercase first letter. Same map trainer.js keeps.
+const GAME_STYLE_LABEL = {
+  jank: "jank", casual: "casual", trash_magic: "trash magic", cedh: "cEDH",
+};
+
+// "casual · graveyard · combo" — the register first, then what the deck does.
+// Returns null when nothing is set rather than an empty or half line: a blank
+// slot reads as unfinished, and this whole row is optional.
+function selfReportLine(deck) {
+  const style = GAME_STYLE_LABEL[deck?.self_game_style] ?? null;
+  const play = (deck?.self_play_style ?? []).filter(Boolean);
+  const parts = [];
+  if (style) parts.push(style);
+  parts.push(...play);
+  return parts.length ? parts.join(" · ") : null;
+}
+
 // A short, stable catalogue number from the deck's id. Decorative — it is the
 // mockup's "no. 0042" — and safe: it is printed on the owner's own card, never
 // used as a URL, so it is not an enumerable handle on anything.
@@ -102,6 +120,7 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
   const name = deck?.build_name || legend?.name || "untitled deck";
   const vectors = readVectors(deck);
   const tag = tagText(deck);
+  const selfLine = selfReportLine(deck);
   const cat = catalogNo(deck?.id);
   const qrTarget = deck?.scrycheck_url || deck?.url || null;
   const [qr, setQr] = useState(null);
@@ -164,16 +183,22 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
             </div>
           )}
 
-          {/* The mockup's "archetype" slot. Nothing in the schema stores one, so
-              it carries the commander — which is the honest answer to "what is
-              this deck" and is never blank. */}
-          {legend?.name && (
+          {/* THE SELF-REPORT, directly under ScryCheck's tag — and the pairing is
+              the point. The yellow block is somebody else's computed reading of
+              the decklist; this line is the owner's own claim about how they
+              play it. Two different kinds of statement, kept visibly apart.
+              (It used to repeat the commander's name, which said nothing the
+              card did not already say.) */}
+          {selfLine && (
             <div style={{
               ...abs, top: u(434), left: u(46), ...mono,
               fontSize: u(32), letterSpacing: "0.04em", color: GRAY,
               fontWeight: 500, width: u(540),
+              // One row is all the layout has before the credit block; a long
+              // playstyle list ellipsises rather than colliding with it.
+              whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
             }}>
-              {legend.name.toLowerCase()}
+              {selfLine}
             </div>
           )}
 

@@ -61,16 +61,30 @@ export default function LegendIdPrint({ open, onClose, legend, deck }) {
         position: "fixed", inset: 0, zIndex: 400, background: t.base,
         overflowY: "auto", padding: "18px 16px 40px",
       }}>
+        {/* Sticky: an 8-up sheet is several screens tall, and a way out that
+            scrolls off the top is a way out only for the first screenful. */}
         <div className="lid-noprint" style={{
-          maxWidth: 460, margin: "0 auto 18px", display: "flex",
+          position: "sticky", top: -18, zIndex: 1,
+          background: t.base, paddingTop: 18, marginTop: -18,
+          maxWidth: 460, margin: "-18px auto 18px", display: "flex",
           flexDirection: "column", gap: 12,
         }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
+          {/* A LABELLED WAY OUT, not just an ✕ in a corner. This overlay covers
+              the whole app with a white sheet; the first ✕ here was easy to miss
+              against it and Ben had no way back. A back arrow with the word
+              "back" next to it is the affordance people actually look for. */}
+          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 10 }}>
+            <button onClick={onClose} aria-label="Back" style={{
+              minHeight: 44, marginLeft: -8, padding: "0 8px",
+              display: "flex", alignItems: "center", gap: 6,
+              background: "transparent", border: "none",
+              color: t.accent, fontSize: 14, cursor: "pointer",
+              WebkitTapHighlightColor: "transparent",
+            }}>
+              <span className="material-symbols-rounded" style={{ fontSize: 20 }}>arrow_back</span>
+              back
+            </button>
             <span style={{ fontSize: 15, fontWeight: 600, color: t.white }}>print deck ID</span>
-            <button onClick={onClose} aria-label="Close" style={{
-              width: 44, height: 44, background: "transparent", border: "none",
-              color: t.dim, cursor: "pointer", fontSize: 18, marginRight: -10,
-            }}>✕</button>
           </div>
 
           <span style={{ fontSize: 13, lineHeight: 1.6, color: t.dim }}>

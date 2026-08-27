@@ -1,5 +1,31 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-08-27 (later) — ✅ **THREE OF BEN'S FOUR NOTES** on the print feature
+
+1. **No way back from the print page.** The ✕ was there but easy to miss against a full-screen white sheet, and it scrolled away on an 8-up. Now a labelled `← back` and the control bar is **sticky** — a way out that scrolls off the top is a way out only for the first screenful.
+
+2. **The line under the tag repeated the commander.** Replaced with the **self-report** — see migration below. The pairing is the point: the yellow tag is ScryCheck's computed reading, the line beneath is the owner's own claim. Two kinds of statement, kept visibly apart.
+
+3. **🐛 "ral doesn't flip".** Real bug. `getCardImage()` returns `card_faces[0]` — the FRONT — which is right for every single-faced card and **silently wrong for a transforming commander**. Ral, Monsoon Mage // Ral, Leyline Prodigy showed its front with no way to the other half. `LegendIdentity` now offers a flip button when face 1 carries its **own `image_uris`** — split and adventure cards also populate `card_faces` but share one image, so flipping them would swap a picture for the identical picture. Flip resets when you select a different legend.
+
+### Migration 036 — the self-report ⚠️ NOT YET APPLIED
+`decks.self_game_style` (jank | casual | trash_magic | cedh, CHECK-constrained, **one value** — a deck is played in one register even though a person can honestly claim all four) and `decks.self_play_style` (text[], 1–3 entries, ≤24 chars each).
+
+- **Free text, deliberately not an enum.** The vocabulary of Commander playstyles is not ours to close — "lands matter" and "chair tribal" are both real answers — and an enum means a migration every time somebody names a deck honestly. The CHECK bounds SHAPE only.
+- **Capped at three because the CARD has one row for that line**, so the database enforces the layout's limit rather than letting the client truncate at print time.
+- **Not derivable.** WREC measures functional coverage, a different question; `legend_themes` describes the COMMANDER, and two Meren decks with opposite gameplans share every theme.
+- **Never aggregated or ranked** — same rule that removed `trust_level()`.
+
+Client degrades: `DECK_SELECTS` gains a **fourth rung** so an unapplied 036 hides one line instead of blanking the detail pane. Editor lives in `ScryCheckSheet` under a "your own read" rule — the right home, since that sheet already IS the self-report surface. Tapping the active game-style chip clears it; a single-value field with no way back to unset is a trap.
+
+Verified: `cEDH · graveyard · combo` renders under the tag, the commander name is gone, the line is omitted entirely when unset, zero overflow on every card. Lint + build clean.
+
+### ❓ Open — Ben's 4th note needs a decision
+*"the print button ... should be part of the arrow that exports a deck plain text on the deck page."* The `ios_share` export arrow lives in **`ReviewScreen`** (the brew screen), and that screen has **zero ScryCheck data — 0 references to `scrycheck`**. Its props are `decklist / commander / cardTags / deckKey`; no deck row, so no vectors, bracket, score or `scrycheck_url`. Moving the button there means either plumbing the deck row through or having the print overlay fetch it by deck id. Ask Ben which screen he means before building it.
+
+**Next after that:** the deck as a proxy sheet with the legend ID included. `getCardImage()` already exists.
+
+
 ## 2026-08-27 — ✅ **PRINT THE LEGEND ID CARD, FROM INSIDE MAGIKDEX** (+ Ritual is descoped)
 
 Ben showed Ritual to his wife — non-MTG, non-IT, and he explicitly treats her as the valuable outside read. *"it looks like computer i don't like it."* His own conclusion: *"i'm scaffolding and building all this for an expectation of what people will want not what a user may actually say"*, and *"0 of them have shipped and they're all conceptual."*

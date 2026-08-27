@@ -43,6 +43,11 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
   const [deckUrl, setDeckUrl] = useState("");
   const [grading, setGrading] = useState(false);
   const [gradeError, setGradeError] = useState(null);
+  // The self-report (036): how YOU describe the deck, as opposed to how
+  // ScryCheck scores it. Stored as a comma-separated string while editing —
+  // splitting on save is simpler than managing chip state for three values.
+  const [gameStyle, setGameStyle] = useState("");
+  const [playStyle, setPlayStyle] = useState("");
 
   const textColor   = theme.white;
   const dimColor    = theme.dim;
@@ -61,6 +66,8 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
     setSaveError(null);
     setDeckUrl(deck?.url ?? "");
     setGradeError(null);
+    setGameStyle(deck?.self_game_style ?? "");
+    setPlayStyle((deck?.self_play_style ?? []).join(", "));
   }, [open, deck]);
 
   const parsed = Object.fromEntries(
@@ -100,6 +107,11 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
     const patch = Object.fromEntries(
       SCRYCHECK_VECTORS.map(x => [x.column, parsed[x.key].value])
     );
+    // 036's two columns ride along on the same save. Capped at three to match
+    // the CHECK — and to match the card, which has one row for this line.
+    patch.self_game_style = gameStyle || null;
+    const play = playStyle.split(",").map(v => v.trim()).filter(Boolean).slice(0, 3);
+    patch.self_play_style = play.length ? play : null;
     const { error } = await supabase.from("decks").update(patch).eq("id", deck.id);
     setBusy(false);
     if (error) {
@@ -117,7 +129,7 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
       const missingColumn = error.code === "PGRST204" || error.code === "42703";
       setSaveError(
         missingColumn
-          ? "this box is running ahead of its database — migration 034 hasn't been applied yet"
+          ? "this box is running ahead of its database — migration 034 or 036 hasn't been applied yet"
           : error.code === "23514"
             ? `every score has to be 0–${SCRYCHECK_MAX}`
             : error.message
@@ -371,6 +383,69 @@ export default function ScryCheckSheet({ open, deck, deckName, onClose, onSaved 
               leave a field blank for “not graded”. the radar draws only when all
               five are filled — a missing vertex would read as a zero, and zero is
               a real score.
+            </div>
+
+            {/* ── YOUR OWN READING (036) ───────────────────────────────────────
+                Deliberately below the vectors and visibly separate: everything
+                above is ScryCheck's computed analysis, this is the owner's claim
+                about how the deck actually plays. The printed ID card keeps the
+                same split — their tag, then your line. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 10, paddingTop: 4 }}>
+              <div style={{
+                fontFamily: "'Noto Sans Mono', monospace", fontSize: 11,
+                letterSpacing: "0.12em", textTransform: "uppercase", color: dimColor,
+                borderTop: `1px solid ${borderColor}`, paddingTop: 14,
+              }}>
+                your own read
+              </div>
+
+              <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
+                {[["jank", "jank"], ["casual", "casual"], ["trash_magic", "trash magic"], ["cedh", "cEDH"]].map(([v, lbl]) => {
+                  const on = gameStyle === v;
+                  return (
+                    <button
+                      key={v}
+                      // Tapping the active one clears it — a single-value field
+                      // with no way back to "unset" is a trap.
+                      onClick={() => setGameStyle(on ? "" : v)}
+                      style={{
+                        minHeight: 40, padding: "0 14px",
+                        background: on ? accent : "transparent",
+                        border: `1px solid ${on ? accent : borderColor}`,
+                        borderRadius: 0,
+                        color: on ? theme.base : dimColor,
+                        fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
+                        cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                      }}
+                    >
+                      {lbl}
+                    </button>
+                  );
+                })}
+              </div>
+
+              <input
+                value={playStyle}
+                onChange={e => setPlayStyle(e.target.value)}
+                placeholder="graveyard, combo"
+                autoCapitalize="off"
+                style={{
+                  width: "100%", boxSizing: "border-box", minHeight: 44,
+                  background: "transparent", color: textColor,
+                  fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
+                  border: `1px solid ${borderColor}`, borderRadius: 0,
+                  padding: "0 12px", outline: "none",
+                }}
+              />
+              <div style={{
+                fontFamily: "'Noto Sans Mono', monospace", fontSize: 10,
+                color: dimColor, lineHeight: 1.5,
+              }}>
+                {/* Free text on purpose — the vocabulary of Commander playstyles
+                    is not ours to close. Three is the card's line length. */}
+                comma separated, up to three. free text — “lands matter” and
+                “chair tribal” are both real answers.
+              </div>
             </div>
 
             {saveError && (

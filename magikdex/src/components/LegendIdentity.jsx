@@ -47,7 +47,9 @@ import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
 // would throw away the vectors too. Each rung degrades by exactly one feature.
 const VECTOR_COLS = "scrycheck_speed, scrycheck_consistency, scrycheck_interaction, scrycheck_mana_base, scrycheck_threats";
 const LINK_COLS   = "url, platform, scrycheck_url, scrycheck_score, scrycheck_bracket, scrycheck_version, scrycheck_scored_at";
+const SELF_COLS   = "self_game_style, self_play_style";
 const DECK_SELECTS = [
+  `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS}, ${LINK_COLS}, ${SELF_COLS})`, // 034+035+036
   `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS}, ${LINK_COLS})`, // 034 + 035
   `decks!decks_legend_id_fkey(id, status, build_name, ${VECTOR_COLS})`,               // 034 only
   "decks!decks_legend_id_fkey(id, status, build_name)",                                // neither
@@ -65,6 +67,7 @@ export default function LegendIdentity({ legend }) {
   const [deck, setDeck] = useState(null);
   const [sheetOpen, setSheetOpen] = useState(false);
   const [printOpen, setPrintOpen] = useState(false);
+  const [flipped, setFlipped] = useState(false);
   const [page, setPage] = useState(0);
   const [grading, setGrading] = useState(false);
   const [gradeError, setGradeError] = useState(null);
@@ -115,7 +118,25 @@ export default function LegendIdentity({ legend }) {
     return () => { cancelled = true; };
   }, [legend.id]);
 
-  const cardImage = oracleCard ? (getCardImage(oracleCard, "normal") ?? getCardImage(oracleCard, "large")) : null;
+  // ── Double-faced legends ────────────────────────────────────────────────────
+  // getCardImage returns card_faces[0] — the FRONT — which is right for every
+  // single-faced card and silently wrong for a transforming commander. Ral,
+  // Monsoon Mage // Ral, Leyline Prodigy showed its front and offered no way to
+  // see the other half; Ben's report was simply "ral doesn't flip".
+  //
+  // Only faces that carry their OWN image_uris count. Split and adventure cards
+  // also populate card_faces, but they share one image — flipping them would
+  // swap a picture for the identical picture.
+  const faces = oracleCard?.card_faces ?? null;
+  const backImage = faces?.[1]?.image_uris
+    ? (faces[1].image_uris.normal ?? faces[1].image_uris.large ?? null)
+    : null;
+  const canFlip = Boolean(backImage);
+
+  const cardImage = flipped && backImage
+    ? backImage
+    : (oracleCard ? (getCardImage(oracleCard, "normal") ?? getCardImage(oracleCard, "large")) : null);
+  const faceName = flipped && faces?.[1]?.name ? faces[1].name : legend.name;
   const hasDeck = Boolean(deck?.id);
 
   // Selecting a different legend returns to page 1. Landing on the power page of
@@ -126,6 +147,9 @@ export default function LegendIdentity({ legend }) {
     if (!el) return;
     el.scrollTo({ left: 0, behavior: "auto" });
     setPage(0);
+    // Same reasoning for the face: a new legend should open on its front, not
+    // inherit "flipped" from whatever you were looking at before.
+    setFlipped(false);
   }, [legend.id]);
 
   // Which page is showing. Driven from BOTH the scroll position and the dot
@@ -221,17 +245,38 @@ export default function LegendIdentity({ legend }) {
               phone, short wide one, or a future pane resize. object-fit
               contain is belt-and-braces for a non-standard source. */}
           {cardImage ? (
-            <img
-              src={cardImage}
-              alt={legend.name}
-              draggable={false}
-              style={{
-                maxWidth: "100%", maxHeight: "100%",
-                objectFit: "contain", display: "block",
-                borderRadius: "4.8% / 3.4%",
-                boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
-              }}
-            />
+            // The wrapper shrink-wraps the image so the flip button can sit on
+            // the CARD's corner rather than the pane's — the image is centred
+            // and letterboxed, so those are not the same place.
+            <div style={{ position: "relative", display: "inline-flex", maxWidth: "100%", maxHeight: "100%" }}>
+              <img
+                src={cardImage}
+                alt={faceName}
+                draggable={false}
+                style={{
+                  maxWidth: "100%", maxHeight: "100%",
+                  objectFit: "contain", display: "block",
+                  borderRadius: "4.8% / 3.4%",
+                  boxShadow: "0 2px 8px rgba(0,0,0,0.4)",
+                }}
+              />
+              {canFlip && (
+                <button
+                  onClick={() => setFlipped(f => !f)}
+                  aria-label={flipped ? "Show front face" : "Show back face"}
+                  style={{
+                    position: "absolute", right: 6, bottom: 6,
+                    width: 36, height: 36, padding: 0, borderRadius: "50%",
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "rgba(8,9,12,0.72)", border: `1px solid ${theme.muted}`,
+                    color: theme.white, cursor: "pointer",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: 20 }}>autorenew</span>
+                </button>
+              )}
+            </div>
           ) : (
             // Pre-load plate. Sized the old way on purpose: it is a blank
             // rectangle for a few hundred milliseconds, so a momentarily
