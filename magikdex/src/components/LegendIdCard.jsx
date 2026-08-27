@@ -38,8 +38,22 @@ const mono = { fontFamily: "'JetBrains Mono', monospace" };
 // measuring loop) and the measuring one WORKED — Ben just did not want it. The
 // oversized type running off the edge is the look. See the render block below
 // for which overflow is the vibe and which is a bug.
-const COL_H = 352 - 82;          // the tag's top, minus the name's top
 const HERO_MAX = 86;             // the mockup's size
+const HERO_LEAD = 0.94;          // the mockup's line-height
+// CLIP TO WHOLE LINES, NEVER TO A PIXEL HEIGHT.
+// The first attempt capped the block at the gap to the tag (352 − 82 = 270).
+// 270 is 3.34 line boxes, so a fourth line showed its top third and every long
+// name got sliced through the waist — Ben: "overflow is weird now not cute and
+// cool." Three lines, cut BETWEEN them, is the same clip the mockup makes.
+const HERO_LINES = 3;
+
+// Only the FRONT FACE goes on the card. Both names Ben printed were double
+// faced, and the "//" tail is what pushed them past three lines in the first
+// place. A physical reference card names the commander you cast; the back is on
+// the card itself, in the box, an inch away.
+function frontFace(name) {
+  return String(name ?? "").split("//")[0].trim() || String(name ?? "");
+}
 
 // ScryCheck publishes the overall power level as 1–10, "jank at 1 through cEDH
 // at 10". The mockup's tag says "cEDH · Bracket 5", but inventing a band label
@@ -85,7 +99,7 @@ function catalogNo(id) {
 }
 
 export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
-  const name = deck?.build_name || legend?.name || "untitled deck";
+  const name = frontFace(deck?.build_name || legend?.name || "untitled deck");
   const vectors = readVectors(deck);
   const tag = tagText(deck);
   const selfLine = selfReportLine(deck);
@@ -148,17 +162,22 @@ export default function LegendIdCard({ legend, deck, width = "3.5in" }) {
                   what Ben originally reported as spilling. That reads as a
                   broken layout, not a design.
 
-              So the size is fixed at the mockup's 86 and the block is CLIPPED
-              at the tag's line instead. A long name loses its tail to a hard
-              edge, which is the MSCHF move; it never collides with anything. */}
+              And a vertical cut has to land BETWEEN lines. Clipping to the raw
+              gap above the tag put the edge a third of the way through a line
+              box, which shears the letterforms in half — not a design, just a
+              rendering fault. line-clamp cuts at a line boundary by
+              construction, so the tail is dropped whole and the horizontal
+              bleed is untouched. */}
           <div style={{
             ...abs, top: u(82), left: u(44), width: u(540), ...display,
-            fontSize: u(HERO_MAX), lineHeight: 0.94,
+            fontSize: u(HERO_MAX), lineHeight: HERO_LEAD,
             color: INK, textTransform: "uppercase",
-            // Height is the gap to the tag; hidden makes that a cut, not a
-            // collision. No overflowWrap:anywhere — breaking a long word mid
-            // letter is the tidy answer, and tidy is what we just removed.
-            height: u(COL_H), overflow: "hidden",
+            // No overflowWrap:anywhere — a word wider than the column should
+            // bleed right toward the frame and get cut there. That overflow is
+            // the vibe; breaking it mid-letter is the tidy answer, and tidy is
+            // what we removed on purpose.
+            display: "-webkit-box", WebkitBoxOrient: "vertical",
+            WebkitLineClamp: HERO_LINES, overflow: "hidden",
           }}>
             {name}
           </div>
