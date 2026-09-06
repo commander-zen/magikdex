@@ -231,7 +231,7 @@ function loadViewPref(deckKey) {
 export default function ReviewScreen({
   decklist,
   onConfirm, saving, error,
-  live, onRemove,
+  live, browse = false, onRemove,
   commander,
   cardTags,
   onHome, onBrew,
@@ -950,6 +950,25 @@ export default function ReviewScreen({
                           style={stepperBtnStyle}
                         >+</button>
                       </span>
+                    ) : browse && onRemove ? (
+                      // A holding list you can't take a card back out of is a
+                      // trap: the carousel's UNDO only reaches the last card,
+                      // and these rows are inert outside a live session.
+                      <span style={{ display: "flex", alignItems: "center", gap: 6, flexShrink: 0 }}>
+                        {quantity > 1 && <span style={{ color: "var(--muted)" }}>×{quantity}</span>}
+                        <button
+                          onClick={() => onRemove(name, sectionKey)}
+                          aria-label={`Remove ${name}`}
+                          style={{
+                            minWidth: 44, minHeight: 44,
+                            display: "flex", alignItems: "center", justifyContent: "center",
+                            background: "transparent", border: "none", padding: 0,
+                            color: "var(--muted)",
+                            fontFamily: "'Noto Sans', sans-serif", fontSize: 16, lineHeight: 1,
+                            cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                          }}
+                        >×</button>
+                      </span>
                     ) : quantity > 1 ? (
                       <span style={{ color: "var(--muted)" }}>×{quantity}</span>
                     ) : null}
@@ -1308,7 +1327,7 @@ export default function ReviewScreen({
             letterSpacing: "0.08em",
             color: "var(--text)",
           }}>
-            {live ? "DECK" : "REVIEW"} · {totalCards} CARD{totalCards !== 1 ? "S" : ""}
+            {live ? "DECK" : browse ? "KEPT" : "REVIEW"} · {totalCards} CARD{totalCards !== 1 ? "S" : ""}
           </div>
         )}
 
@@ -1362,7 +1381,7 @@ export default function ReviewScreen({
             {/* The deck is the only board — no pile, no maybeboard (device UAT).
                 The view control rides on the DECKLIST header (accessory + panel);
                 only meaningful once the deck holds cards. */}
-            {renderSection("DECKLIST", groups.decklist, "decklist",
+            {renderSection(browse ? "KEPT" : "DECKLIST", groups.decklist, "decklist",
               totalCards > 0 ? viewChip : null,
               totalCards > 0 && controlsOpen ? viewPanel : null)}
           </>
