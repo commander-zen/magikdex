@@ -1,5 +1,24 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-09-06 — ✅ **OPEN SCRYFALL SEARCH, SWIPED** — browse with no legend attached (`8b4e31c`)
+
+Ben: *"I want to Scryfall open search but then get my carousel to swipe which isn't an option right"*. It wasn't, and the 08-27 groundwork note was right: **the feature was gated, not missing.**
+
+- 🧭 **What blocked it, in two places.** `SwipeScreen`'s search props were handed out as `session ? runGlobalSearch : undefined`, and one layer up `App.jsx` only MOUNTED Brew when a session existed — so there was no door to it at all, not just a locked one.
+- ✅ **The door is the wordmark bar** — a search glyph beside settings on the Box. NOT the detail pane (that pane is about ONE legend; browsing is the opposite of that), and not a tray tile (it would read as a legend).
+- ✅ **Open means open.** The search is `runGlobalSearch` unchanged, minus the two things a legend supplies: `withColorIdentity` (legality + colour identity) and a deck to exclude. Verified in a browser — a browse sends `goblin -type:sticker -type:attraction`, with no `legal:commander ci<=c` on it.
+- ✅ **↑ keeps to a holding list** (Ben's call over "pure browse" and "↑ starts a deck"). Same gesture, same code path: `onCardCommit` is undefined without a session, so nothing is written to any deck. The hint reads `← browse →  ↑ keep  ↓ list`, the header anchor becomes `N kept` over `SEARCH: {query}` and taps through to that list — which is the existing non-live review, so **SAVE BREW turns the holding list into a real deck** and exits to the Box.
+- ✅ **Those rows got a ×.** Non-live review rows are inert by design and the carousel's UNDO only reaches the last card — a holding list you cannot take a card back out of is a trap.
+- ✅ **The Helix: Brew chip stopped opening nothing.** It set `brewView` to `"modes"`, a view with no render branch since the mode-select screen was removed — a blank dark overlay with a back chevron. It opens search now.
+
+⚠️ **The exclusion-only query is the one Scryfall answer a browse can produce and a session cannot.** Lands toggled off with an empty box compiles to `-t:land`: no positive term, so Scryfall returns a 400 with no reason the user can act on. `hasPositiveTerm` catches it first. Do not delete it thinking the wrapper covers it — in browse there IS no wrapper.
+
+⚠️ **A browse is deliberately NOT persisted** the way an active session is (`ACTIVE_SESSION_KEY`). A brew is a thing you are building and must survive the WebView reload; a browse is a thing you are doing, and resuming it would be resuming a scroll position.
+
+⚠️ **Browse sorting re-asks Scryfall**, it does not re-sort what's on screen. A name-ordered first page re-sorted by CMC is the cheap cards from A–C, not the cheap cards. Legend sessions still sort client-side — they own a real relevance ranking to preserve.
+
+📋 **Verified in a headless browser against a stubbed Scryfall** (this sandbox has no egress to the API): entry → search → carousel, horizontal browse, ↑ keep, ↓ list, the back ladder search → swipe → list and out to the Box, the in-swipe re-seed, the sort re-ask, and all three failure messages. Zero page errors.
+
 ## 2026-08-27 (UAT) — ✅ **THE PLAY STYLE LINE WRAPS** (`7ee8ea9`)
 
 Ben: *"Landfall say '…' and we can have that wrap dont need to do the …"*. The ellipsis was solving a problem that does not exist — there are **~198 units** between this line and the credit block (four lines at 32/1.3), and the field is capped at three tags plus a game style. Clamped to three lines as a backstop, cutting BETWEEN lines per the hero lesson above.
