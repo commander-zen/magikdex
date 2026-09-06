@@ -52,6 +52,11 @@ export default function App() {
   // place; a failed sign-in (provider off, offline) proceeds anyway so the
   // app never hard-blocks on auth.
   const [authReady, setAuthReady] = useState(false);
+  // Open browse: a Scryfall search with NO legend attached, swiped in the same
+  // carousel. Deliberately NOT persisted the way an active session is — a brew
+  // is a thing you are building and must survive a WebView reload; a browse is
+  // a thing you are doing, and resuming it would be resuming a scroll position.
+  const [browsing, setBrowsing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -91,9 +96,12 @@ export default function App() {
     setBrewSession(sess);
   }
 
+  // One exit for both takeovers — a browse that saved its kept cards as a deck
+  // lands back on a Box that re-reads and shows the new legend.
   function handleBrewSessionDone() {
     saveActiveSession(null);
     setBrewSession(null);
+    setBrowsing(false);
     setReloadSignal(s => s + 1);
   }
 
@@ -117,10 +125,20 @@ export default function App() {
       background: theme.base,
       overflow: "hidden",
     }}>
-      <Home onLaunchBrew={handleLaunchBrew} reloadSignal={reloadSignal} />
+      <Home
+        onLaunchBrew={handleLaunchBrew}
+        onBrowse={() => setBrowsing(true)}
+        reloadSignal={reloadSignal}
+      />
 
-      {brewSession && (
-        <Brew session={brewSession} onSessionDone={handleBrewSessionDone} />
+      {/* A real session always wins: if one is open the Box (and its search
+          glyph) is behind a takeover and unreachable anyway. */}
+      {(brewSession || browsing) && (
+        <Brew
+          session={brewSession}
+          browse={browsing && !brewSession}
+          onSessionDone={handleBrewSessionDone}
+        />
       )}
     </div>
   );

@@ -49,6 +49,7 @@ export default function SwipeScreen({
   onEditQuery,
   handMode = false, onHandCut, onHandUncut,
   cardTags, onToggleTag,
+  browse = false,
 }) {
   // Cards already sorted into a pile/decklist leave the carousel entirely —
   // decided cards never reappear when browsing back.
@@ -162,11 +163,15 @@ export default function SwipeScreen({
   // One quiet line under the commander name (UAT 10): the legend name never
   // repeats itself and the stack counts are gone — "review" names the flip
   // mode, reconnection still surfaces, brew swiping needs no status at all.
+  // Browse has no commander to anchor to, so the line names the QUERY instead —
+  // it is the only thing identifying which stack you're in.
   const subline = reconnecting
     ? "reconnecting…"
     : handMode
       ? (done ? "deck flipped" : "review")
-      : "";
+      : browse
+        ? (stackOrigin?.type === "search" ? `search: ${stackOrigin.query}` : "")
+        : "";
 
   // Inject game-changer glow keyframe once into document head
   useEffect(() => {
@@ -799,6 +804,44 @@ export default function SwipeScreen({
             </div>
           ) : (
             <>
+              {/* The anchor: a commander in a brew, the holding list in a
+                  browse (no commander, no deck — how many cards you've kept
+                  and a tap to go read them). UNDO and the search spyglass
+                  belong to both. */}
+              {browse ? (
+                <button
+                  onClick={onGoToPile}
+                  aria-label="Show the cards you've kept"
+                  style={{
+                    flex: 1, minWidth: 0, minHeight: 44,
+                    display: "flex", flexDirection: "column", justifyContent: "center",
+                    background: "transparent", border: "none",
+                    padding: "0 4px", textAlign: "left",
+                    cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span style={{
+                    fontFamily: "'Zilla Slab', serif",
+                    fontSize: 14,
+                    color: "rgba(255,255,255,0.85)",
+                    letterSpacing: "0.02em",
+                  }}>
+                    {decklist.length === 0 ? "browsing" : `${decklist.length} kept`}
+                  </span>
+                  {subline && (
+                    <span style={{
+                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontSize: 10, letterSpacing: "0.1em",
+                      color: "rgba(255,255,255,0.3)",
+                      textTransform: "uppercase",
+                      overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
+                      maxWidth: "100%",
+                    }}>
+                      {subline}
+                    </span>
+                  )}
+                </button>
+              ) : (
               <button
                 onClick={openCommander}
                 aria-label="Show commander card"
@@ -846,6 +889,7 @@ export default function SwipeScreen({
                   )}
                 </span>
               </button>
+              )}
 
               {history.length > 0 && !animOut && (
                 <button
@@ -992,7 +1036,14 @@ export default function SwipeScreen({
           opacity: swipeCount >= 8 ? 0 : 1,
           transition: "opacity 600ms ease",
         }}>
-          {handMode ? "← browse →  ↑ cut  ↓ close" : "← browse →  ↑ deck  ↓ close"}
+          {handMode
+            ? "← browse →  ↑ cut  ↓ close"
+            : browse
+              // Same gesture, honest label: ↑ has no deck to add to here, it
+              // keeps the card in this browse's holding list, and ↓ goes to
+              // that list rather than back to a deck.
+              ? "← browse →  ↑ keep  ↓ list"
+              : "← browse →  ↑ deck  ↓ close"}
         </div>
       )}
 
@@ -1054,7 +1105,7 @@ export default function SwipeScreen({
           {/* The pile and the maybeboard are both dead — the deck is the only
               board left, so that's the only count worth showing. */}
           <div style={{ fontFamily: "var(--font-system)", fontSize: 14, color: "var(--color-text-secondary)" }}>
-            {decklist.length} in the deck
+            {browse ? `${decklist.length} kept` : `${decklist.length} in the deck`}
           </div>
           <button
             onClick={onGoToPile}
@@ -1066,7 +1117,7 @@ export default function SwipeScreen({
               fontFamily: "'Noto Sans', sans-serif",
               fontSize: 16, letterSpacing: 3, cursor: "pointer",
             }}
-          >VIEW DECK</button>
+          >{browse ? "VIEW LIST" : "VIEW DECK"}</button>
           <button
             onClick={onSearchMore}
             style={{
@@ -1077,7 +1128,7 @@ export default function SwipeScreen({
               fontFamily: "'Noto Sans', sans-serif",
               fontSize: 16, letterSpacing: 3, cursor: "pointer",
             }}
-          >SEARCH MORE</button>
+          >{browse ? "NEW SEARCH" : "SEARCH MORE"}</button>
         </div>
       )}
 

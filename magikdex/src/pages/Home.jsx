@@ -12,7 +12,7 @@ const LAST_KEY = "magicdex-last-legend";
 // The Box is the root and only home: a single fixed screen modeled on the
 // Pokémon Gen-V box — wordmark bar, commander detail pane, box tray. The whole
 // thing fits the safe area with NO scrolling anywhere (proportional flex).
-export default function Home({ onLaunchBrew, reloadSignal }) {
+export default function Home({ onLaunchBrew, onBrowse, reloadSignal }) {
   const { theme } = useTheme();
   const [activeLegend, setActiveLegend] = useState(null);
   const [settingsOpen, setSettingsOpen] = useState(false);
@@ -137,6 +137,32 @@ export default function Home({ onLaunchBrew, reloadSignal }) {
               </span>
             </button>
           )}
+        {/* Open search — a Scryfall query with no legend attached, swiped in
+            the same carousel a brew uses. It lives HERE, in the wordmark bar,
+            because it needs no deck and no selection: the Box detail pane is
+            about ONE legend, and browsing is the opposite of that. */}
+        <button
+          onClick={() => onBrowse?.()}
+          aria-label="Search all cards"
+          style={{
+            width: 44, height: 44,
+            display: "flex", alignItems: "center", justifyContent: "center",
+            background: "transparent", border: "none", padding: 0,
+            cursor: "pointer",
+            WebkitTapHighlightColor: "transparent",
+          }}
+        >
+          <span
+            className="material-symbols-rounded"
+            style={{
+              fontSize: 20,
+              color: glyphColor,
+              fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
+            }}
+          >
+            search
+          </span>
+        </button>
         <button
           onClick={() => setSettingsOpen(true)}
           aria-label="Settings"

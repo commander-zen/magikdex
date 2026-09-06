@@ -139,6 +139,15 @@ function nameOrSyntax(input) {
   return { isSyntax, tooShort: !isSyntax && input.length < 3 };
 }
 
+// A query built only of exclusions ("-t:land") has no positive term for
+// Scryfall to match, and comes back as a 400 the user can do nothing with. A
+// legend session can never produce one (withColorIdentity ANDs legality and a
+// color identity onto everything typed); open browse has no such anchor, and
+// the lands toggle alone will build exactly that query.
+function hasPositiveTerm(q) {
+  return (q ?? "").split(/\s+/).some(t => t && !t.startsWith("-"));
+}
+
 // A query is "default seed" when the user typed nothing — it's either empty or
 // just the exclude-lands marker the seed itself added. Only these queries are
 // eligible for the legend-relevant RPC stack; anything typed goes to live
@@ -310,10 +319,13 @@ function buildCardRows(deckId, boards) {
   return rows;
 }
 
-export default function Brew({ session, onSessionDone, resetSignal }) {
+export default function Brew({ session, browse = false, onSessionDone, resetSignal }) {
   const { theme } = useTheme();
   // shell | modes | search | swipe | review
-  const [brewView, setBrewView] = useState("shell");
+  // Browse (no legend, launched from the Box's wordmark search) opens ON the
+  // search screen: there is no shell behind it to fall back to, and a "shell"
+  // first tick would flash the legacy landing over the Box.
+  const [brewView, setBrewView] = useState(() => (browse && !session ? "search" : "shell"));
 
   const [query, setQuery]           = useState("");
   // The user's in-stack narrowing terms (legend sessions only) — a client-side
@@ -1210,34 +1222,45 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // so the user never swipes past what they already have. Returns a runSearch-
   // shaped result so the caller can surface the short/empty/syntax cases as one
   // mono line. This is also the alternate-stack-source primitive hand mode reuses.
-  async function runGlobalSearch(rawInput) {
+  // Browse (no legend) runs the SAME function, minus the two things a legend
+  // supplies: the color-identity/legality wrapper and the deck to exclude. So
+  // "open search" is open — every card Scryfall will return, not the subset
+  // legal in a commander's colors — and it feeds the same carousel.
+  async function runGlobalSearch(rawInput, order = swipeOrder, dir = swipeDir) {
     const input = (rawInput ?? "").trim();
     if (!input) return { ok: false, kind: "empty", message: "type a card name or Scryfall syntax" };
     if (nameOrSyntax(input).tooShort) {
       return { ok: false, kind: "short", message: "type at least 3 letters to search by name" };
     }
+    if (browse && !hasPositiveTerm(input)) {
+      return { ok: false, kind: "empty", message: "that's only an exclusion — search for something too" };
+    }
     setLoading(true);
     setError(null);
     try {
-      const finalQuery = withColorIdentity(input, legendColorIdentity);
-      const { cards } = await fetchFirstPageForSwipe(finalQuery, { order: swipeOrder, dir: swipeDir });
+      const finalQuery = browse ? input : withColorIdentity(input, legendColorIdentity);
+      const { cards } = await fetchFirstPageForSwipe(finalQuery, { order, dir });
       // Build BEFORE touching baseStackRef: a search that comes back dry used to
       // overwrite the base stack with the empty result and then bail, so the
       // stack every later rebuild reads from (sort change, narrow, clear-filter)
       // was permanently empty — the swipe went dead until the session restarted.
       // A failed search must leave the current stack exactly as it was.
-      const filtered = buildSwipeCards(cards, "", swipeOrder, swipeDir);
+      const filtered = buildSwipeCards(cards, "", order, dir);
       if (!filtered.length) {
         // An empty legal-card search should be impossible by design, so a dry
         // result almost always means "every match is already in the deck".
         const message = cards.length
-          ? "every card matching that is already in your deck"
+          ? (browse
+              ? "you've already kept everything that matches"
+              : "every card matching that is already in your deck")
           : "no cards match that search";
         return { ok: false, kind: "empty", message };
       }
       baseStackRef.current = cards;
       setStackNarrow("");
       setQuery(input);
+      setSwipeOrder(order);
+      setSwipeDir(dir);
       setSwipeCards(filtered);
       setSwipeIndex(0);
       setBrewView("swipe");
@@ -1249,6 +1272,16 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     } finally {
       setLoading(false);
     }
+  }
+
+  // SearchScreen surfaces the page's `error` state, not a returned message
+  // (that's runSearch's contract, and runGlobalSearch answers its callers
+  // inline instead). A browse search runs through the global path, so its
+  // failures have to be put where that screen looks or they'd land nowhere.
+  async function runBrowseSearch(q) {
+    const res = await runGlobalSearch(q);
+    if (!res.ok) setError(res.message);
+    return res;
   }
 
   // The in-swipe search box for a legend session NARROWS the current relevance/
@@ -1290,6 +1323,14 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
     if (session) {
       setSwipeCards(buildSwipeCards(baseStackRef.current, stackNarrow, order, dir));
       setSwipeIndex(0);
+      return;
+    }
+    // Browse stacks come straight from Scryfall, so re-ask it in the new order
+    // rather than re-sorting a page of results that was itself chosen by the
+    // old order — a name-ordered first page re-sorted by cmc is the cheap
+    // cards from A–C, not the cheap cards.
+    if (browse) {
+      if (query) runGlobalSearch(query, order, dir);
       return;
     }
     if (query) runSearch(query, order, dir, sessionLabel);
@@ -1350,6 +1391,9 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
 
       resetBrew();
       setBrewView("shell");
+      // A browse has no shell behind it — saving IS the end of it, so it exits
+      // to the Box, which re-reads and shows the legend that was just made.
+      if (browse) onSessionDone?.();
     } catch (err) {
       setSaveError(err.message);
     } finally {
@@ -1360,7 +1404,9 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // tools.js is static data, so the Helix: Brew entry carries an action key
   // and the live handler is injected here.
   const tools = BREW_TOOLS.map(t =>
-    t.action === "brew-search" ? { ...t, onClick: () => setBrewView("modes") } : t
+    // "modes" renders nothing — the mode-select screen it named is long gone,
+    // so this chip opened a blank dark overlay. Search is what it promises.
+    t.action === "brew-search" ? { ...t, onClick: () => setBrewView("search") } : t
   );
 
   // ── Back ladder ──────────────────────────────────────────────────────────
@@ -1374,18 +1420,21 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // is the surface's top block); review reached from the swipe tally returns to
   // swipe. The Loki dev seed has no real search, so its "back" is the modes
   // screen. null = exit the session (resetBrew + onSessionDone).
+  // Browse has its own three-rung ladder over the Box: search → swipe → list.
+  // Its root rung exits the takeover entirely (there is no brew shell behind a
+  // browse — the Box is what it opened over).
   const isLokiSession = sessionLabel === LOKI_SESSION_LABEL;
-  const inOverlay = brewView !== "shell" || !!session;
+  const inOverlay = brewView !== "shell" || !!session || browse;
   const backTarget =
       brewView === "shell"  ? null
     : brewView === "modes"  ? "shell"
-    : brewView === "search" ? (session ? "swipe" : "modes")
+    : brewView === "search" ? (session ? "swipe" : browse ? null : "modes")
     // Change 11 — the ladder is swipe → deck list → Box: swipe/hand back to the
     // deck list, the deck list back to the Box (always, regardless of how it was
     // reached). Non-session (Loki/legacy) swipe keeps its old target.
     : brewView === "swipe"  ? (session ? "review" : (isLokiSession ? "modes" : "search"))
     : brewView === "hand"   ? "review"
-    : brewView === "review" ? (session ? null : "swipe")
+    : brewView === "review" ? (session ? null : "swipe")  // browse: back to the carousel
     : "swipe";
 
   function handleBack() {
@@ -1485,7 +1534,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
   // the default seed ("" / "-t:land") and wrec: gap-fill markers stay anonymous
   // (the commander anchor already identifies those); anything else is a Change-1
   // search stack, labelled `search: {query}`.
-  const stackOrigin = session && query && !isDefaultSeedQuery(query) && !wrecQueryCategory(query)
+  const stackOrigin = (session || browse) && query && !isDefaultSeedQuery(query) && !wrecQueryCategory(query)
     ? { type: "search", query }
     : null;
 
@@ -1547,7 +1596,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
 
         {brewView === "search" && (
           <SearchScreen
-            onSearch={session ? applyStackNarrow : runSearch}
+            onSearch={session ? applyStackNarrow : browse ? runBrowseSearch : runSearch}
             loading={loading}
             error={error}
             // Legend sessions narrow the current stack — prefill the box with the
@@ -1567,7 +1616,9 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             decklist={decklist}
             onDecklistChange={setDecklist}
             onGoToPile={() => setBrewView("review")}
-            onSearchMore={() => setBrewView("review")}
+            // "search more" means a NEW query in browse (there's no synergy
+            // stack behind it to go back to), and the deck list otherwise.
+            onSearchMore={() => setBrewView(browse ? "search" : "review")}
             commanderCard={session
               ? { name: session.legend.name, art: session.legend.image_uri }
               : sessionLabel ? { name: sessionLabel } : null}
@@ -1581,8 +1632,12 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             stackOrigin={stackOrigin}
             stackNarrow={session ? stackNarrow : ""}
             onClearFilter={session ? clearStackNarrow : undefined}
-            onSearchAll={session ? runGlobalSearch : undefined}
-            onEditQuery={session ? runGlobalSearch : undefined}
+            // The in-swipe search is the whole point of browse: it re-seeds the
+            // carousel from a new query without ever leaving it. Same handler
+            // the legend session uses, unwrapped (see runGlobalSearch).
+            onSearchAll={session || browse ? runGlobalSearch : undefined}
+            onEditQuery={session || browse ? runGlobalSearch : undefined}
+            browse={browse}
           />
         )}
 
@@ -1622,6 +1677,7 @@ export default function Brew({ session, onSessionDone, resetSignal }) {
             saving={saving}
             error={saveError}
             live={!!session}
+            browse={browse}
             onRemove={handleRemoveCard}
             commander={session ? { name: session.legend.name, art: session.legend.image_uri } : null}
             cardTags={cardTags}
