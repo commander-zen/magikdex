@@ -172,8 +172,87 @@ jobs:
           gpg --batch --yes --symmetric --cipher-algo AES256 \
             --passphrase "$BACKUP_PASSPHRASE" \
             --output backup.sql.gpg backup.sql
+          # Fingerprint the plaintext before it goes, so the verify step can
+          # prove the decrypted copy is byte-identical to what was encrypted.
+          sha256sum backup.sql | cut -d' ' -f1 > plaintext.sha256
           # Remove the plaintext so it can't be picked up by a later step.
           rm -f backup.sql
+
+      - name: Verify the encrypted backup
+        # WHY: a backup nobody has ever read back is a guess. This decrypts the
+        # artifact we are about to store, proves it is byte-identical to the dump
+        # that went in, and counts the rows that came back out. A backup that
+        # cannot be decrypted, or that carries no user data, now FAILS the run.
+        #
+        # Deliberately before the upload: a dump that fails this check should not
+        # be stored at all. A bad backup sitting in the artifact list is worse
+        # than no backup, because it looks like cover and isn't.
+        env:
+          BACKUP_PASSPHRASE: ${{ secrets.BACKUP_PASSPHRASE }}
+        run: |
+          gpg --batch --yes --quiet --decrypt \
+            --passphrase "$BACKUP_PASSPHRASE" \
+            --output verify.sql backup.sql.gpg
+          actual="$(sha256sum verify.sql | cut -d' ' -f1)"
+          expected="$(cat plaintext.sha256)"
+          if [ "$actual" != "$expected" ]; then
+            echo "::error::The decrypted dump is not byte-identical to the dump that was encrypted — the artifact is corrupt. Not uploading it."
+            exit 1
+          fi
+          echo "round-trip ok: decrypted output matches the original dump exactly"
+          python3 - <<'PY'
+          import re, pathlib
+
+          sql = pathlib.Path("verify.sql").read_text(errors="replace")
+
+          # The tables whose loss would be unrecoverable — the reason this job
+          # exists at all.
+          USER  = ["legends", "decks", "deck_cards", "deck_card_tags"]
+          # The regenerable caches, excluded with --exclude-table-data. Their
+          # CREATE TABLE is present; their data must not be.
+          CACHE = ["cards", "card_tags", "legend_synergy", "legend_themes"]
+
+          def row_count(table):
+              """Rows inside this table's COPY block, or None if there is none."""
+              m = re.search(rf"^COPY public\.{table} .*FROM stdin;$", sql, re.M)
+              if not m:
+                  return None
+              end = sql.find("\n\\.\n", m.end())
+              if end == -1:
+                  return None
+              body = sql[m.end():end].strip("\n")
+              return 0 if not body else len(body.split("\n"))
+
+          total = 0
+          print("user data:")
+          for t in USER:
+              n = row_count(t)
+              if n is None:
+                  print(f"  {t}: no COPY block")
+              else:
+                  print(f"  {t}: {n} rows")
+                  total += n
+
+          print("excluded caches (expect none):")
+          for t in CACHE:
+              n = row_count(t)
+              print(f"  {t}: {'no COPY block' if n is None else f'{n} rows'}")
+              if n:
+                  print(f"::warning::{t} carries {n} rows — --exclude-table-data "
+                        "has stopped working and this artifact is far larger "
+                        "than it should be.")
+
+          # Per-table zeroes are legitimate (Ben may delete every deck). A dump
+          # with no user rows ANYWHERE means the dump itself is broken.
+          if total == 0:
+              print("::error::The decrypted dump contains no user rows at all. "
+                    "This is not a usable backup — failing instead of storing it.")
+              raise SystemExit(1)
+
+          print(f"verified: {total} user rows survived the encrypt/decrypt round trip")
+          PY
+          # Never leave decrypted user data lying on the runner.
+          rm -f verify.sql plaintext.sha256
 
       - name: Upload the encrypted backup
         uses: actions/upload-artifact@v4
