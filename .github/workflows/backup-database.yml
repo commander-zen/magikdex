@@ -54,7 +54,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Install a matching Postgres client
-        # The runner's bundled pg_dump can be older than Supabase's server, which
+        # The runner's bundled pg_dump is older than Supabase's server, which
         # makes pg_dump refuse to run. Pull the client from the official Postgres
         # apt repo so the major version lines up.
         run: |
@@ -62,6 +62,14 @@ jobs:
           sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
+          # Installing v17 is not enough: ubuntu-latest ALREADY ships a v16
+          # client at /usr/bin/pg_dump, and the pgdg package puts v17 in
+          # /usr/lib/postgresql/17/bin. /usr/bin comes first on PATH, so plain
+          # `pg_dump` stayed on 16 and aborted with a version mismatch against
+          # the 17.6 server — the install looked like it worked and did nothing.
+          # GITHUB_PATH prepends, so later steps get v17 first.
+          echo "/usr/lib/postgresql/17/bin" >> "$GITHUB_PATH"
+          /usr/lib/postgresql/17/bin/pg_dump --version
 
       - name: Report the connection string's shape
         # WHY THIS STEP EXISTS: a bad SUPABASE_DB_URL surfaces only as "password
@@ -142,6 +150,7 @@ jobs:
           # be rebuilt any time with the scripts/ingest-*.mjs scripts. Excluding
           # by name (rather than listing the tables to keep) means a table added
           # later is backed up automatically instead of being silently missed.
+          echo "using $(command -v pg_dump) — $(pg_dump --version)"
           pg_dump "$SUPABASE_DB_URL" \
             --schema=public \
             --no-owner --no-privileges \
