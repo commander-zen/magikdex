@@ -16,9 +16,14 @@
 # hand, so no outside pull request can ever run it or read the secrets.
 #
 # ── SETUP (one time, in the repo's Settings → Secrets and variables → Actions) ──
-#   SUPABASE_DB_URL    Supabase → Project Settings → Database → Connection string
-#                      (URI). Use the direct/session connection, and paste the
-#                      real password into it.
+#   SUPABASE_DB_URL    Supabase → Project Settings → Database → Connection
+#                      pooling → the SESSION mode URI (port 5432, NOT the
+#                      transaction/6543 one — pg_dump needs session mode).
+#                      The username must be tenant-qualified,
+#                      postgres.<project-ref>, because the pooler routes by it.
+#                      Do NOT use the direct db.<ref>.supabase.co host: it is
+#                      IPv6-only and GitHub runners are IPv4-only.
+#                      Percent-encode any reserved character in the password.
 #   BACKUP_PASSPHRASE  Any long random passphrase you invent. STORE IT SOMEWHERE
 #                      SAFE AND SEPARATE (a password manager) — without it the
 #                      backups cannot be decrypted, which makes them worthless.
@@ -57,6 +62,61 @@ jobs:
           sudo sh -c 'echo "deb [signed-by=/usr/share/keyrings/pgdg.gpg] https://apt.postgresql.org/pub/repos/apt $(lsb_release -cs)-pgdg main" > /etc/apt/sources.list.d/pgdg.list'
           sudo apt-get update
           sudo apt-get install -y postgresql-client-17
+
+      - name: Report the connection string's shape
+        # WHY THIS STEP EXISTS: a bad SUPABASE_DB_URL surfaces only as "password
+        # authentication failed for user X", which cannot tell a wrong username
+        # apart from a wrong password. This job burned 14 runs on exactly that
+        # ambiguity. Printing the URI's STRUCTURE makes the next failure name its
+        # own cause instead of needing a guess.
+        #
+        # SAFE ON A PUBLIC REPO: the project ref is already committed here, and
+        # the pooler host, port and database name are not secrets. The password
+        # is only ever DESCRIBED, never echoed.
+        env:
+          SUPABASE_DB_URL: ${{ secrets.SUPABASE_DB_URL }}
+        run: |
+          python3 - <<'PY'
+          import os
+          from urllib.parse import urlsplit
+
+          raw = os.environ.get("SUPABASE_DB_URL", "")
+          if not raw:
+              print("::error::SUPABASE_DB_URL is empty.")
+              raise SystemExit(1)
+
+          parts = urlsplit(raw)
+          user = parts.username or ""
+          pw = parts.password or ""
+          host = parts.hostname or ""
+
+          print(f"scheme:   {parts.scheme or '(none)'}")
+          print(f"username: {user or '(none)'}")
+          print(f"host:     {host or '(none)'}")
+          print(f"port:     {parts.port or '(default 5432)'}")
+          print(f"database: {parts.path.lstrip('/') or '(none)'}")
+          print(f"password: {'present' if pw else 'MISSING'}")
+
+          # Supavisor (the pooler) routes by tenant, which it reads from the
+          # username. A bare `postgres` has no tenant to route to.
+          pooled = "pooler.supabase.com" in host
+          if pooled and "." not in user:
+              print("::error::Pooler host with a bare username. Supavisor needs "
+                    "postgres.<project-ref>, not plain postgres.")
+          elif pooled:
+              print(f"ok: pooler host, tenant-qualified as {user.split('.', 1)[1]}")
+          elif host.startswith("db."):
+              print("::warning::Direct host (db.*.supabase.co) is IPv6-only and "
+                    "GitHub runners are IPv4-only. Use the pooler URI instead.")
+
+          # An unencoded reserved character makes libpq split the URI in the
+          # wrong place, so the password it sends is not the password you pasted.
+          if pw and any(c in "@:/?#[]" for c in pw):
+              print("::error::The password contains URI-reserved characters that "
+                    "are not percent-encoded, so it is being parsed wrong. "
+                    "Percent-encode it, or reset the database password to an "
+                    "alphanumeric one and paste the fresh URI.")
+          PY
 
       - name: Dump the user data
         env:
