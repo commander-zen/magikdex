@@ -11,7 +11,8 @@
 // For each taxonomy tag it walks the official paginated search
 // (api.scryfall.com, otag: syntax — Tagger's community tags are indexed
 // there), upserts (oracle_id, tag) rows with source 'otag-search', then
-// prunes rows the run didn't re-see (tag removed upstream). Full pulls, no
+// prunes rows the run didn't re-see (tag removed upstream). A tag that comes
+// back with zero ids is skipped, never pruned — see the guard in main(). Full pulls, no
 // page cap: the taxonomy is curated small enough that a complete run is
 // ~260 pages ≈ 2 minutes at compliant spacing.
 //
@@ -35,6 +36,7 @@ const supabase = DRY_RUN ? null : makeSupabase();
 async function main() {
   const runIso = new Date().toISOString();
   let totalRows = 0;
+  const skipped = [];
 
   for (const { tag, cards: expected } of entries) {
     const { ids, total, pages } = await fetchOtagOracleIds(tag);
@@ -43,6 +45,15 @@ async function main() {
     console.log(`otag:${tag} → ${ids.length} oracle ids over ${pages} pages, total_cards ${total}${drift}`);
 
     if (DRY_RUN) { totalRows += ids.length; continue; }
+
+    // Zero ids almost always means upstream broke (tag renamed, syntax change,
+    // empty 200), not that the tag emptied. Writing nothing and then pruning
+    // would silently delete every existing row for this tag — so skip it.
+    if (ids.length === 0) {
+      console.warn(`  ⚠️  otag:${tag} returned 0 ids — SKIPPED write + prune, existing rows kept`);
+      skipped.push(tag);
+      continue;
+    }
 
     const rows = ids.map(oracle_id => ({
       oracle_id,
@@ -59,6 +70,10 @@ async function main() {
 
   console.log("──────────────────────────────────────────────");
   console.log(`${DRY_RUN ? "[dry run] would write" : "wrote"} ${totalRows} card_tags rows across ${entries.length} tags`);
+  if (skipped.length) {
+    console.warn(`⚠️  ${skipped.length} tag(s) came back empty and were NOT refreshed: ${skipped.join(", ")}`);
+    process.exitCode = 1; // a partial refresh should not look like success
+  }
 
   if (!DRY_RUN) {
     const { count } = await supabase
