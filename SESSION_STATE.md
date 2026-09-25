@@ -1,5 +1,15 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-09-25 (later) — ✅ **EDHREC CACHE REFRESHED + PRUNE-ON-ZERO FIXED** (Ben: "DO them now")
+
+- ✅ **Prune-on-zero guard (`6d10f0c`).** `ingest-tags.mjs` now skips both the write and the prune when a tag returns 0 ids. It logs the skipped tags and sets exit code 1, so a partial refresh doesn't look like success. Lint clean. Not exercised live: the guard path only runs on an empty tag.
+- ✅ **`ingest:legend-edhrec -- --all`**: 3,349 commanders cached, 35 with no EDHREC page (the same 35 as August), zero 429s, ~35 min. `legend_synergy` 880,862 → **884,175** · `legend_themes` 141,421 → **143,846**.
+
+### ⚠️ This did NOT cover the new set's commanders — and couldn't yet
+Candidate count was **3,384, identical to August**, despite 266 new cards. `--all` filters on `legal_commander = true`, and **Scryfall marks a set not-legal until its release date.** The new legends (e.g. *Gale, Primeval Conduit*, *Hadran, Naya Sunseeder*, *Gitrog, Horror of Zhava*) are in `cards` with `legal_commander = false` and no `edhrec_rank`. EDHREC likely has no pages for them pre-release anyway.
+
+**To finish the job after release:** `npm run ingest:cards` (flips legality, adds ranks), then `npm run ingest:legend-edhrec -- --all`. Tags can wait for the next routine refresh.
+
 ## 2026-09-25 — ✅ **CARD POOL + TAGS REFRESHED for this weekend's set** (data only, no code)
 
 Ben started this from a cloud session with no service key or Scryfall access, then handed it to his machine. Ran `ingest:cards` → `ingest:tags` → `ingest:legend-tags`, real runs only (no full `--dry-run` walk, per the 08-19 lesson).
@@ -17,8 +27,8 @@ Ben started this from a cloud session with no service key or Scryfall access, th
 
 ### ⚠️ Known Issues — new
 - **Legend-tags pulls junk "tags" into `card_tags`.** Tagger returns trivia tags alongside mechanics: `anagram`, `vanity-card`, `fun-ruling`, `type-errata`, `unique-type-line`, `deprecated-card-types`, `normal-human-name`. Each one pulls up to 1,050 cards into the pool. That is harmless unless something reads un-taxonomied tags as plan signal. Worth a denylist if it ever does.
-- **`ingest:legend-edhrec --all` was NOT run** (not asked). New commanders in this set have no `legend_synergy` / `legend_themes` rows until it is.
-- **Prune-on-zero in `ingest-tags.mjs` is still unguarded.** It didn't fire this run, but only because no tag came back empty.
+- ~~`ingest:legend-edhrec --all` was NOT run~~ ✅ run later the same day — see the entry above.
+- ~~Prune-on-zero in `ingest-tags.mjs` is still unguarded~~ ✅ fixed in `6d10f0c`.
 
 ## 2026-09-06 — ✅ **OPEN SCRYFALL SEARCH, SWIPED** — browse with no legend attached (`8b4e31c`)
 
@@ -1636,7 +1646,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-09-25**): **WALK OPEN SEARCH ON A REAL PHONE.** It shipped 2026-09-06 but was only verified headless against a stubbed Scryfall. Tap the search glyph on the Box, browse, ↑ keep a few, then SAVE BREW. Card pool + tags were refreshed 2026-09-25 (cards 35,572 / card_tags 159,229). The only data job not run is `ingest:legend-edhrec --all`, for the new set's commanders.
+Priority (**2026-09-25**): **WALK OPEN SEARCH ON A REAL PHONE.** It shipped 2026-09-06 but was only verified headless against a stubbed Scryfall. Tap the search glyph on the Box, browse, ↑ keep a few, then SAVE BREW. Card pool + tags were refreshed 2026-09-25 (cards 35,572 / card_tags 159,229). EDHREC refreshed the same day (legend_synergy 884,175 / legend_themes 143,846). **Owed after the set releases:** re-run `ingest:cards` then `ingest:legend-edhrec -- --all` so the new set's commanders (not Commander-legal until release) get cached.
 
 Priority (**2026-08-27**): **SCRYFALL SEARCH FROM THE SWIPE — browse cards, and find a new legend.** Ben's ask, and the surprise is that it is **already built and merely gated**: `SwipeScreen` has a working "name or scryfall syntax" search that reseeds the stack via `onEditQuery`, and `Brew.jsx` lines 1584/1585/1635 hand it `session ? runGlobalSearch : undefined`. `session` means a legend is already chosen, so you must be brewing a deck before you can search — backwards for browsing, and impossible for finding a NEW legend. **Read the 2026-08-27 groundwork entry at the top before touching it**; the one real design question is *what a right-swipe means when there is no deck to add to*.
 
