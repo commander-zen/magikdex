@@ -1,5 +1,25 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-09-25 — ✅ **CARD POOL + TAGS REFRESHED for this weekend's set** (data only, no code)
+
+Ben started this from a cloud session with no service key or Scryfall access, then handed it to his machine. Ran `ingest:cards` → `ingest:tags` → `ingest:legend-tags`, real runs only (no full `--dry-run` walk, per the 08-19 lesson).
+
+| table | before | after |
+|---|---|---|
+| `cards` | 35,306 | **35,572** (+266) |
+| `card_tags` total | 116,074 | **159,229** (+43,155) |
+| · `otag-search` | 115,930 | 158,901 |
+| · `tagger-card-page` | 144 | 328 |
+
+- ✅ **`ingest:cards`**: 38,690 processed / 35,343 upserted / 3,347 skipped (non-deckable filter). The JSONL reader from 08-19 still works.
+- ✅ **`ingest:tags`**: 50,437 rows across 35 tags. **No tag returned zero ids**, so the unguarded prune-on-zero could not fire. Every tag is at or above its taxonomy figure except `unblockable` (192 vs 194).
+- ✅ **`ingest:legend-tags`**: all **23 distinct legends** profiled (`legends` has 26 rows; 3 are duplicate names). About 10 min wall time, with only a few 429 backoffs visible in the captured tail. The big `card_tags` jump is this job: the Box grew from 10 legends to 23, and each new legend pulls up to 6 pages of pool per non-taxonomy tag.
+
+### ⚠️ Known Issues — new
+- **Legend-tags pulls junk "tags" into `card_tags`.** Tagger returns trivia tags alongside mechanics: `anagram`, `vanity-card`, `fun-ruling`, `type-errata`, `unique-type-line`, `deprecated-card-types`, `normal-human-name`. Each one pulls up to 1,050 cards into the pool. That is harmless unless something reads un-taxonomied tags as plan signal. Worth a denylist if it ever does.
+- **`ingest:legend-edhrec --all` was NOT run** (not asked). New commanders in this set have no `legend_synergy` / `legend_themes` rows until it is.
+- **Prune-on-zero in `ingest-tags.mjs` is still unguarded.** It didn't fire this run, but only because no tag came back empty.
+
 ## 2026-09-06 — ✅ **OPEN SCRYFALL SEARCH, SWIPED** — browse with no legend attached (`8b4e31c`)
 
 Ben: *"I want to Scryfall open search but then get my carousel to swipe which isn't an option right"*. It wasn't, and the 08-27 groundwork note was right: **the feature was gated, not missing.**
@@ -1615,6 +1635,8 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 - 3 empty test-only anon users remain (`25d64369`, `43143805`, `45b16f05`) — I was blocked from deleting auth users (correctly; destructive auth op). Safe to delete by hand.
 
 ## Cold Start Prompt
+
+Priority (**2026-09-25**): **WALK OPEN SEARCH ON A REAL PHONE.** It shipped 2026-09-06 but was only verified headless against a stubbed Scryfall. Tap the search glyph on the Box, browse, ↑ keep a few, then SAVE BREW. Card pool + tags were refreshed 2026-09-25 (cards 35,572 / card_tags 159,229). The only data job not run is `ingest:legend-edhrec --all`, for the new set's commanders.
 
 Priority (**2026-08-27**): **SCRYFALL SEARCH FROM THE SWIPE — browse cards, and find a new legend.** Ben's ask, and the surprise is that it is **already built and merely gated**: `SwipeScreen` has a working "name or scryfall syntax" search that reseeds the stack via `onEditQuery`, and `Brew.jsx` lines 1584/1585/1635 hand it `session ? runGlobalSearch : undefined`. `session` means a legend is already chosen, so you must be brewing a deck before you can search — backwards for browsing, and impossible for finding a NEW legend. **Read the 2026-08-27 groundwork entry at the top before touching it**; the one real design question is *what a right-swipe means when there is no deck to add to*.
 
