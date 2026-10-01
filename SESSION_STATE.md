@@ -15,7 +15,10 @@ Ben: lift the magikdex deck ID export into its own Vercel deployment called **de
 - ✅ **Deployed: https://deck-stats-mauve.vercel.app** (Vercel project `deck-stats`, Root Directory `deck-stats`, framework none, git-linked to `commander-zen/magikdex` main → auto-deploys like magikdex). First prod build `2681d41` READY. Page, `card.js` and fonts serve 200. `/api/analyze` answers "not configured" until the key is set.
   - ⚠️ **`deck-stats.vercel.app` is NOT ours.** It's a stranger's French OPTCG site; Vercel gave us the `-mauve` suffix. Don't smoke-test the bare name.
 
+- ✅ **Ritual retired for good** (Ben: "yes do both"). The Vercel project `edh-id` is deleted (`edh-id.vercel.app` → 404), and `trainer/` is removed from the repo (`8c4c2e3`). It had been rebuilding on every push since it shared the repo. magikdex never imported it.
+
 ### ⚠️ Known Issues — new
+- **The `trainer` schema is still in Supabase** (profile, buddy, etc., plus its migrations in `magikdex/supabase`). Nothing reads it any more. Untouched on purpose: dropping it is a separate decision.
 - **`SCRYCHECK_API_KEY` not set on the deck-stats project.** Ben adds it (Vercel → deck-stats → Settings → Environment Variables, Production), then redeploys. Claude didn't copy the private key across projects.
 - **Why yesterday's card printed large:** in `LegendIdCard.jsx` the 10-unit border sits OUTSIDE the 3.5in width (CSS content-box), and `window.print()` lets the dialog scale. Both are moot now: that print path was deleted.
 - **Not deployed yet.** A Vercel project with Root Directory `deck-stats` and env `SCRYCHECK_API_KEY` is needed. No Vercel CLI or authenticated MCP in this session.
