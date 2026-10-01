@@ -20,7 +20,12 @@ Ben: lift the magikdex deck ID export into its own Vercel deployment called **de
 - ✅ **Paste-a-list analysis** (`7e3cc50`), from Adam's email: ScryCheck's API now takes `{ deckName, commanders, deckList }`. The form gets a link / paste toggle (commander + optional partner + list). The proxy whitelists fields, caps lists at 20k chars, and adds a global cap of 9/min under ScryCheck's 10/min per-key limit. Verified live against ScryCheck directly with the known-good key: 200, power 4.5, bracket 3, `source: "manual"`, and **a pasted list DOES get a `deckUrl`**.
 - ✅ **Key exposure audit:** the ScryCheck key value appears in neither repo's full git history (mtg-dna, pod-check) nor in the live JS bundles of magikdex, pod-check or deck-stats. It lives only in the untracked `pod-check/.env.local` and in Vercel env.
 
+- ✅ **Play style sheet removed from magikdex** (`e4e2205`). Ben: "this play style panel can go that's for the deck stats". The `style` icon in the deck header and `DeckSelfReport(Sheet).jsx` are gone. Deck Stats now lowercases typed play-style tags. It never used EDHREC themes: free text only, per Ben's earlier cut.
+- ✅ **ScryCheck panel removed from magikdex** (`6c2ff35`). Ben: "I want the ScryCheck info on deck stats". The Box detail pane is the card art only (no pager, no dots), mounted and checked in a browser. Deleted: `ScryCheckRadar`, `ScryCheckSheet`, `lib/scrycheck.js`, `lib/deckSelect.js`, `api/scrycheck.js`. `platformOf` moved to `moxfieldImport.js`, so imports still store `url` + `platform`. Lint + build clean.
+
 ### ⚠️ Known Issues — new
+- **magikdex no longer calls ScryCheck**, so its Vercel `SCRYCHECK_API_KEY` env var is now unused. Ben can delete it.
+- **Orphaned DB columns:** `decks.scrycheck_*` (034/035) and `self_game_style` / `self_play_style` (036) are no longer read or written by any app. `self_plan` (037) is still READ by Brew for WREC plan auto-tags, but nothing can set it any more. Existing values keep working; dropping the columns is a separate decision.
 - ~~**deck-stats' `SCRYCHECK_API_KEY` value is rejected by ScryCheck**~~ ✅ FIXED 15:51 UTC: Ben had left the `Bearer ` prefix in the value. Live paste-list call through https://deck-stats-mauve.vercel.app returned 200 (power 4.5, bracket 3, all five vectors, deckUrl). Original note: (bare 404 in function logs at 15:38 UTC). The same request with the `pod-check/.env.local` key returns 200, so the saved value is wrong (stray space/quote, a `Bearer ` prefix, or a different key). It's type sensitive, so it can't be read back. Ben re-pastes it, then redeploys.
 - **The repo is public and documents the ScryCheck endpoint + request shapes** (code + this file). The key is safe, but Adam asked that the API details not be shared. Worth a decision: make `commander-zen/magikdex` private, or accept it.
 - **pod-check tracks a `.env`** with `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and `VITE_TURNSTILE_SITE_KEY`. All three are publishable by design (they ship in the bundle anyway), so it isn't a leak. Still bad hygiene in a public repo.
@@ -1677,7 +1682,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-10-01**): **PRINT ONE DECK STATS CARD.** Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
+Priority (**2026-10-01**): **BEN PICKS THE DECK STATS CHART (bars / radar / both), then PRINT ONE DECK STATS CARD.** Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
 Priority (**2026-09-25**): **WALK OPEN SEARCH ON A REAL PHONE.** It shipped 2026-09-06 but was only verified headless against a stubbed Scryfall. Tap the search glyph on the Box, browse, ↑ keep a few, then SAVE BREW. Card pool + tags were refreshed 2026-09-25 (cards 35,572 / card_tags 159,229). EDHREC refreshed the same day (legend_synergy 884,175 / legend_themes 143,846). **Owed after the set releases:** re-run `ingest:cards` then `ingest:legend-edhrec -- --all` so the new set's commanders (not Commander-legal until release) get cached.
 
