@@ -3,7 +3,7 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1">
-  <title>Deck Stats</title>
+  <title>deckStats</title>
   <meta name="description" content="A Magic-card-sized stat card for your Commander deck box, powered by ScryCheck.">
   <style>
     @font-face { font-family: "Archivo Black"; src: url(fonts/ArchivoBlack-Regular.ttf); }
@@ -25,7 +25,8 @@
     h1 {
       font-family: "Archivo Black", sans-serif; font-weight: 400;
       font-size: clamp(40px, 11vw, 72px); line-height: 0.94; margin: 0 0 12px;
-      text-transform: uppercase;
+      /* No text-transform: the name is styled "deckStats" and the case is the
+         point (Ben, after Red Rising's invented nouns). */
     }
     .lede { color: var(--dim); font-size: 14px; line-height: 1.6; margin: 0; max-width: 46ch; }
     .cap {
@@ -83,7 +84,7 @@
 <body>
   <main>
     <header>
-      <h1>Deck<br>Stats</h1>
+      <h1>deckStats</h1>
       <p class="lede">Paste your deck link or list. Get a stat card the size of a Magic card. Print it, sleeve it, and keep it in the deck box for the pregame talk.</p>
     </header>
 
@@ -153,7 +154,7 @@
 
     <footer>
       Analysis powered by <a href="https://scrycheck.com/" target="_blank" rel="noopener">ScryCheck</a>.
-      Deck Stats is unofficial Fan Content, not approved or endorsed by Wizards of the Coast.
+      deckStats is unofficial Fan Content, not approved or endorsed by Wizards of the Coast.
     </footer>
   </main>
   <script type="module" src="app.js"></script>

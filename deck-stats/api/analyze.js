@@ -9,7 +9,7 @@
 // terms forbid browser-side calls and committing the key.
 //
 // ⚠️ THE ONE DIFFERENCE, AND IT MATTERS: magikdex requires a Supabase session
-// before it will spend a call. Deck Stats has no accounts, so the controls are
+// before it will spend a call. deckStats has no accounts, so the controls are
 // a per-IP throttle, a global cap at ScryCheck's own limit, and a cache. That
 // is a speed bump, not a lock — anyone who rotates IPs can still burn the
 // private-beta quota. If ScryCheck usage ever looks wrong, tighten this first.

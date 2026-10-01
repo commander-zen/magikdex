@@ -1,7 +1,7 @@
 import { jsPDF } from "https://cdn.jsdelivr.net/npm/jspdf@3.0.3/+esm";
 import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm";
 
-// THE DECK STATS CARD — the MSCHF-inspired landscape card lifted out of
+// THE deckStats CARD — the MSCHF-inspired landscape card lifted out of
 // magikdex (LegendIdCard.jsx), now drawn ONCE as a list of primitives and
 // rendered twice: SVG for the preview, vector PDF for the print.
 //
@@ -209,7 +209,9 @@ export function layoutCard(stats) {
 
   // The spine: the only part visible with the card slotted upright.
   rect(0, 0, IW, 16, YELLOW);
-  text("DECK STATS", 46, 44, "mono700", 22, GRAY, 0.14);
+  // The one label on the card that is NOT uppercase: it's the name, styled
+  // "deckStats" on purpose, and capitals would erase the styling.
+  text("deckStats", 46, 44, "mono700", 22, GRAY, 0.14);
 
   const hero = fitHero(stats.title || "untitled deck");
   hero.lines.forEach((line, i) =>
