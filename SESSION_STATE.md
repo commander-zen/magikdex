@@ -10,8 +10,10 @@ Ben: lift the magikdex deck ID export into its own Vercel deployment called **de
 - ✅ **Exactly 88 × 63 mm** (a Magic card on its side). The PDF is vector and authored in mm, with crop marks and a **50 mm scale-check bar**. One layout function feeds both the SVG preview and the PDF, so the preview cannot wrap differently from the print.
 - ✅ Verified in a browser against a stubbed `/api/analyze`: preview, PDF page size and card size read back, PDF rasterized with pdf.js and visually matched, 375px with no horizontal scroll. API guard paths were smoke-tested in node. **Never called live ScryCheck** (no key locally).
 
+- ✅ **Removed from magikdex** (Ben: "i want this removed from magikdex"). The export menu's "commander ID card" option is gone, along with `LegendIdPrint`/`LegendIdCard`, the `gen:deck-cards` PNG CLI (+ `scripts/lib/card-fonts.mjs`, `deck-id-card.mjs`, the sample JSON) and `assets/fonts/`. The v4 mockup moved to `deck-stats/reference/`. `qrcode` was uninstalled; `sharp` stays for `gen:icons`. Lint + prod build are clean. **The self-report sheet stays** because it still feeds the WREC `plan` tag; only its "prints on the ID card" help text went.
+
 ### ⚠️ Known Issues — new
-- **Why yesterday's card printed large:** in `LegendIdCard.jsx` the 10-unit border sits OUTSIDE the 3.5in width (CSS content-box), and `window.print()` lets the dialog scale. magikdex's print button still has both problems. Deck Stats does not.
+- **Why yesterday's card printed large:** in `LegendIdCard.jsx` the 10-unit border sits OUTSIDE the 3.5in width (CSS content-box), and `window.print()` lets the dialog scale. Both are moot now: that print path was deleted.
 - **Not deployed yet.** A Vercel project with Root Directory `deck-stats` and env `SCRYCHECK_API_KEY` is needed. No Vercel CLI or authenticated MCP in this session.
 - **`/api/analyze` has no sign-in gate** (magikdex's proxy requires a Supabase session). The controls are a per-IP throttle (8 per 10 min) and a 6-hour per-URL cache. That is a speed bump against quota burn on ScryCheck's private-beta key. **Tell Adam it's a new public surface**: the attribution approval was given for magikdex.
 - JetBrains Mono static weights (500/700/800) were cut from magikdex's variable TTF with fontTools, because jsPDF can't use variable fonts.
@@ -1662,7 +1664,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-10-01**): **DEPLOY DECK STATS AND PRINT ONE.** Create the Vercel project (root `deck-stats`, env `SCRYCHECK_API_KEY`), run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it. Then decide whether magikdex's own print button should point at deck stats or be fixed.
+Priority (**2026-10-01**): **DEPLOY DECK STATS AND PRINT ONE.** Create the Vercel project (root `deck-stats`, env `SCRYCHECK_API_KEY`), run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
 Priority (**2026-09-25**): **WALK OPEN SEARCH ON A REAL PHONE.** It shipped 2026-09-06 but was only verified headless against a stubbed Scryfall. Tap the search glyph on the Box, browse, ↑ keep a few, then SAVE BREW. Card pool + tags were refreshed 2026-09-25 (cards 35,572 / card_tags 159,229). EDHREC refreshed the same day (legend_synergy 884,175 / legend_themes 143,846). **Owed after the set releases:** re-run `ingest:cards` then `ingest:legend-edhrec -- --all` so the new set's commanders (not Commander-legal until release) get cached.
 
