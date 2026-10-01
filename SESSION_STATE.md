@@ -1,5 +1,21 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-10-01 — ✅ **DECK STATS: the deck ID card, lifted into its own app** (`3904634`)
+
+Ben: lift the magikdex deck ID export into its own Vercel deployment called **deck stats**. Input is a Moxfield/Archidekt link plus magikdex's self-report inputs; output is a PDF sized like a Magic card, so it can be sleeved.
+
+- ✅ **`deck-stats/`**: a new sibling of `magikdex/` and `trainer/`. Vanilla HTML/JS with no build step. jsPDF + qrcode come from jsdelivr.
+- ✅ **Inputs = magikdex's, minus the suggestion sources.** Four game-style chips, plus up to three play-style tags typed and entered. Ben, mid-build: "i dont need any tags or anything new". The EDHREC-theme and otag suggestion lists were cut.
+- ✅ **Card = LegendIdCard.jsx's layout**, header renamed `DECK STATS`. Hero text is the commander name(s), with the deck name as fallback. Catalog number is now hashed from the deck URL.
+- ✅ **Exactly 88 × 63 mm** (a Magic card on its side). The PDF is vector and authored in mm, with crop marks and a **50 mm scale-check bar**. One layout function feeds both the SVG preview and the PDF, so the preview cannot wrap differently from the print.
+- ✅ Verified in a browser against a stubbed `/api/analyze`: preview, PDF page size and card size read back, PDF rasterized with pdf.js and visually matched, 375px with no horizontal scroll. API guard paths were smoke-tested in node. **Never called live ScryCheck** (no key locally).
+
+### ⚠️ Known Issues — new
+- **Why yesterday's card printed large:** in `LegendIdCard.jsx` the 10-unit border sits OUTSIDE the 3.5in width (CSS content-box), and `window.print()` lets the dialog scale. magikdex's print button still has both problems. Deck Stats does not.
+- **Not deployed yet.** A Vercel project with Root Directory `deck-stats` and env `SCRYCHECK_API_KEY` is needed. No Vercel CLI or authenticated MCP in this session.
+- **`/api/analyze` has no sign-in gate** (magikdex's proxy requires a Supabase session). The controls are a per-IP throttle (8 per 10 min) and a 6-hour per-URL cache. That is a speed bump against quota burn on ScryCheck's private-beta key. **Tell Adam it's a new public surface**: the attribution approval was given for magikdex.
+- JetBrains Mono static weights (500/700/800) were cut from magikdex's variable TTF with fontTools, because jsPDF can't use variable fonts.
+
 ## 2026-09-25 (later) — ✅ **EDHREC CACHE REFRESHED + PRUNE-ON-ZERO FIXED** (Ben: "DO them now")
 
 - ✅ **Prune-on-zero guard (`6d10f0c`).** `ingest-tags.mjs` now skips both the write and the prune when a tag returns 0 ids. It logs the skipped tags and sets exit code 1, so a partial refresh doesn't look like success. Lint clean. Not exercised live: the guard path only runs on an empty tag.
@@ -1645,6 +1661,8 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 - 3 empty test-only anon users remain (`25d64369`, `43143805`, `45b16f05`) — I was blocked from deleting auth users (correctly; destructive auth op). Safe to delete by hand.
 
 ## Cold Start Prompt
+
+Priority (**2026-10-01**): **DEPLOY DECK STATS AND PRINT ONE.** Create the Vercel project (root `deck-stats`, env `SCRYCHECK_API_KEY`), run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it. Then decide whether magikdex's own print button should point at deck stats or be fixed.
 
 Priority (**2026-09-25**): **WALK OPEN SEARCH ON A REAL PHONE.** It shipped 2026-09-06 but was only verified headless against a stubbed Scryfall. Tap the search glyph on the Box, browse, ↑ keep a few, then SAVE BREW. Card pool + tags were refreshed 2026-09-25 (cards 35,572 / card_tags 159,229). EDHREC refreshed the same day (legend_synergy 884,175 / legend_themes 143,846). **Owed after the set releases:** re-run `ingest:cards` then `ingest:legend-edhrec -- --all` so the new set's commanders (not Commander-legal until release) get cached.
 
