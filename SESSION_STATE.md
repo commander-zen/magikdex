@@ -29,7 +29,10 @@ Ben: lift the magikdex deck ID export into its own Vercel deployment called **de
 
 - ✅ **EDHREC play-style suggestions are back** (`d9a4b7a`, live). Ben: "i would like the suggesstions from EDHREC back". `/api/analyze` now also returns the commander's EDHREC themes from magikdex's cache (`cards` → `legend_themes`, read with the publishable anon key; partner lists interleaved by rank; misses → `[]`). The picker matches magikdex: nothing shows until you type, then matching themes appear as lowercase chips, and enter still takes free text. Added `SUPABASE_URL` + `SUPABASE_ANON_KEY` to the deck-stats Vercel env (both publishable). Verified live: Meren → 129 themes; "re" → reanimator first; "chair tribal" + enter works.
 
+- ✅ **The name is styled `deckStats`** (`7eb7545`, live). Ben, after Red Rising's invented nouns. Applies to the page title, `<h1>` (its uppercase transform removed), footer, and the card's top label (the one label on the card that is not uppercase). Slugs stay `deck-stats`: repo dir, Vercel project, URL, PDF filenames.
+
 ### ⚠️ Known Issues — new
+- **The Vercel CLI login on Ben's machine has expired** (API says `invalidToken`). Git auto-deploys still work. Claude can't read deploy status or change project settings until Ben runs `npx vercel login`.
 - **Theme suggestions depend on magikdex's EDHREC cache.** New-set commanders get none until `ingest:cards` + `ingest:legend-edhrec -- --all` run after release (see the 09-25 note). Cards saved to a sheet before this change have no themes stored.
 - **Outer crop marks on a full Letter sheet sit ~4–7 mm from the left/right edges** (7.7 mm margin) and may not print on every printer. The cards' own black borders still show the cut, so it's harmless if they vanish.
 - **No "copies" option yet**: one card per deck. Printing 9 of the same deck means analyzing it 9 times (cached, so free after the first). Backlog candidate.
