@@ -62,9 +62,8 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
         l => l.name.toLowerCase() !== commanderName.toLowerCase()
       );
       // Keep the URL this deck came from. It was being parsed for cards and then
-      // dropped, which left decks.url empty for every deck in the app — and
-      // ScryCheck analyses a deck FROM that URL, so throwing it away was quietly
-      // costing the one-tap grade. Canonicalised out of the pasted text so a
+      // dropped, which left decks.url empty for every deck in the app.
+      // Canonicalised out of the pasted text so a
       // trailing "?utm=" or a stray word can't corrupt what gets stored.
       const sourceUrl = isDeckUrl(pasteText) ? canonicalDeckUrl(pasteText) : null;
       const result = await onImport(commanderName, lines, sourceUrl);

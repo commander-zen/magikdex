@@ -188,7 +188,7 @@ export default function Home({ onLaunchBrew, onBrowse, reloadSignal }) {
         </div>
       </div>
 
-      {/* 2. DETAIL PANE (~64vh) — the card and the power-level radar.
+      {/* 2. DETAIL PANE (~64vh) — the selected legend's card.
           Was 46 against a tray of 42. The tray dropped from two rows of slots
           to one (LegendBox COLS×ROWS), so the height it no longer needs comes
           here: this pane is what you READ, the tray is how you NAVIGATE, and

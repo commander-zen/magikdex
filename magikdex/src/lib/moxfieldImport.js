@@ -148,15 +148,28 @@ export function isDeckUrl(text) {
 }
 
 // The canonical https deck URL out of whatever the user pasted — the same two
-// patterns isDeckUrl matches, rebuilt clean. Stored on the deck row (035) and
-// later handed to ScryCheck, so it must survive a paste that carried tracking
-// params, a missing scheme, or surrounding text. Returns null if there isn't one.
+// patterns isDeckUrl matches, rebuilt clean. Stored on the deck row (035), so
+// it must survive a paste that carried tracking params, a missing scheme, or
+// surrounding text. Returns null if there isn't one.
 export function canonicalDeckUrl(text) {
   const mox = String(text ?? "").match(/moxfield\.com\/decks\/([A-Za-z0-9_-]+)/i);
   if (mox) return `https://moxfield.com/decks/${mox[1]}`;
   const arch = String(text ?? "").match(/archidekt\.com\/decks\/(\d+)/i);
   if (arch) return `https://archidekt.com/decks/${arch[1]}`;
   return null;
+}
+
+// Which provider a URL belongs to, for public.decks.platform (001 constrains
+// that column to exactly these two).
+export function platformOf(raw) {
+  try {
+    const host = new URL(String(raw).trim()).hostname.replace(/^www\./, "").toLowerCase();
+    if (host === "moxfield.com") return "moxfield";
+    if (host === "archidekt.com") return "archidekt";
+    return null;
+  } catch {
+    return null;
+  }
 }
 
 // URL → the same preview shape prepareImport returns. Unlike the paste path

@@ -3,7 +3,7 @@ import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase";
 import { fetchCardIdentity, getCardImage } from "../lib/scryfall.js";
 import { deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck, upsertLegend } from "../lib/legendDeck.js";
-import { platformOf } from "../lib/scrycheck.js";
+import { platformOf } from "../lib/moxfieldImport.js";
 import AddLegendSheet from "./AddLegendSheet";
 
 const DECK_GATE = 100;
@@ -12,7 +12,8 @@ const DECK_GATE = 100;
 // beyond one box page onto the next via the header chevrons.
 //
 // ONE ROW, NOT TWO (Ben, 2026-08-11: "drop the box to only 4? one row at the
-// bottom instead of 2? gives the card and scrycheck panes more emphasis"). The
+// bottom instead of 2? gives the card and scrycheck panes more emphasis" — the
+// scrycheck pane has since moved out to the deck-stats app). The
 // tray was taking 42 of the 88 flex units below the wordmark for what is, on
 // this surface, the navigation rather than the content — you look at the card
 // and the power level, and you use the tray to change which one. Halving it
@@ -289,11 +290,8 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
     // A legend can have at most one deck. Resolve the existing one (if any)
     // through the same shared lookup every other surface uses, and only
     // insert a fresh deck row when the legend truly has none yet.
-    // Where the deck came from, when it came from a URL. `url` and `platform`
-    // have existed since before 001 and nothing ever wrote them; migration 035
-    // is what gave them a job — ScryCheck analyses a deck FROM this URL, so a
-    // deck that doesn't carry one can never be graded in a single tap.
-    // Best-effort throughout: a failure here must never fail the import itself.
+    // Where the deck came from, when it came from a URL (035 gave `url` and
+    // `platform` a job). Best-effort: a failure here must never fail the import.
     const source = sourceUrl ? { url: sourceUrl, platform: platformOf(sourceUrl) } : null;
 
     const existingDeck = await fetchLegendDeck(legend.id);
@@ -307,9 +305,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
       if (deckError) throw deckError;
       deckId = deck.id;
     } else if (source) {
-      // Re-importing from a URL re-points the existing deck at it. The scores
-      // are deliberately NOT cleared: they may be self-reported, and 035 keeps
-      // scrycheck_version so a stale API grade is identifiable on its own terms.
+      // Re-importing from a URL re-points the existing deck at it.
       await supabase.from("decks").update(source).eq("id", deckId);
     }
 
