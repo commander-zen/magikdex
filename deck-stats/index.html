@@ -57,13 +57,23 @@
     #error { color: var(--red); font-size: 13px; line-height: 1.5; margin-top: 10px; }
     section + section { margin-top: 24px; }
 
-    #editor { margin-top: 36px; display: grid; gap: 28px; }
+    /* minmax(0, …): a grid track otherwise grows to its widest unbreakable
+       content (a long deck name), which pushed the page past a phone's width. */
+    #editor { margin-top: 36px; display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); }
     #preview svg { display: block; width: 100%; height: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
     .size { font-size: 12px; color: var(--dim); margin-top: 10px; }
+    .deck-row { display: flex; gap: 6px; margin-bottom: 6px; }
+    .deck-pick {
+      flex: 1; min-width: 0; min-height: 40px; padding: 0 12px; text-align: left; font-size: 13px;
+      background: transparent; color: var(--dim); border: 1px solid var(--line);
+      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
+    }
+    .deck-row.on .deck-pick { border-color: var(--yellow); color: var(--ink); }
+    #editing { font-size: 12px; color: var(--ink); margin: 0 0 14px; }
 
-    /* Desktop: the card stays in view while you set the lines under it. */
+    /* Desktop: the sheet stays in view while you edit the cards on it. */
     @media (min-width: 860px) {
-      #editor { grid-template-columns: 1.25fr 1fr; align-items: start; }
+      #editor { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
       #preview-wrap { position: sticky; top: 24px; }
     }
     footer { margin-top: 56px; font-size: 11px; color: var(--dim); line-height: 1.7; }
@@ -107,11 +117,18 @@
     <div id="editor" hidden>
       <div id="preview-wrap">
         <div id="preview"></div>
-        <p class="size">prints at 88 × 63 mm, a Magic card on its side</p>
+        <p class="size">the page as it prints. each card is 88 × 63 mm, a Magic card on its side.</p>
       </div>
 
       <div>
         <section>
+          <p class="cap">on this sheet <span id="count"></span></p>
+          <div id="deck-list-rows"></div>
+          <p class="help">up to nine, one card per deck. analyze another deck above to add it.</p>
+        </section>
+
+        <section>
+          <p id="editing"></p>
           <p class="cap">game style</p>
           <div id="game-styles" class="row"></div>
         </section>

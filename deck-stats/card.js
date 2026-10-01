@@ -133,7 +133,12 @@ const HERO = { x: 44, y: 82, w: 540, h: 270, max: 86, min: 30, lead: 0.94 };
 function fitHero(name) {
   const text = name.toUpperCase();
   const cap = FONTS.display.cap;
+  const words = text.split(/\s+/).filter(Boolean);
   for (let s = HERO.max; s >= HERO.min; s--) {
+    // A size that has to split a word ("VIGORBLO / OM") is not a fit: shrink
+    // until every word sits whole on a line. Splitting is only the fallback
+    // at HERO.min, for a single word too long for the column at any size.
+    if (words.some(w => measure(w, "display", s) > HERO.w)) continue;
     const lines = wrap(text, "display", s, HERO.w);
     if (cap * s + (lines.length - 1) * HERO.lead * s <= HERO.h) return { size: s, lines };
   }
@@ -280,68 +285,129 @@ export function layoutCard(stats) {
   return P;
 }
 
-// ── Renderer 1: SVG preview ─────────────────────────────────────────────────
+// ── The sheet: up to nine cards, 3 × 3, like a proxy sheet ─────────────────
+// Ben: "9 could fit on a page (i know this as i print proxy cards and its
+// always 9 to a page)". Three 88 mm cards across is 264 mm and three 63 mm
+// rows is 189 mm, so the page turns LANDSCAPE: that clears both Letter
+// (279.4 × 215.9) and A4 (297 × 210). Cards sit edge to edge, so one cut
+// serves two cards. A single card is simply a one-card sheet.
+//
+// ONE layout feeds both renderers, so the on-screen preview is the page you
+// print, not an approximation of it.
+export const MAX_CARDS = 9;
+const COLS = 3;
+
+export const PAPERS = {
+  letter: { label: "US Letter", w: 279.4, h: 215.9 },
+  a4: { label: "A4", w: 297, h: 210 },
+};
+
+const MARK = { gap: 1, len: 3, color: "#999999", width: 0.15 };
+const CAPTION_PT = 6.5;
+const PT = 72 / 25.4;   // points per mm
+
+export function layoutSheet(cards, paper = "letter") {
+  const pg = PAPERS[paper];
+  const n = Math.min(cards.length, MAX_CARDS);
+  const ox = (pg.w - COLS * CARD_MM.w) / 2;
+  const oy = (pg.h - 3 * CARD_MM.h) / 2;
+  const placed = cards.slice(0, n).map((prims, i) => ({
+    x: ox + (i % COLS) * CARD_MM.w,
+    y: oy + Math.floor(i / COLS) * CARD_MM.h,
+    prims,
+  }));
+
+  // Crop marks on every grid line the used cards touch, kept in the margin so
+  // a cut never shows a line.
+  const cols = Math.min(n, COLS), rows = Math.ceil(n / COLS);
+  const right = ox + cols * CARD_MM.w, bottom = oy + rows * CARD_MM.h;
+  const lines = [];
+  const mark = (x1, y1, x2, y2) => lines.push({ x1, y1, x2, y2, color: MARK.color, width: MARK.width });
+  for (let c = 0; c <= cols; c++) {
+    const x = ox + c * CARD_MM.w;
+    mark(x, oy - MARK.gap, x, oy - MARK.gap - MARK.len);
+    mark(x, bottom + MARK.gap, x, bottom + MARK.gap + MARK.len);
+  }
+  for (let r = 0; r <= rows; r++) {
+    const y = oy + r * CARD_MM.h;
+    mark(ox - MARK.gap, y, ox - MARK.gap - MARK.len, y);
+    mark(right + MARK.gap, y, right + MARK.gap + MARK.len, y);
+  }
+
+  // The size check. "Fit to page" is the one print-dialog setting that ruins
+  // this, so the sheet carries its own proof: measure the bar. It sits under
+  // the last row, but never closer than EDGE to the paper's edge — a full A4
+  // sheet leaves only 10.5 mm of margin, and most printers can't ink the last
+  // few millimetres.
+  const EDGE = 4.5;
+  const ry = Math.min(bottom + 10, pg.h - EDGE);
+  const rx = ox + 10;
+  const ink = { color: INK, width: 0.3 };
+  lines.push({ x1: rx, y1: ry, x2: rx + 50, y2: ry, ...ink });
+  for (let i = 0; i <= 50; i += 10) {
+    lines.push({ x1: rx + i, y1: ry, x2: rx + i, y2: ry - (i % 50 ? 1 : 2), ...ink });
+  }
+  const texts = [{
+    str: "<- 50 mm. if it isn't, reprint at 100% / actual size, not \"fit to page\". cut on the marks, then sleeve.",
+    x: rx + 54, y: ry, size: CAPTION_PT / PT, color: GRAY,
+  }];
+
+  return { w: pg.w, h: pg.h, cards: placed, lines, texts };
+}
+
+// ── Renderer 1: SVG preview of the whole page ───────────────────────────────
 const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
-export function renderSVG(prims) {
-  const body = prims.map(p => p.t === "rect"
+function cardBody(prims) {
+  return prims.map(p => p.t === "rect"
     ? `<rect x="${p.x}" y="${p.y}" width="${p.w}" height="${p.h}" fill="${p.fill}"/>`
     // kerning off: jsPDF does not kern, so the preview must not either.
     : `<text x="${p.x}" y="${p.y}" font-family="${FONTS[p.font].css}" font-size="${p.size}" letter-spacing="${p.ls * p.size}" fill="${p.fill}" style="font-kerning:none" xml:space="preserve">${esc(p.str)}</text>`
   ).join("");
-  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${W} ${H}" role="img" aria-label="Deck stats card preview" shape-rendering="crispEdges">${body}</svg>`;
+}
+
+export function renderSheetSVG(sheet) {
+  const cards = sheet.cards.map(c =>
+    `<svg x="${c.x}" y="${c.y}" width="${CARD_MM.w}" height="${CARD_MM.h}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">${cardBody(c.prims)}</svg>`,
+  ).join("");
+  const lines = sheet.lines.map(l =>
+    `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${l.color}" stroke-width="${l.width}"/>`,
+  ).join("");
+  const texts = sheet.texts.map(t =>
+    `<text x="${t.x}" y="${t.y}" font-family="${FONTS.mono500.css}" font-size="${t.size}" fill="${t.color}" style="font-kerning:none">${esc(t.str)}</text>`,
+  ).join("");
+  return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${sheet.w} ${sheet.h}" role="img" aria-label="Print preview">`
+    + `<rect width="${sheet.w}" height="${sheet.h}" fill="#FFFFFF"/>${cards}${lines}${texts}</svg>`;
 }
 
 // ── Renderer 2: the print PDF ───────────────────────────────────────────────
-export const PAPERS = {
-  letter: { label: "US Letter", w: 215.9, h: 279.4 },
-  a4: { label: "A4", w: 210, h: 297 },
-};
-
-export function renderPDF(prims, paper = "letter") {
-  const pg = PAPERS[paper];
-  const doc = makeDoc({ unit: "mm", format: [pg.w, pg.h], orientation: "portrait" });
-  const ox = (pg.w - CARD_MM.w) / 2;
-  const oy = 40;
+export function renderSheetPDF(sheet) {
+  const doc = makeDoc({ unit: "mm", format: [sheet.w, sheet.h], orientation: "landscape" });
   const mm = u => u * K;
-  const PT = 72 / 25.4;
 
-  for (const p of prims) {
-    if (p.t === "rect") {
-      doc.setFillColor(p.fill);
-      doc.rect(ox + mm(p.x), oy + mm(p.y), mm(p.w), mm(p.h), "F");
-    } else {
-      doc.setFont(FONTS[p.font].pdf, "normal");
-      doc.setFontSize(mm(p.size) * PT);
-      doc.setTextColor(p.fill);
-      doc.text(p.str, ox + mm(p.x), oy + mm(p.y), { charSpace: mm(p.ls * p.size), baseline: "alphabetic" });
+  for (const card of sheet.cards) {
+    for (const p of card.prims) {
+      if (p.t === "rect") {
+        doc.setFillColor(p.fill);
+        doc.rect(card.x + mm(p.x), card.y + mm(p.y), mm(p.w), mm(p.h), "F");
+      } else {
+        doc.setFont(FONTS[p.font].pdf, "normal");
+        doc.setFontSize(mm(p.size) * PT);
+        doc.setTextColor(p.fill);
+        doc.text(p.str, card.x + mm(p.x), card.y + mm(p.y), { charSpace: mm(p.ls * p.size), baseline: "alphabetic" });
+      }
     }
   }
-
-  // Crop marks, outside the card so a cut never shows a line.
-  doc.setDrawColor("#999999");
-  doc.setLineWidth(0.15);
-  const GAP = 2, LEN = 5;
-  for (const x of [ox, ox + CARD_MM.w]) {
-    for (const y of [oy, oy + CARD_MM.h]) {
-      const dx = x === ox ? -1 : 1, dy = y === oy ? -1 : 1;
-      doc.line(x + dx * GAP, y, x + dx * (GAP + LEN), y);
-      doc.line(x, y + dy * GAP, x, y + dy * (GAP + LEN));
-    }
+  for (const l of sheet.lines) {
+    doc.setDrawColor(l.color);
+    doc.setLineWidth(l.width);
+    doc.line(l.x1, l.y1, l.x2, l.y2);
   }
-
-  // The size check. "Fit to page" is the one dialog setting that ruins this,
-  // so the sheet carries its own proof: measure the bar.
-  const ry = oy + CARD_MM.h + 18;
-  doc.setDrawColor(INK);
-  doc.setLineWidth(0.3);
-  doc.line(ox, ry, ox + 50, ry);
-  for (let i = 0; i <= 50; i += 10) doc.line(ox + i, ry - (i % 50 ? 1 : 2), ox + i, ry);
   doc.setFont(FONTS.mono500.pdf, "normal");
-  doc.setFontSize(8);
-  doc.setTextColor(GRAY);
-  doc.text("this bar is 50 mm. if it isn't, reprint at 100% / actual size (not \"fit to page\").", ox, ry + 5, { maxWidth: CARD_MM.w + 30 });
-  doc.text(`card: ${CARD_MM.w} × ${CARD_MM.h} mm, a magic card on its side. cut on the marks, then sleeve it.`, ox, ry + 13, { maxWidth: CARD_MM.w + 30 });
-
+  for (const t of sheet.texts) {
+    doc.setFontSize(t.size * PT);
+    doc.setTextColor(t.color);
+    doc.text(t.str, t.x, t.y, { baseline: "alphabetic" });
+  }
   return doc;
 }
