@@ -3,16 +3,40 @@ import { GAME_STYLES, MAX_TAGS } from "./tags.js";
 
 const $ = sel => document.querySelector(sel);
 
-const state = { stats: null, gameStyle: "", tags: [], paper: "letter" };
+const state = { mode: "url", stats: null, gameStyle: "", tags: [], paper: "letter" };
 
 const fontsReady = loadFonts();
+
+// ── Input mode: a deck link, or a pasted list ───────────────────────────────
+for (const b of $("#modes").children) {
+  b.addEventListener("click", () => {
+    state.mode = b.dataset.mode;
+    for (const x of $("#modes").children) x.classList.toggle("on", x === b);
+    for (const pane of document.querySelectorAll("[data-pane]")) pane.hidden = pane.dataset.pane !== state.mode;
+    setError(null);
+  });
+}
+
+function requestBody() {
+  if (state.mode === "url") {
+    const url = $("#deck-url").value.trim();
+    if (!url) throw new Error("Paste a Moxfield or Archidekt deck link.");
+    return { url };
+  }
+  const commanders = [$("#commander").value, $("#partner").value].map(s => s.trim()).filter(Boolean);
+  const deckList = $("#deck-list").value.trim();
+  if (!commanders.length) throw new Error("Name your commander.");
+  if (!deckList) throw new Error("Paste your deck list.");
+  return { commanders, deckList, deckName: commanders.join(" & ") };
+}
 
 // ── Analyze ─────────────────────────────────────────────────────────────────
 $("#deck-form").addEventListener("submit", async e => {
   e.preventDefault();
-  const url = $("#deck-url").value.trim();
   const btn = $("#analyze");
   setError(null);
+  let body;
+  try { body = requestBody(); } catch (err) { setError(err.message); return; }
   btn.disabled = true;
   btn.textContent = "analyzing…";
   try {
@@ -21,7 +45,7 @@ $("#deck-form").addEventListener("submit", async e => {
       res = await fetch("/api/analyze", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ url }),
+        body: JSON.stringify(body),
       });
     } catch {
       throw new Error("Couldn't reach the analyzer. Check your connection.");
@@ -103,8 +127,10 @@ function cardStats() {
     score: s.score,
     bracket: s.bracket,
     vectors: s.vectors,
-    qrUrl: s.deckUrl || s.sourceUrl,
-    sourceUrl: s.sourceUrl,
+    // A pasted list has no analysis page, so its QR goes to ScryCheck itself:
+    // the link back is part of the attribution term, not optional.
+    qrUrl: s.deckUrl || s.sourceUrl || "https://scrycheck.com/",
+    catalogSeed: s.sourceUrl || `${s.commanders?.join("|")}|${s.name}`,
     gameStyleLabel: GAME_STYLES.find(([v]) => v === state.gameStyle)?.[1] ?? null,
     tags: state.tags,
   };

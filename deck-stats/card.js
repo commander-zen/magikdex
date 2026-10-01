@@ -239,7 +239,7 @@ export function layoutCard(stats) {
   const chipW = measure("SCRYCHECK", "display", chipSize, 0.04) + chipPadX * 2;
   rect(46, chipTop, chipW, chipH, INK);
   text("SCRYCHECK", 46 + chipPadX, chipTop + chipPadY, "display", chipSize, PAPER, 0.04);
-  const cat = catalogNo(stats.sourceUrl);
+  const cat = catalogNo(stats.catalogSeed);
   if (cat) {
     text(`no. ${cat}`, 46 + chipW + 16, chipTop + (chipH - FONTS.mono500.cap * 22) / 2, "mono500", 22, GRAY, 0.06);
   }

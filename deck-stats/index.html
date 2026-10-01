@@ -33,12 +33,13 @@
       color: var(--dim); margin: 0 0 10px;
     }
     /* 16px exactly: iOS zooms any focused field under 16px and never zooms back. */
-    input {
+    input, textarea {
       width: 100%; min-height: 48px; padding: 0 12px; font: inherit; font-size: 16px;
       color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 0;
       outline: none;
     }
-    input:focus { border-color: var(--yellow); }
+    textarea { padding: 10px 12px; line-height: 1.5; resize: vertical; display: block; }
+    input:focus, textarea:focus { border-color: var(--yellow); }
     button { font: inherit; cursor: pointer; border-radius: 0; -webkit-tap-highlight-color: transparent; }
     .primary {
       width: 100%; min-height: 50px; margin-top: 10px;
@@ -73,13 +74,32 @@
   <main>
     <header>
       <h1>Deck<br>Stats</h1>
-      <p class="lede">Paste your deck. Get a stat card the size of a Magic card. Print it, sleeve it, and keep it in the deck box for the pregame talk.</p>
+      <p class="lede">Paste your deck link or list. Get a stat card the size of a Magic card. Print it, sleeve it, and keep it in the deck box for the pregame talk.</p>
     </header>
 
     <form id="deck-form">
-      <p class="cap">Moxfield or Archidekt link</p>
-      <input id="deck-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off"
-             placeholder="https://moxfield.com/decks/…" required>
+      <div id="modes" class="row" style="margin-bottom:16px">
+        <button type="button" class="chip on" data-mode="url">deck link</button>
+        <button type="button" class="chip" data-mode="list">paste a list</button>
+      </div>
+
+      <div data-pane="url">
+        <p class="cap">Moxfield or Archidekt link</p>
+        <input id="deck-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off"
+               placeholder="https://moxfield.com/decks/…">
+      </div>
+
+      <div data-pane="list" hidden>
+        <p class="cap">commander</p>
+        <input id="commander" type="text" autocomplete="off" autocapitalize="words"
+               placeholder="Atraxa, Praetors' Voice">
+        <input id="partner" type="text" autocomplete="off" autocapitalize="words"
+               placeholder="partner (optional)" style="margin-top:6px">
+        <p class="cap" style="margin-top:16px">deck list</p>
+        <textarea id="deck-list" rows="10" autocomplete="off" autocapitalize="off" spellcheck="false"
+                  placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Command Tower&#10;…"></textarea>
+        <p class="help">one card per line, the way Moxfield, Archidekt or MTGA export it.</p>
+      </div>
       <button id="analyze" class="primary" type="submit">analyze</button>
       <div id="error" role="alert" hidden></div>
     </form>
