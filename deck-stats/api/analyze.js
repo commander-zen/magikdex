@@ -118,7 +118,8 @@ function normalize(data, payload) {
     name: data.name ?? payload.deckName ?? null,
     score: data.powerLevel?.level != null ? String(data.powerLevel.level) : null,
     bracket: data.bracket?.number ?? null,
-    // Only URL submissions get an analysis page; a pasted list has none.
+    // Pasted lists get an analysis page too (verified live 2026-10-01: source
+    // "manual", deckUrl scrycheck.com/deck/<hash>).
     deckUrl: data.deckUrl ?? null,
     sourceUrl: payload.url ?? null,
     vectors: {

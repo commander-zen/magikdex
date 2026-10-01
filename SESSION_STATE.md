@@ -17,7 +17,13 @@ Ben: lift the magikdex deck ID export into its own Vercel deployment called **de
 
 - ✅ **Ritual retired for good** (Ben: "yes do both"). The Vercel project `edh-id` is deleted (`edh-id.vercel.app` → 404), and `trainer/` is removed from the repo (`8c4c2e3`). It had been rebuilding on every push since it shared the repo. magikdex never imported it.
 
+- ✅ **Paste-a-list analysis** (`7e3cc50`), from Adam's email: ScryCheck's API now takes `{ deckName, commanders, deckList }`. The form gets a link / paste toggle (commander + optional partner + list). The proxy whitelists fields, caps lists at 20k chars, and adds a global cap of 9/min under ScryCheck's 10/min per-key limit. Verified live against ScryCheck directly with the known-good key: 200, power 4.5, bracket 3, `source: "manual"`, and **a pasted list DOES get a `deckUrl`**.
+- ✅ **Key exposure audit:** the ScryCheck key value appears in neither repo's full git history (mtg-dna, pod-check) nor in the live JS bundles of magikdex, pod-check or deck-stats. It lives only in the untracked `pod-check/.env.local` and in Vercel env.
+
 ### ⚠️ Known Issues — new
+- **deck-stats' `SCRYCHECK_API_KEY` value is rejected by ScryCheck** (bare 404 in function logs at 15:38 UTC). The same request with the `pod-check/.env.local` key returns 200, so the saved value is wrong (stray space/quote, a `Bearer ` prefix, or a different key). It's type sensitive, so it can't be read back. Ben re-pastes it, then redeploys.
+- **The repo is public and documents the ScryCheck endpoint + request shapes** (code + this file). The key is safe, but Adam asked that the API details not be shared. Worth a decision: make `commander-zen/magikdex` private, or accept it.
+- **pod-check tracks a `.env`** with `VITE_SUPABASE_URL`, `VITE_SUPABASE_ANON_KEY` and `VITE_TURNSTILE_SITE_KEY`. All three are publishable by design (they ship in the bundle anyway), so it isn't a leak. Still bad hygiene in a public repo.
 - **The `trainer` schema is still in Supabase** (profile, buddy, etc., plus its migrations in `magikdex/supabase`). Nothing reads it any more. Untouched on purpose: dropping it is a separate decision.
 - **`SCRYCHECK_API_KEY` not set on the deck-stats project.** Ben adds it (Vercel → deck-stats → Settings → Environment Variables, Production), then redeploys. Claude didn't copy the private key across projects.
 - **Why yesterday's card printed large:** in `LegendIdCard.jsx` the 10-unit border sits OUTSIDE the 3.5in width (CSS content-box), and `window.print()` lets the dialog scale. Both are moot now: that print path was deleted.
@@ -1671,7 +1677,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-10-01**): **ADD `SCRYCHECK_API_KEY` TO DECK STATS AND PRINT ONE.** Project is live at https://deck-stats-mauve.vercel.app. Add the key, redeploy, run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
+Priority (**2026-10-01**): **RE-PASTE DECK STATS' `SCRYCHECK_API_KEY` AND PRINT ONE.** Live at https://deck-stats-mauve.vercel.app; the saved key is rejected by ScryCheck. Re-paste, redeploy, run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
 Priority (**2026-09-25**): **WALK OPEN SEARCH ON A REAL PHONE.** It shipped 2026-09-06 but was only verified headless against a stubbed Scryfall. Tap the search glyph on the Box, browse, ↑ keep a few, then SAVE BREW. Card pool + tags were refreshed 2026-09-25 (cards 35,572 / card_tags 159,229). EDHREC refreshed the same day (legend_synergy 884,175 / legend_themes 143,846). **Owed after the set releases:** re-run `ingest:cards` then `ingest:legend-edhrec -- --all` so the new set's commanders (not Commander-legal until release) get cached.
 

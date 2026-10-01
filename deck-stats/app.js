@@ -127,7 +127,7 @@ function cardStats() {
     score: s.score,
     bracket: s.bracket,
     vectors: s.vectors,
-    // A pasted list has no analysis page, so its QR goes to ScryCheck itself:
+    // Falls back to ScryCheck itself if a response ever lacks a page link:
     // the link back is part of the attribution term, not optional.
     qrUrl: s.deckUrl || s.sourceUrl || "https://scrycheck.com/",
     catalogSeed: s.sourceUrl || `${s.commanders?.join("|")}|${s.name}`,
