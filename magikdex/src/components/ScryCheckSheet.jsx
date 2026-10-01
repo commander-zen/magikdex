@@ -14,8 +14,8 @@ import { gradeDeck, isSupportedDeckUrl } from "../lib/scrycheck.js";
 // MANUAL VECTOR ENTRY — deleted. ScryCheck grades from a URL; a deck that only
 //   lives inside magikdex simply stays ungraded, and the card already draws
 //   that honestly as em dashes rather than zeroes.
-// THE SELF-REPORT (game style / playstyle / plan) — moved to the print sheet,
-//   see DeckSelfReport.jsx. It was unfindable four levels deep in here.
+// THE SELF-REPORT (game style / playstyle / plan) — moved out, then removed
+//   from magikdex entirely 2026-10-01. It lives in the deck-stats app now.
 //
 // A bottom sheet because that is this app's one overlay grammar (SettingsSheet,
 // AddLegendSheet) — backdrop, slide-up, a single × dismiss.

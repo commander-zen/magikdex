@@ -90,8 +90,9 @@ for (const [value, label] of GAME_STYLES) {
 $("#tag-input").addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
   e.preventDefault();
-  const v = e.target.value.trim();
-  if (v && state.tags.length < MAX_TAGS && !state.tags.some(t => t.toLowerCase() === v.toLowerCase())) {
+  // Lowercase, like every other label on the card ("casual", "trash magic").
+  const v = e.target.value.trim().toLowerCase();
+  if (v && state.tags.length < MAX_TAGS && !state.tags.includes(v)) {
     state.tags.push(v);
   }
   e.target.value = "";

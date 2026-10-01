@@ -7,11 +7,10 @@ import { supabase } from "./supabase.js";
 // that does not exist fails the WHOLE select. Without this, a pending migration
 // blanks the Box's detail pane for every deck rather than hiding one feature.
 //
-// Extracted from LegendIdentity so the print overlay can read the same row when
-// it is opened from a screen that does not already have one (the brew screen
-// knows only the legend id). Two copies of this ladder would drift the first
-// time a migration lands, and the drift would be invisible until a user with a
-// half-applied database hit the one that was not updated.
+// Extracted from LegendIdentity so any screen can read the same row through one
+// ladder. Two copies would drift the first time a migration lands, and the
+// drift would be invisible until a user with a half-applied database hit the
+// one that was not updated.
 const VECTOR_COLS = "scrycheck_speed, scrycheck_consistency, scrycheck_interaction, scrycheck_mana_base, scrycheck_threats";
 const LINK_COLS   = "url, platform, scrycheck_url, scrycheck_score, scrycheck_bracket, scrycheck_version, scrycheck_scored_at";
 const SELF_COLS   = "self_game_style, self_play_style";

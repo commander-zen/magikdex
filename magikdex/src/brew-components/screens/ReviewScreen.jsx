@@ -6,7 +6,6 @@ import FlipCard from "../FlipCard.jsx";
 import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { partnerVariant } from "../../lib/partners.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
-import DeckSelfReportSheet from "../../components/DeckSelfReportSheet.jsx";
 
 // Change 14 — how far left a decklist row must be dragged to commit a delete.
 const ROW_DELETE_AT = 88;
@@ -279,7 +278,6 @@ export default function ReviewScreen({
   // different jobs: a decklist to paste, and one that carries our WREC tags.
   // (The printed deck ID card moved out to its own app, deck-stats/.)
   const [exportMenu, setExportMenu] = useState(false);
-  const [styleOpen, setStyleOpen] = useState(false);
   // WREC filter — tapping a category in the composition panel narrows the list
   // to that category's cards; tapping it again clears. One category at a time
   // (the panel is a composition readout, not a query builder).
@@ -1182,23 +1180,6 @@ export default function ReviewScreen({
             )}
             {/* Export — Moxfield bulk-edit text, WREC tags as #hashtags. Copy
                 is guaranteed; the share sheet (where supported) is a bonus. */}
-            {/* Play style / plan. One icon, no rows added to the deck list —
-                Ben's own answer to "it should live in the deck editor page
-                but i need to ensure that doesnt get cluttered". */}
-            <button
-              onClick={() => setStyleOpen(true)}
-              aria-label="Edit play style"
-              style={{
-                width: 44, height: 44, flexShrink: 0,
-                display: "flex", alignItems: "center", justifyContent: "center",
-                background: "transparent", border: "none", padding: 0,
-                color: "var(--muted)", cursor: "pointer",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              <span className="material-symbols-rounded" style={{ fontSize: 20 }}>style</span>
-            </button>
-
             <button
               onClick={() => setExportMenu(true)}
               aria-label="Export deck"
@@ -1897,17 +1878,6 @@ export default function ReviewScreen({
           </div>
         </div>
       )}
-
-      {/* legendId, not a deck row: this screen only ever knows the legend
-          (deckKey is session.legend.id), so the overlay reads the deck itself
-          through the shared select ladder. */}
-      <DeckSelfReportSheet
-        open={styleOpen}
-        onClose={() => setStyleOpen(false)}
-        legendId={deckKey}
-        oracleId={commanderFull?.oracle_id ?? null}
-        deckName={commander?.name}
-      />
     </div>
   );
 }
