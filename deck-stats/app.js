@@ -122,17 +122,35 @@ for (const [value, label] of GAME_STYLES) {
   styleRow.append(b);
 }
 
-// ── Play style: up to three, typed + enter ──────────────────────────────────
+// ── Play style: up to three. EDHREC suggestions, or typed + enter ──────────
+// Lowercase, like every other label on the card ("casual", "trash magic").
+function addTag(raw) {
+  const card = current();
+  const v = String(raw ?? "").trim().toLowerCase();
+  if (card && v && card.tags.length < MAX_TAGS && !card.tags.includes(v)) card.tags.push(v);
+  $("#tag-input").value = "";
+  commit();
+}
+
 $("#tag-input").addEventListener("keydown", e => {
   if (e.key !== "Enter") return;
   e.preventDefault();
-  const card = current();
-  // Lowercase, like every other label on the card ("casual", "trash magic").
-  const v = e.target.value.trim().toLowerCase();
-  if (card && v && card.tags.length < MAX_TAGS && !card.tags.includes(v)) card.tags.push(v);
-  e.target.value = "";
-  commit();
+  addTag(e.target.value);
 });
+$("#tag-input").addEventListener("input", renderSuggestions);
+
+// Nothing until you type (Ben, in magikdex: "i dont want all the chips just
+// the search bar"). Then the commander's EDHREC themes that match, in
+// EDHREC's rank order. A card saved before themes existed simply has none.
+function renderSuggestions() {
+  const card = current();
+  const q = $("#tag-input").value.trim().toLowerCase();
+  const themes = q && card ? (card.stats.themes ?? []) : [];
+  const hits = themes
+    .filter(t => t.toLowerCase().includes(q) && !card.tags.includes(t.toLowerCase()))
+    .slice(0, 12);
+  $("#suggestions").replaceChildren(...hits.map(t => chip(t.toLowerCase(), false, () => addTag(t))));
+}
 
 // ── Paper + download ────────────────────────────────────────────────────────
 const paperRow = $("#papers");
@@ -222,6 +240,7 @@ function render() {
     chip(`${tag} ×`, true, () => { card.tags = card.tags.filter(t => t !== tag); commit(); }, `Remove ${tag}`),
   ));
   $("#tag-input").hidden = !card || card.tags.length >= MAX_TAGS;
+  renderSuggestions();
   $("#editing").textContent = card ? `editing ${state.sel + 1}. ${cardStats(card).title}` : "";
 
   if (state.cards.length) $("#preview").innerHTML = renderSheetSVG(sheet());

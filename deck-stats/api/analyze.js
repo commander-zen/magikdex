@@ -132,6 +132,51 @@ function normalize(data, payload) {
   };
 }
 
+// EDHREC's themes for the deck's commander(s), as play-style suggestions.
+//
+// Read from magikdex's own cache (cards + legend_themes in Supabase, both
+// world-readable with the publishable anon key). EDHREC's feed is unofficial
+// and is never called at request time (DATA_SOURCES.md); the cache is
+// refreshed by magikdex's `ingest:legend-edhrec`.
+//
+// Suggestions only. A miss of any kind is an empty list, never an error: the
+// card prints fine and free text still works.
+async function themesFor(commanders) {
+  const base = process.env.SUPABASE_URL;
+  const key = process.env.SUPABASE_ANON_KEY;
+  if (!base || !key || !commanders.length) return [];
+  const get = async path => {
+    const res = await fetch(`${base}/rest/v1/${path}`, { headers: { apikey: key, Authorization: `Bearer ${key}` } });
+    return res.ok ? res.json() : [];
+  };
+  const oracleIdOf = async name => {
+    const lower = name.toLowerCase();
+    let rows = await get(`cards?select=oracle_id&name_lower=eq.${encodeURIComponent(lower)}&limit=1`);
+    // ScryCheck may name a double-faced commander by its front face alone.
+    if (!rows.length && !lower.includes("//")) {
+      rows = await get(`cards?select=oracle_id&name_lower=like.${encodeURIComponent(`${lower} //*`)}&limit=1`);
+    }
+    return rows[0]?.oracle_id ?? null;
+  };
+  try {
+    const lists = await Promise.all(commanders.map(async name => {
+      const id = await oracleIdOf(name);
+      if (!id) return [];
+      const rows = await get(`legend_themes?select=theme_name,theme_slug&legend_oracle_id=eq.${id}&order=rank.asc&limit=200`);
+      return rows.map(t => t.theme_name || t.theme_slug).filter(Boolean);
+    }));
+    // Partners: interleave the two ranked lists so both commanders' top
+    // themes come first, then drop repeats.
+    const out = [];
+    for (let i = 0; i < Math.max(...lists.map(l => l.length), 0); i++) {
+      for (const l of lists) if (l[i] && !out.some(t => t.toLowerCase() === l[i].toLowerCase())) out.push(l[i]);
+    }
+    return out;
+  } catch {
+    return [];
+  }
+}
+
 module.exports = async (req, res) => {
   if (req.method !== "POST") { res.status(405).json({ error: "POST only" }); return; }
 
@@ -189,6 +234,7 @@ module.exports = async (req, res) => {
     }
 
     const stats = normalize(json.data ?? {}, payload);
+    stats.themes = await themesFor(stats.commanders);
     remember(cacheKey, stats);
     res.status(200).json(stats);
   } catch (err) {
