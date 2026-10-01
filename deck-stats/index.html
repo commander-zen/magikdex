@@ -1,0 +1,123 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Deck Stats</title>
+  <meta name="description" content="A Magic-card-sized stat card for your Commander deck box, powered by ScryCheck.">
+  <style>
+    @font-face { font-family: "Archivo Black"; src: url(fonts/ArchivoBlack-Regular.ttf); }
+    @font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono-Medium.ttf); font-weight: 500; }
+    @font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono-Bold.ttf); font-weight: 700; }
+
+    :root {
+      --bg: #161311; --ink: #F5F1E6; --dim: #A39C8E; --line: #3A3530;
+      --yellow: #F5C400; --red: #F26B5B;
+    }
+    * { box-sizing: border-box; }
+    body {
+      margin: 0; background: var(--bg); color: var(--ink);
+      font-family: "JetBrains Mono", ui-monospace, monospace; font-weight: 500;
+      -webkit-text-size-adjust: 100%;
+    }
+    main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
+    header { border-top: 6px solid var(--yellow); padding-top: 18px; margin-bottom: 28px; }
+    h1 {
+      font-family: "Archivo Black", sans-serif; font-weight: 400;
+      font-size: clamp(40px, 11vw, 72px); line-height: 0.94; margin: 0 0 12px;
+      text-transform: uppercase;
+    }
+    .lede { color: var(--dim); font-size: 14px; line-height: 1.6; margin: 0; max-width: 46ch; }
+    .cap {
+      font-size: 11px; font-weight: 700; letter-spacing: 0.14em; text-transform: uppercase;
+      color: var(--dim); margin: 0 0 10px;
+    }
+    /* 16px exactly: iOS zooms any focused field under 16px and never zooms back. */
+    input {
+      width: 100%; min-height: 48px; padding: 0 12px; font: inherit; font-size: 16px;
+      color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 0;
+      outline: none;
+    }
+    input:focus { border-color: var(--yellow); }
+    button { font: inherit; cursor: pointer; border-radius: 0; -webkit-tap-highlight-color: transparent; }
+    .primary {
+      width: 100%; min-height: 50px; margin-top: 10px;
+      background: var(--yellow); color: #161311; border: 0;
+      font-weight: 700; font-size: 15px; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .primary:disabled { opacity: 0.6; cursor: default; }
+    .row { display: flex; flex-wrap: wrap; gap: 6px; }
+    .chip {
+      min-height: 40px; padding: 0 12px; font-size: 13px;
+      background: transparent; color: var(--dim); border: 1px solid var(--line);
+    }
+    .chip.on { background: var(--yellow); border-color: var(--yellow); color: #161311; }
+    .help { font-size: 12px; color: var(--dim); line-height: 1.6; margin: 8px 0 0; }
+    #error { color: var(--red); font-size: 13px; line-height: 1.5; margin-top: 10px; }
+    section + section { margin-top: 24px; }
+
+    #editor { margin-top: 36px; display: grid; gap: 28px; }
+    #preview svg { display: block; width: 100%; height: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
+    .size { font-size: 12px; color: var(--dim); margin-top: 10px; }
+
+    /* Desktop: the card stays in view while you set the lines under it. */
+    @media (min-width: 860px) {
+      #editor { grid-template-columns: 1.25fr 1fr; align-items: start; }
+      #preview-wrap { position: sticky; top: 24px; }
+    }
+    footer { margin-top: 56px; font-size: 11px; color: var(--dim); line-height: 1.7; }
+    footer a { color: var(--ink); }
+  </style>
+</head>
+<body>
+  <main>
+    <header>
+      <h1>Deck<br>Stats</h1>
+      <p class="lede">Paste your deck. Get a stat card the size of a Magic card. Print it, sleeve it, and keep it in the deck box for the pregame talk.</p>
+    </header>
+
+    <form id="deck-form">
+      <p class="cap">Moxfield or Archidekt link</p>
+      <input id="deck-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off"
+             placeholder="https://moxfield.com/decks/…" required>
+      <button id="analyze" class="primary" type="submit">analyze</button>
+      <div id="error" role="alert" hidden></div>
+    </form>
+
+    <div id="editor" hidden>
+      <div id="preview-wrap">
+        <div id="preview"></div>
+        <p class="size">prints at 88 × 63 mm, a Magic card on its side</p>
+      </div>
+
+      <div>
+        <section>
+          <p class="cap">game style</p>
+          <div id="game-styles" class="row"></div>
+        </section>
+
+        <section>
+          <p class="cap">play style</p>
+          <div id="tags" class="row" style="margin-bottom:8px"></div>
+          <input id="tag-input" type="text" autocomplete="off" autocapitalize="off"
+                 placeholder="reanimate, tokens, landfall…">
+          <p class="help">type one and press enter. up to three.</p>
+        </section>
+
+        <section>
+          <p class="cap">paper</p>
+          <div id="papers" class="row"></div>
+          <button id="download" class="primary" type="button">download PDF</button>
+          <p class="help">print at <strong>100% / actual size</strong>, not &ldquo;fit to page&rdquo;. the sheet has a 50&nbsp;mm bar to check it. cut on the marks.</p>
+        </section>
+      </div>
+    </div>
+
+    <footer>
+      Analysis powered by <a href="https://scrycheck.com/" target="_blank" rel="noopener">ScryCheck</a>.
+      Deck Stats is unofficial Fan Content, not approved or endorsed by Wizards of the Coast.
+    </footer>
+  </main>
+  <script type="module" src="app.js"></script>
+</body>
+</html>
