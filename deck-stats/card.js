@@ -21,7 +21,7 @@ import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm";
 export const CARD_MM = { w: 88, h: 63 };
 
 // Coordinates are the mockup's own numbers on its 1050-wide canvas, so the
-// values below still match scripts/reference/deck-id-card-mockup-v4.html.
+// values below still match reference/deck-id-card-mockup-v4.html.
 const W = 1050;
 const K = CARD_MM.w / W;          // mm per unit
 const H = CARD_MM.h / K;          // ≈ 751.7

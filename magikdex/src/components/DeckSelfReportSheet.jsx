@@ -21,9 +21,9 @@ import DeckSelfReport from "./DeckSelfReport.jsx";
 // AddLegendSheet, ScryCheckSheet) — backdrop, slide-up, a single dismiss.
 //
 // ⚠️ It fetches its OWN deck row. ReviewScreen knows only `deckKey`, which is
-// session.legend.id — the LEGEND id, not the deck id — the same reason
-// LegendIdPrint takes a legendId. Both go through the shared select ladder so a
-// half-applied database degrades identically in both places.
+// session.legend.id — the LEGEND id, not the deck id — so it goes through the
+// shared select ladder, and a half-applied database degrades the same way here
+// as everywhere else.
 export default function DeckSelfReportSheet({ open, onClose, legendId, oracleId, deckName }) {
   const [row, setRow] = useState(null);
   const [foundOracle, setFoundOracle] = useState(null);
@@ -90,10 +90,6 @@ export default function DeckSelfReportSheet({ open, onClose, legendId, oracleId,
             flex: 1, minHeight: 0, overflowY: "auto",
             padding: "0 18px calc(env(safe-area-inset-bottom) + 24px)",
           }}>
-            <div style={{ fontSize: 12, color: t.dim, lineHeight: 1.6, marginBottom: 14 }}>
-              prints under the ScryCheck tag on {deckName ? `${deckName}'s` : "this deck's"} ID card.
-            </div>
-
             {row?.id
               ? <DeckSelfReport
                   deck={row}

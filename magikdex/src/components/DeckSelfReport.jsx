@@ -4,22 +4,20 @@ import { PLAN_OTAGS } from "../lib/deckTags.js";
 
 // HOW YOU DESCRIBE THE DECK — game style, playstyle, and the plan (036 + 037).
 //
-// ── Why it lives in the PRINT sheet ─────────────────────────────────────────
+// ── Why it is its own sheet ─────────────────────────────────────────────────
 // It started inside the ScryCheck sheet, which was convenient and wrong twice
 // over. Ben could not find it (bottom of a sheet reached by Box → swipe to page
 // 2 → tap the radar), and then: "tapping the radar should only open up an
 // option to drop in your moxfield or archidekt URL". So the radar sheet is now
-// exactly that, and this moved here — to the surface where you are already
-// looking at the card these three lines print on. You set them at the moment
-// you care about them.
+// exactly that. (These lines used to print on the deck ID card too; that card
+// moved out to its own app, deck-stats/, which asks for them itself.)
 //
 // ── The split this component embodies ───────────────────────────────────────
 // Everything ScryCheck computes (the five vectors, the power level, the
 // bracket) arrives from THEIR analysis of your decklist. Everything here is
-// YOUR claim about the deck. The printed card keeps the same split — their
-// yellow tag, then your lines underneath — and so does the editing.
+// YOUR claim about the deck, and the editing keeps the two apart.
 
-const MAX = 3;   // mirrors the CHECKs in 036 and 037, and the card's one row
+const MAX = 3;   // mirrors the CHECKs in 036 and 037
 
 // otag slugs are kebab-case ("self-mill"), EDHREC theme names are title case
 // with punctuation ("Self-Mill", "Dragon's Approach"). Compared on a flattened
@@ -52,7 +50,7 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
   useEffect(() => {
     // eslint-disable-next-line react-hooks/set-state-in-effect
     setGameStyle(deck?.self_game_style ?? "");
-    // Recombined for editing in the order the card prints them: plan first.
+    // Recombined for editing: plan first.
     setTags([...(deck?.self_plan ?? []), ...(deck?.self_play_style ?? [])]);
     setQuery(""); setErr(null); setSaved(false);
   }, [deck]);
@@ -238,7 +236,7 @@ export default function DeckSelfReport({ deck, oracleId, onSaved, theme }) {
                 fontSize: 14, cursor: busy ? "default" : "pointer",
                 borderRadius: 0, opacity: busy ? 0.6 : 1, marginTop: 4,
               }}>
-        {busy ? "saving…" : saved ? "saved — reprint to see it" : "save"}
+        {busy ? "saving…" : saved ? "saved" : "save"}
       </button>
       {err && <div style={{ fontSize: 12, color: t.red, lineHeight: 1.5 }}>{err}</div>}
     </div>

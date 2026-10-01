@@ -6,7 +6,6 @@ import FlipCard from "../FlipCard.jsx";
 import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { partnerVariant } from "../../lib/partners.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
-import LegendIdPrint from "../../components/LegendIdPrint.jsx";
 import DeckSelfReportSheet from "../../components/DeckSelfReportSheet.jsx";
 
 // Change 14 — how far left a decklist row must be dragged to commit a delete.
@@ -276,11 +275,10 @@ export default function ReviewScreen({
   const [cardData, setCardData] = useState({});
   const [copied, setCopied] = useState(false);
   // The share arrow used to fire one fixed export. Ben wanted the choice made
-  // HERE, at the moment of exporting, because the three destinations are
-  // genuinely different jobs: a decklist to paste, a decklist that carries our
-  // WREC tags, and a physical card.
+  // HERE, at the moment of exporting, because the destinations are genuinely
+  // different jobs: a decklist to paste, and one that carries our WREC tags.
+  // (The printed deck ID card moved out to its own app, deck-stats/.)
   const [exportMenu, setExportMenu] = useState(false);
-  const [printOpen, setPrintOpen] = useState(false);
   const [styleOpen, setStyleOpen] = useState(false);
   // WREC filter — tapping a category in the composition panel narrows the list
   // to that category's cards; tapping it again clears. One category at a time
@@ -1866,7 +1864,6 @@ export default function ReviewScreen({
             {[
               ["plain text", "content_copy", () => handleExport(false)],
               ["plain text + moxfield tags", "sell", () => handleExport(true)],
-              ["commander ID card", "print", () => setPrintOpen(true)],
             ].map(([label, icon, run]) => (
               <button
                 key={label}
@@ -1910,13 +1907,6 @@ export default function ReviewScreen({
         legendId={deckKey}
         oracleId={commanderFull?.oracle_id ?? null}
         deckName={commander?.name}
-      />
-
-      <LegendIdPrint
-        open={printOpen}
-        onClose={() => setPrintOpen(false)}
-        legend={commander}
-        legendId={deckKey}
       />
     </div>
   );
