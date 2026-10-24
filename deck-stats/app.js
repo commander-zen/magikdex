@@ -86,7 +86,7 @@ $("#deck-form").addEventListener("submit", async e => {
     const json = await res.json().catch(() => null);
     if (!res.ok || !json) throw new Error(json?.error ?? `Analysis failed (${res.status}).`);
     await fontsReady;
-    state.cards.push({ stats: json, gameStyle: "", tags: [] });
+    state.cards.push({ stats: json, gradedAt: new Date().toLocaleDateString("en-CA"), gameStyle: "", tags: [] });
     state.sel = state.cards.length - 1;
     clearInputs();
     commit();
@@ -182,9 +182,10 @@ function cardStats(card) {
     title: s.commanders?.length ? s.commanders.join(" // ") : s.name,
     score: s.score,
     bracket: s.bracket,
-    // Falls back to ScryCheck itself if a response ever lacks a page link:
-    // the link back is part of the attribution term, not optional.
-    qrUrl: s.deckUrl || s.sourceUrl || "https://scrycheck.com/",
+    // The live decklist when there is one (it never goes stale); else the
+    // ScryCheck page. The link back to ScryCheck is printed as text on the card.
+    qrUrl: s.sourceUrl || s.deckUrl || "https://scrycheck.com/",
+    gradedAt: card.gradedAt ?? null,
     catalogSeed: s.sourceUrl || `${s.commanders?.join("|")}|${s.name}`,
     gameStyleLabel: GAME_STYLES.find(([v]) => v === card.gameStyle)?.[1] ?? null,
     tags: card.tags,

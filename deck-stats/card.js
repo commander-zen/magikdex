@@ -184,7 +184,7 @@ function qrRects(url, x, y, size) {
 
 /**
  * Build the card as primitives in card units (1050 × ~752).
- * @param stats  { title, score, bracket, qrUrl, gameStyle, tags }
+ * @param stats  { title, score, bracket, qrUrl, gradedAt, gameStyle, tags }
  */
 export function layoutCard(stats) {
   const P = [];
@@ -234,7 +234,7 @@ export function layoutCard(stats) {
   const chipSize = 30, chipPadX = 16, chipPadY = 13;
   const chipH = FONTS.display.cap * chipSize + chipPadY * 2;
   const chipTop = IH - 34 - chipH;
-  text("analysis powered by", 46, chipTop - 12 - FONTS.mono500.cap * 20, "mono500", 20, GRAY, 0.06);
+  text("analysis powered by scrycheck.com", 46, chipTop - 12 - FONTS.mono500.cap * 20, "mono500", 20, GRAY, 0.06);
   const chipW = measure("SCRYCHECK", "display", chipSize, 0.04) + chipPadX * 2;
   rect(46, chipTop, chipW, chipH, INK);
   text("SCRYCHECK", 46 + chipPadX, chipTop + chipPadY, "display", chipSize, PAPER, 0.04);
@@ -247,14 +247,30 @@ export function layoutCard(stats) {
 
   const colX = 640, colR = IW - 44;
 
-  // QR → the ScryCheck analysis page.
-  // The stat bars are gone (one card swap and they're wrong), so the QR owns
-  // the right column, centred.
-  const QR = 300;
-  const qx = colX + (colR - colX - QR) / 2, qy = (IH - QR) / 2;
+  // QR → the deck's own Moxfield/Archidekt page, so a scan shows the CURRENT
+  // list however many cards have been swapped since this was printed. (Pasted
+  // lists have no page of their own, so those fall back to the ScryCheck one.)
+  const QR = 250;
+  const qx = colX + (colR - colX - QR) / 2, qy = 44;
   rect(qx, qy, QR, QR, INK);
   rect(qx + 2, qy + 2, QR - 4, QR - 4, "#FFFFFF");
   if (stats.qrUrl) P.push(...qrRects(stats.qrUrl, qx + 2, qy + 2, QR - 4));
+
+  // The printed numbers are a snapshot, so say when, and leave room to pencil
+  // in a re-grade rather than reprinting the card.
+  if (stats.gradedAt) {
+    text(`graded ${stats.gradedAt}`, colX, qy + QR + 24, "mono500", 20, GRAY, 0.06);
+  }
+  text("RE-GRADED IN PENCIL", colX, 372, "mono700", 20, GRAY, 0.1);
+  rect(colX, 402, colR - colX, 2, INK);
+  const WLABEL = 24, WGAP = 14;
+  const wLabels = ["POWER", "BRACKET", "DATE"];
+  const wLabelW = Math.max(...wLabels.map(l => measure(l, "mono700", WLABEL, 0.02)));
+  wLabels.forEach((l, i) => {
+    const lineY = 468 + i * 76;          // ~6 mm of writing room between rules
+    text(l, colX, lineY - 8 - FONTS.mono700.cap * WLABEL, "mono700", WLABEL, INK, 0.02);
+    rect(colX + wLabelW + WGAP, lineY, colR - colX - wLabelW - WGAP, 2, GRAY);
+  });
 
   for (let i = start; i < P.length; i++) { P[i].x += BORDER; P[i].y += BORDER; }
   return P;
