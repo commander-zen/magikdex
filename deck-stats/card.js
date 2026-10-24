@@ -47,14 +47,6 @@ export const FONTS = {
   mono800: { file: "JetBrainsMono-ExtraBold.ttf", pdf: "JBMono800", css: "DS Mono 800", cap: 0.73 },
 };
 
-export const VECTORS = [
-  { key: "speed", label: "SPEED" },
-  { key: "consistency", label: "CONSISTENCY" },
-  { key: "threats", label: "THREATS" },
-  { key: "manaBase", label: "MANA BASE" },
-  { key: "interaction", label: "INTERACTION" },
-];
-
 // ── Fonts: fetched once, shared by measurement, preview and PDF ─────────────
 let fontData = null;
 
@@ -192,7 +184,7 @@ function qrRects(url, x, y, size) {
 
 /**
  * Build the card as primitives in card units (1050 × ~752).
- * @param stats  { title, score, bracket, vectors, qrUrl, gameStyle, tags }
+ * @param stats  { title, score, bracket, qrUrl, gameStyle, tags }
  */
 export function layoutCard(stats) {
   const P = [];
@@ -253,32 +245,13 @@ export function layoutCard(stats) {
 
   rect(612, 44, 2, IH - 88, TRACK);
 
-  // ── Play profile: the five ScryCheck vectors ──────────────────────────────
   const colX = 640, colR = IW - 44;
-  text("PLAY PROFILE", colX, 44, "mono700", 22, GRAY, 0.1);
-  rect(colX, 82, colR - colX, 2, INK);
-
-  const LABEL = 24, VALUE = 30, GAP = 14, VALUE_W = 56, ROW = 54;
-  const labelW = Math.max(...VECTORS.map(v => measure(v.label, "mono700", LABEL, 0.02)));
-  const barX = colX + labelW + GAP;
-  const barW = colR - VALUE_W - GAP - barX;
-  VECTORS.forEach((v, i) => {
-    const mid = 100 + i * ROW + 20;
-    text(v.label, colX, mid - (FONTS.mono700.cap * LABEL) / 2, "mono700", LABEL, INK, 0.02);
-    rect(barX, mid - 8, barW, 16, TRACK);
-    const n = stats.vectors?.[v.key];
-    const has = typeof n === "number";
-    if (has && n > 0) rect(barX, mid - 8, (barW * Math.min(100, n)) / 100, 16, INK);
-    // Ungraded prints an em dash, never a zero: zero is a real ScryCheck
-    // reading ("virtually absent"), so an unknown drawn as one is a false claim.
-    const val = has ? String(Math.round(n)) : "—";
-    const vw = measure(val, "mono800", VALUE);
-    text(val, colR - vw, mid - (FONTS.mono800.cap * VALUE) / 2, "mono800", VALUE, has ? INK : GRAY);
-  });
 
   // QR → the ScryCheck analysis page.
-  const QR = 230;
-  const qx = colR - QR, qy = IH - 34 - QR;
+  // The stat bars are gone (one card swap and they're wrong), so the QR owns
+  // the right column, centred.
+  const QR = 300;
+  const qx = colX + (colR - colX - QR) / 2, qy = (IH - QR) / 2;
   rect(qx, qy, QR, QR, INK);
   rect(qx + 2, qy + 2, QR - 4, QR - 4, "#FFFFFF");
   if (stats.qrUrl) P.push(...qrRects(stats.qrUrl, qx + 2, qy + 2, QR - 4));

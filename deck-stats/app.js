@@ -182,7 +182,6 @@ function cardStats(card) {
     title: s.commanders?.length ? s.commanders.join(" // ") : s.name,
     score: s.score,
     bracket: s.bracket,
-    vectors: s.vectors,
     // Falls back to ScryCheck itself if a response ever lacks a page link:
     // the link back is part of the attribution term, not optional.
     qrUrl: s.deckUrl || s.sourceUrl || "https://scrycheck.com/",
