@@ -1,5 +1,17 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-08 (cont.) — ✅ **magikdex: creature-type sprite sheet** (step 1 of the tray redo)
+
+- ✅ `magikdex/src/assets/sprites/legend-sprites.svg`: 55 single-colour `<symbol id="sprite-<type>">` glyphs (top-50 creature types + planeswalker / background / vehicle / spacecraft + a generic `legend` fallback). Source: game-icons.net, **CC BY 3.0**, so a credit line is owed in Settings (authors are in the sheet's header comment and `legend-sprites.credits.json`). Glyphs inherit `currentColor`, so they theme. Coverage vs legendary creatures: 87.1% specific sprite, 4.8% Human-only, 8.1% fallback.
+- Decided with Ben: sprite **replaces** card art in the Box tray; **4×2** (8 slots), not 6×2; MD never calls ScryCheck, it links out; each sprite keeps a ≥44px hit area (NN/g's floor is ~38px, 44 is Apple HIG / WCAG AAA).
+- Sprite choice rule (not built yet): a legend's rarest top-50 type wins, so Human Wizard shows Wizard. `legends.type_line` already stores the type line.
+- **Not done:** tray rewrite (`LegendBox` ROWS 1→2, `Home.jsx` 64/24 flex ratio is a pair), Settings credit line, the legend→sprite mapping function.
+- ScryCheck private beta docs read: ~10 req/min per IP, cache `deckHash`/`scoringVersion`, link `deckUrl`, key must never be in browser code or a repo. A paid app with many users is outside what a private beta contemplates, so ask Adam before launch.
+
+### ⚠️ Known Issues — new
+- **CC BY 3.0 attribution is not yet shown anywhere in the app.** Required before release.
+- Sprite sheet is generated from a scratch script, not in the repo. Regenerating means rebuilding that script.
+
 ## 2026-11-08 — ✅ **magikdex: Scryfall commander-legality check + re-ingest**
 
 - ✅ Compared Scryfall `oracle_cards` bulk (2026-11-08) against the `cards` table. Missing commander-legal cards: 0. Newly banned but still flagged legal: 0. **346 cards had a stale `legal_commander=false`** (recent-set cards ingested before they were legal).
