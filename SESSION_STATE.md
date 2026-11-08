@@ -1,5 +1,16 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-08 — ✅ **magikdex: Scryfall commander-legality check + re-ingest**
+
+- ✅ Compared Scryfall `oracle_cards` bulk (2026-11-08) against the `cards` table. Missing commander-legal cards: 0. Newly banned but still flagged legal: 0. **346 cards had a stale `legal_commander=false`** (recent-set cards ingested before they were legal).
+- ✅ Ran `npm run ingest:cards` (35,755 upserted). Re-check: 32,176 legal on both sides, 0 diffs.
+- Check was a throwaway script (not in repo). Backlog candidate: `npm run check:legality`.
+
+### ⚠️ Known Issues — new
+- **magikdex Supabase project was paused** (free tier); took a few minutes to wake (521, then PostgREST 503) before queries worked.
+- **`cards` holds 35,984 rows vs 35,755 in the bulk**: ~229 leftover rows ingest never deletes (likely cards no longer in the oracle bulk). None are flagged legal. Harmless to brew, but not pruned.
+- Re-run `ingest:cards` after each set releases, since legality flips at release.
+
 ## 2026-10-01 — ✅ **DECK STATS: the deck ID card, lifted into its own app** (`3904634`)
 
 Ben: lift the magikdex deck ID export into its own Vercel deployment called **deck stats**. Input is a Moxfield/Archidekt link plus magikdex's self-report inputs; output is a PDF sized like a Magic card, so it can be sleeved.
