@@ -5,22 +5,21 @@ import { fetchCardIdentity, getCardImage } from "../lib/scryfall.js";
 import { deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck, upsertLegend } from "../lib/legendDeck.js";
 import { platformOf } from "../lib/moxfieldImport.js";
 import AddLegendSheet from "./AddLegendSheet";
+import LegendSprite, { SpriteSheet } from "./LegendSprite";
 
 const DECK_GATE = 100;
 
-// Fixed 4×1 box of slots, Pokémon-storage style — never scrolls; legends
+// Fixed 4×2 box of slots, Pokémon-storage style — never scrolls; legends
 // beyond one box page onto the next via the header chevrons.
 //
-// ONE ROW, NOT TWO (Ben, 2026-08-11: "drop the box to only 4? one row at the
-// bottom instead of 2? gives the card and scrycheck panes more emphasis" — the
-// scrycheck pane has since moved out to the deck-stats app). The
-// tray was taking 42 of the 88 flex units below the wordmark for what is, on
-// this surface, the navigation rather than the content — you look at the card
-// and the power level, and you use the tray to change which one. Halving it
-// hands that height to the detail pane, which is where the reading happens.
-// Home.jsx's flex ratios move with this; the two are a pair.
+// TWO ROWS AGAIN, now of SPRITES (Ben, 2026-11-08). It was one row of card-art
+// tiles (2026-08-11) because tall art tiles ate half the screen for what is the
+// navigation, not the content. A creature-type sprite needs about a square cell,
+// so two rows cost less height than one row of art did, and the tray holds 8.
+// Cells stay well over the 44px tap floor (Apple HIG / WCAG AAA; NN/g's own
+// floor is 1cm ≈ 38px). Home.jsx's flex ratios move with this; the two are a pair.
 const COLS = 4;
-const ROWS = 1;
+const ROWS = 2;
 const PAGE_SIZE = COLS * ROWS;
 const BOX_KEY = "magicdex-box";
 const ORDER_KEY = "magicdex-box-order";
@@ -51,17 +50,11 @@ function saveBoxOrder(list) {
   catch { /* storage full/disabled — arranging still works for this visit */ }
 }
 
-// Gated ("not yet a deck") slots are darkened with a SCRIM OVERLAY on top of
-// the art — never a CSS filter on the image. Desaturating Scryfall art
-// violates their image terms (see DATA_SOURCES.md); the img stays untouched.
-const GATE_SCRIM = "rgba(10,14,26,0.55)";
-
 export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSignal, activeId }) {
   const { theme } = useTheme();
   const [legends, setLegends] = useState([]);
   const [loading, setLoading] = useState(true);
   const [loadError, setLoadError] = useState(null);
-  const [identityFailed, setIdentityFailed] = useState(new Set());
   const [addOpen, setAddOpen] = useState(false);
   const [box, setBox] = useState(() => {
     const n = parseInt(localStorage.getItem(BOX_KEY) ?? "0", 10);
@@ -387,10 +380,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
         attemptedRef.current.add(legend.id);
         const card = await fetchCardIdentity(legend.name);
         if (cancelled) return;
-        if (!card) {
-          setIdentityFailed(prev => new Set(prev).add(legend.id));
-          continue;
-        }
+        if (!card) continue;
         const patch = {
           scryfall_id: card.id,
           image_uri: getCardImage(card, "art_crop"),
@@ -444,6 +434,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
 
   return (
     <>
+      <SpriteSheet />
       {/* Box header bar — pager, plus a "cancel" escape on the right while a
           move is in flight (arrange mode is entered by long-pressing a slot).
           The pager stays live while arranging so swaps can cross boxes. */}
@@ -539,8 +530,6 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
             // the deck row is lazily created on first deck-list open).
             const highest = legendDeck ? deckTotal(legendDeck) : 1;
             const gated = highest < DECK_GATE;
-            const art = legend.image_uri;
-            const noIdentity = !art && identityFailed.has(legend.id);
             const isActive = legend.id === activeId;
             const isPicked = arranging && legend.id === pickedId;
 
@@ -558,9 +547,11 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                 onPointerUp={endPress}
                 onPointerCancel={endPress}
                 onContextMenu={(e) => e.preventDefault()}
+                aria-label={legend.name}
                 style={{
                   ...slotBase,
-                  display: "block",
+                  display: "flex", flexDirection: "column",
+                  alignItems: "stretch",
                   border: "none",
                   background: slotBg,
                   cursor: "pointer",
@@ -570,32 +561,19 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                   touchAction: "manipulation",
                 }}
               >
-                {art ? (
-                  <img
-                    src={art}
-                    alt={legend.name}
-                    draggable={false}
-                    style={{
-                      position: "absolute", inset: 0,
-                      width: "100%", height: "100%",
-                      objectFit: "cover",
-                    }}
+                {/* Gated ("not yet a deck") slots read dimmer; the n/100 badge
+                    says how far along. Active slots take the accent. */}
+                <div style={{
+                  flex: 1, minHeight: 0,
+                  padding: "8px 10px 0",
+                  display: "flex", alignItems: "center", justifyContent: "center",
+                }}>
+                  <LegendSprite
+                    typeLine={legend.type_line}
+                    color={isActive ? ringColor : gated ? dimColor : textColor}
+                    style={{ height: "100%", maxHeight: 48, width: "auto", aspectRatio: "1" }}
                   />
-                ) : (
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    background: noIdentity ? textColor : theme.border,
-                  }} />
-                )}
-
-                {/* Locked scrim — sits ON TOP of unaltered art (no filter). */}
-                {gated && (
-                  <div style={{
-                    position: "absolute", inset: 0,
-                    background: GATE_SCRIM,
-                    pointerEvents: "none",
-                  }} />
-                )}
+                </div>
 
                 {gated && (
                   <div style={{
@@ -603,25 +581,22 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                     top: 3, right: 4,
                     fontFamily: "'Noto Sans Mono', monospace",
                     fontSize: 9,
-                    color: "rgba(255,255,255,0.75)",
-                    textShadow: "0 1px 2px rgba(0,0,0,0.8)",
+                    color: dimColor,
                   }}>
                     {highest}/{DECK_GATE}
                   </div>
                 )}
 
                 <div style={{
-                  position: "absolute",
-                  left: 0, right: 0, bottom: 0,
-                  padding: "3px 5px",
-                  background: "linear-gradient(to top, rgba(0,0,0,0.7), transparent)",
+                  flex: "0 0 auto",
+                  padding: "2px 5px 5px",
                   fontFamily: "'Zilla Slab', serif",
                   fontSize: 11,
-                  color: "#ffffff",
+                  color: isActive ? ringColor : dimColor,
                   whiteSpace: "nowrap",
                   overflow: "hidden",
                   textOverflow: "ellipsis",
-                  textAlign: "left",
+                  textAlign: "center",
                 }}>
                   {legend.name}
                 </div>

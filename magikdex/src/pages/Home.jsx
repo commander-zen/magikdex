@@ -188,13 +188,12 @@ export default function Home({ onLaunchBrew, onBrowse, reloadSignal }) {
         </div>
       </div>
 
-      {/* 2. DETAIL PANE (~64vh) — the selected legend's card.
-          Was 46 against a tray of 42. The tray dropped from two rows of slots
-          to one (LegendBox COLS×ROWS), so the height it no longer needs comes
-          here: this pane is what you READ, the tray is how you NAVIGATE, and
-          they were splitting the screen almost evenly. Change these two
-          together or the tray's tiles distort — they are a pair. */}
-      <div style={{ flex: "64 1 0", minHeight: 0, overflow: "hidden" }}>
+      {/* 2. DETAIL PANE (~66 of 100) — the selected legend's card.
+          This pane is what you READ, the tray is how you NAVIGATE. The tray is
+          two rows of near-square sprite cells (LegendBox COLS×ROWS), which need
+          about a third of the height. Change these two flex values together or
+          the tray's cells distort — they are a pair. */}
+      <div style={{ flex: "66 1 0", minHeight: 0, overflow: "hidden" }}>
         {activeLegend ? (
           <LegendIdentity
             key={`${activeLegend.id}-${reloadSignal}`}
@@ -233,11 +232,10 @@ export default function Home({ onLaunchBrew, onBrowse, reloadSignal }) {
         )}
       </div>
 
-      {/* 3. BOX TRAY (remaining ~24vh) — one row of four slots. Sized so a
-          tile keeps roughly the dimensions it had at two rows rather than
-          stretching to fill: header + padding + a single row's worth. */}
+      {/* 3. BOX TRAY (~34 of 100) — two rows of four sprite slots: header +
+          padding + two near-square cells. */}
       <div style={{
-        flex: "24 1 0",
+        flex: "34 1 0",
         minHeight: 0,
         display: "flex",
         flexDirection: "column",

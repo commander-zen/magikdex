@@ -1,5 +1,18 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-08 (cont. 2) — ✅ **magikdex: Box tray is 4×2 sprites** (step 2)
+
+- ✅ `LegendBox` `ROWS` 1→2; each slot is now the legend's creature-type sprite + name, no card art. Gated slots dim with the `n/100` badge, the active slot takes the accent. `Home.jsx` flex 64/24 → **66/34** (the two are a pair).
+- ✅ New `lib/legendSprite.js` (`legendSpriteId(typeLine)`: planeswalker/spacecraft/vehicle/background first, else the **rarest** top-50 type; Human only if nothing else; `legend` fallback) and `components/LegendSprite.jsx` (inlines the sheet once via `?raw`).
+- ✅ Verified in a browser with stubbed legends (real Home + LegendBox): 8 slots, no horizontal overflow. Slot size **84×89 at 375×812, 84×66 at 375×667**, so every hit area clears 44px. Lint + prod build clean. Mapping unit-checked in node.
+- Removed with the art: `GATE_SCRIM` and the `identityFailed` state (nothing read it any more). `legends.image_uri` is still fetched/persisted; the tray just doesn't show it.
+- **Not verified:** a real device, and a real account's data (stubbed legends only; nothing was written to Supabase).
+
+### ⚠️ Known Issues — new
+- Names ellipsize hard at 11px in an 84px cell ("Yargle, Goliat…"). The detail pane shows the full name, but a two-line name or smaller type is a polish call for Ben.
+- A legend whose `type_line` was never saved shows the generic laurel glyph until the lazy identity heal fills it in.
+- Still owed: CC BY credit line in Settings for the game-icons.net glyphs.
+
 ## 2026-11-08 (cont.) — ✅ **magikdex: creature-type sprite sheet** (step 1 of the tray redo)
 
 - ✅ `magikdex/src/assets/sprites/legend-sprites.svg`: 55 single-colour `<symbol id="sprite-<type>">` glyphs (top-50 creature types + planeswalker / background / vehicle / spacecraft + a generic `legend` fallback). Source: game-icons.net, **CC BY 3.0**, so a credit line is owed in Settings (authors are in the sheet's header comment and `legend-sprites.credits.json`). Glyphs inherit `currentColor`, so they theme. Coverage vs legendary creatures: 87.1% specific sprite, 4.8% Human-only, 8.1% fallback.
