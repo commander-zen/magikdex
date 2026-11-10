@@ -1,5 +1,19 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-10 (cont. 5) — ✅ **Bracket Card: one deck in, one card out** (`a452f1f`, live)
+
+Ben: "the initial user flow [should] be super no duh… puts in a link or pastes in a decklist and gets a [Bracket Card]". More decks and play test cards stay hidden until asked for.
+
+- ✅ **Default flow:**
+  - "1 Add your deck", then "Make my Bracket Card".
+  - "2 Your Bracket Card" shows the card itself (not a mostly-blank page), with a paper choice and Download PDF.
+  - Making another deck's card replaces it ("Make a new card").
+- ✅ **Three closed expanders** (native `<details>`):
+  - **Add your play style:** game style and themes.
+  - **Print several decks:** opening it sets `state.multi` (saved). New decks then join the sheet ("Add to sheet", "Add another deck" button, "2 of 9"), and the preview and PDF become the 3×3 sheet. Closing it goes back to the card on screen. A saved sheet with more than one deck opens with it expanded.
+  - **Add play test cards:** "proxies" is renamed in the copy; the file is `…-play-test.pdf`. Opening it starts on the deck on screen; switching decks restarts it.
+- ✅ **Verified at 375 px and 1280 px:** single-card replace, multi join, close back to single, and the play test count. No sideways scroll. Live on production.
+
 ## 2026-11-10 (cont. 4) — ✅ **deckStats is now "Bracket Card"; the card rides in the proxy deck; NN/g pass** (`9342fd0`, live)
 
 Ben's feedback from printing on his phone: the Bracket Card wasted a whole sheet in the proxy PDF, the site should be named after the card, and the page was "a text wall".
@@ -1849,7 +1863,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**, latest): **WALK THE WHOLE FLOW ON A PHONE, THEN PRINT ONE DECK.** The site is now Bracket Card, and the card prints in slot 1 of the proxy deck (`9342fd0`). Print one deck as proxies at 100% and check that the turned Bracket Card cuts and sleeves like the rest. Then decide whether to rename the Vercel URL (see Known Issues). Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens the Bracket Card site in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
+Priority (**2026-11-10**, latest): **WALK THE WHOLE FLOW ON A PHONE, THEN PRINT ONE DECK.** The site is now Bracket Card, one deck → one card by default, with play test cards and several-decks behind expanders (`a452f1f`). Walk it as a first-time visitor on a phone, then print one deck with play test cards at 100% and check that the turned Bracket Card cuts and sleeves like the rest. Then decide whether to rename the Vercel URL (see Known Issues). Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens the Bracket Card site in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
 
 Priority (**2026-10-01**): **PRINT A REAL DECK STATS SHEET.** Bars chosen, bulk print live. Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
