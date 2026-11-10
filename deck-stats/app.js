@@ -11,6 +11,8 @@ const state = { mode: "url", cards: [], sel: -1, paper: "letter" };
 // ── Kept in this browser, so a refresh doesn't throw away a half-built sheet.
 // A convenience only: storage can be blocked or empty, and the page works
 // without it.
+// The key keeps the site's old name on purpose: renaming it would drop every
+// sheet already saved in someone's browser.
 const STORE_KEY = "deck-stats:sheet:v1";
 
 function save() {
@@ -61,7 +63,7 @@ function clearInputs() {
 
 // ── A deck sent from magikdex ───────────────────────────────────────────────
 // magikdex's "bracket card + proxies" opens this page with the deck in the URL
-// fragment (magikdex src/lib/deckStatsLink.js writes it; change both
+// fragment (magikdex src/lib/bracketCardLink.js writes it; change both
 // together):
 //   #bc=z.<base64url(deflate-raw(json))>  or  #bc=j.<base64url(json)>
 //   json = { v: 1, c: [commander, partner?], l: "1 Sol Ring\n…" }
@@ -108,7 +110,7 @@ $("#deck-form").addEventListener("submit", async e => {
 
   const btn = $("#analyze");
   btn.disabled = true;
-  btn.textContent = "analyzing…";
+  btn.textContent = "Analyzing…";
   try {
     let res;
     try {
@@ -134,7 +136,7 @@ $("#deck-form").addEventListener("submit", async e => {
     setError(err.message);
   } finally {
     btn.disabled = false;
-    btn.textContent = "analyze";
+    btn.textContent = analyzeLabel();
   }
 });
 
@@ -209,7 +211,7 @@ $("#download").addEventListener("click", () => {
   if (!state.cards.length) return;
   const doc = renderPDF([sheet()]);
   const name = state.cards.length === 1 ? slug(cardStats(state.cards[0]).title) : `sheet-${state.cards.length}`;
-  doc.save(`deck-stats-${name}.pdf`);
+  doc.save(`bracket-card-${name}.pdf`);
 });
 
 // ── Proxies: print the selected deck, mtgprint-style ────────────────────────
@@ -227,7 +229,7 @@ function proxyPrefs(card) {
 }
 
 // The commander has to print too, and a pasted list often leaves it out,
-// since deckStats asks for the commander in its own field.
+// since this page asks for the commander in its own field.
 function deckRows(card) {
   const rows = parseList(card.list);
   const have = new Set(rows.map(r => r.key));
@@ -296,10 +298,14 @@ function toggleExclude(keys, out) {
   renderProxy();
 }
 
-const proxyPages = items => {
+// The deck's Bracket Card rides in the first slot of the first page, turned
+// to fit, so it never costs a sheet of its own.
+const proxyPages = (card, items) => {
+  const all = [{ prims: layoutCard(cardStats(card)), turn: true }, ...items];
   const pages = [];
-  for (let i = 0; i < items.length; i += MAX_CARDS) {
-    pages.push(layoutSheet(items.slice(i, i + MAX_CARDS), state.paper, { card: PROXY_MM, ruler: false }));
+  for (let i = 0; i < all.length; i += MAX_CARDS) {
+    pages.push(layoutSheet(all.slice(i, i + MAX_CARDS), state.paper,
+      { card: PROXY_MM, ruler: false, note: i ? null : 'print at 100%, not "fit to page"' }));
   }
   return pages;
 };
@@ -316,14 +322,12 @@ $("#proxy-download").addEventListener("click", async () => {
     const images = await fetchImages(items.map(i => i.img), (n, total) => { btn.textContent = `loading cards ${n} / ${total}…`; });
     btn.textContent = "building the PDF…";
     await new Promise(r => setTimeout(r, 30));   // let the label paint first
-    const grade = layoutSheet([{ prims: layoutCard(cardStats(card)) }], state.paper);
-    renderPDF([grade, ...proxyPages(items)], images).save(`deck-stats-${slug(cardStats(card).title)}-proxies.pdf`);
+    renderPDF(proxyPages(card, items), images).save(`bracket-card-${slug(cardStats(card).title)}-proxies.pdf`);
   } catch (err) {
     proxy.error = err.message;
   } finally {
     btn.disabled = false;
-    btn.textContent = "download deck + proxies PDF";
-    renderProxy();
+    renderProxy();   // restores the button's label
   }
 });
 
@@ -352,10 +356,10 @@ function proxyRow(row, excluded) {
   name.textContent = `${row.qty} × ${row.name}`;
   const sub = document.createElement("div");
   sub.className = "pr-sub";
-  sub.textContent = row.card ? `${row.card.set.toUpperCase()} ${row.card.collector_number} · tap the card to change` : "not found on Scryfall";
+  sub.textContent = row.card ? `${row.card.set.toUpperCase()} ${row.card.collector_number} · tap to change printing` : "Not found on Scryfall";
   info.append(name, sub);
 
-  const toggle = chip(excluded ? "out" : "in", !excluded && Boolean(row.card), () => toggleExclude([row.key], !excluded),
+  const toggle = chip(excluded ? "Out" : "In", !excluded && Boolean(row.card), () => toggleExclude([row.key], !excluded),
     `${excluded ? "Include" : "Leave out"} ${row.name}`);
   toggle.disabled = !row.card;
   el.append(thumb, info, toggle);
@@ -368,7 +372,7 @@ function pickerEl(row) {
   const el = document.createElement("div");
   el.className = "picker";
   if (!proxy.prints) {
-    el.textContent = "loading every printing…";
+    el.textContent = "Loading every printing…";
     return el;
   }
   if (!proxy.prints.length) {
@@ -409,11 +413,16 @@ function renderProxy() {
   const items = proxyItems(rows, exclude);
   const missing = rows.filter(r => !r.card);
 
+  const pages = Math.ceil((items.length + 1) / MAX_CARDS);
   let status = "";
-  if (proxy.busy) status = "finding your cards on Scryfall…";
+  if (proxy.busy) status = "Finding your cards on Scryfall…";
   else if (proxy.rows && !pasting) {
-    status = `${items.length} cards · ${Math.ceil(items.length / MAX_CARDS)} pages of proxies, after the Bracket Card`;
-    if (missing.length) status += `. not found: ${missing.map(r => r.name).join(", ")}`;
+    status = `Bracket Card + ${items.length} cards · ${pages} ${pages === 1 ? "page" : "pages"}`;
+    // Three names at most: each one also has its own "not found" row below.
+    if (missing.length) {
+      const names = missing.slice(0, 3).map(r => r.name).join(", ");
+      status += `. Not found: ${names}${missing.length > 3 ? ` and ${missing.length - 3} more` : ""}`;
+    }
   }
   $("#proxy-status").textContent = status;
   $("#proxy-error").hidden = !proxy.error;
@@ -423,8 +432,8 @@ function renderProxy() {
   const basicsOut = basics.length > 0 && basics.every(k => exclude.has(k));
   $("#proxy-tools").hidden = pasting || !proxy.rows;
   $("#proxy-tools").replaceChildren(
-    chip("skip basic lands", basicsOut, () => toggleExclude(basics, !basicsOut)),
-    chip("edit list", false, () => { proxy.editing = true; $("#proxy-list").value = card.list ?? ""; renderProxy(); }),
+    chip("Skip basic lands", basicsOut, () => toggleExclude(basics, !basicsOut)),
+    chip("Edit list", false, () => { proxy.editing = true; $("#proxy-list").value = card.list ?? ""; renderProxy(); }),
   );
 
   $("#proxy-rows").replaceChildren(...rows.flatMap(row => {
@@ -433,9 +442,11 @@ function renderProxy() {
     return els;
   }));
 
-  $("#proxy-download").hidden = pasting || !items.length;
+  const dl = $("#proxy-download");
+  dl.hidden = pasting || !items.length;
+  if (!dl.disabled) dl.textContent = `Download ${pages}-page PDF`;
   // The 1:1 rule: the pages exactly as they print, small scans standing in.
-  $("#proxy-pages").innerHTML = pasting ? "" : proxyPages(items).map(renderSheetSVG).join("");
+  $("#proxy-pages").innerHTML = pasting || !proxy.rows ? "" : proxyPages(card, items).map(renderSheetSVG).join("");
 }
 
 // ── Render ──────────────────────────────────────────────────────────────────
@@ -478,11 +489,20 @@ function chip(text, on, onClick, label) {
   return b;
 }
 
+const analyzeLabel = () => (state.cards.length ? "Analyze + add to sheet" : "Analyze");
+
 function render() {
   const card = current();
-  $("#editor").hidden = !state.cards.length;
-  $("#count").textContent = `${state.cards.length} / ${MAX_CARDS}`;
-  $("#analyze").textContent = state.cards.length ? "analyze + add to sheet" : "analyze";
+  const n = state.cards.length;
+  $("#editor").hidden = !n;
+  $("#count").textContent = `${n} of ${MAX_CARDS}`;
+  $("#sheet-desc").textContent = n === 1
+    ? "This deck's card on one sheet. Add decks in step 1 to share the sheet."
+    : `All ${n} decks' cards on one sheet.`;
+  $("#proxy-desc").textContent = card
+    ? `Every card in ${cardStats(card).title}, with its Bracket Card in the first slot.`
+    : "";
+  $("#analyze").textContent = analyzeLabel();
 
   // The decks on the sheet, in print order. Tap one to edit it.
   $("#deck-list-rows").replaceChildren(...state.cards.map((c, i) => {
@@ -510,9 +530,8 @@ function render() {
   ));
   $("#tag-input").hidden = !card || card.tags.length >= MAX_TAGS;
   renderSuggestions();
-  $("#editing").textContent = card
-    ? `editing ${state.sel + 1}. ${cardStats(card).title}${card.stats.gradedAt ? "" : " (undated: analyze it again to grade it)"}`
-    : "";
+  $("#editing").textContent = card ? `Customize ${state.sel + 1}. ${cardStats(card).title}` : "";
+  $("#undated").hidden = !card || Boolean(card.stats.gradedAt);
 
   if (state.cards.length) $("#preview").innerHTML = renderSheetSVG(sheet());
 
@@ -524,6 +543,6 @@ function render() {
 restore();
 fontsReady.then(render, () => setError("The card fonts failed to load. Refresh to try again."));
 readHandoff();
-// If deckStats is already open in that tab, only the fragment changes, and a
+// If the page is already open in that tab, only the fragment changes, and a
 // fragment change doesn't reload the page.
 addEventListener("hashchange", readHandoff);

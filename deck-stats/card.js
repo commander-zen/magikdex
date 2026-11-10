@@ -1,7 +1,7 @@
 import { jsPDF } from "https://cdn.jsdelivr.net/npm/jspdf@3.0.3/+esm";
 import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm";
 
-// THE deckStats CARD — the MSCHF-inspired landscape card lifted out of
+// THE BRACKET CARD — the MSCHF-inspired landscape card lifted out of
 // magikdex (LegendIdCard.jsx), now drawn ONCE as a list of primitives and
 // rendered twice: SVG for the preview, vector PDF for the print.
 //
@@ -217,9 +217,9 @@ export function layoutCard(stats) {
 
   // The spine: the only part visible with the card slotted upright.
   rect(0, 0, IW, 16, YELLOW);
-  // The one label on the card that is NOT uppercase: it's the name, styled
-  // "deckStats" on purpose, and capitals would erase the styling.
-  text("deckStats", 46, 44, "mono700", 22, GRAY, 0.14);
+  // The card names itself, in the same voice as PLAY PROFILE. (It said
+  // "deckStats" until Ben renamed the site after the card, 2026-11-10.)
+  text("BRACKET CARD", 46, 44, "mono700", 22, GRAY, 0.14);
 
   const hero = fitHero(stats.title || "untitled deck");
   hero.lines.forEach((line, i) =>
@@ -326,7 +326,9 @@ export function layoutCard(stats) {
 // The same sheet prints PROXIES (2026-11-10): 63 × 88 mm cards upright, so
 // the page turns PORTRAIT — 189 × 264 mm also clears Letter and A4. An item
 // is either { prims } (a Bracket Card, drawn) or { img, thumb } (a Scryfall
-// scan, placed whole).
+// scan, placed whole). A Bracket Card on a proxy page is { prims, turn: true }:
+// it takes the first slot, turned a quarter left, so it costs a slot instead
+// of a sheet of paper (Ben: "currently this is wasting a sheet").
 export const MAX_CARDS = 9;
 const COLS = 3;
 export const PROXY_MM = { w: 63, h: 88 };
@@ -341,9 +343,12 @@ const MARK = { gap: 1, len: 3, color: "#999999", width: 0.15 };
 const CAPTION_PT = 6.5;
 const PT = 72 / 25.4;   // points per mm
 
-// `ruler: false` on proxy pages: the 50 mm check prints once, on the first
-// page of the PDF, and its caption is wider than a portrait page anyway.
-export function layoutSheet(items, paper = "letter", { card = CARD_MM, ruler = true } = {}) {
+// `ruler: false` on proxy pages: a portrait Letter page has under 8 mm above
+// and below the grid, too little for the bar and its caption beside the crop
+// marks. `note` puts one short line in the bottom margin's middle column
+// instead, between the marks — and every proxy is its own size check: hold a
+// real card against it.
+export function layoutSheet(items, paper = "letter", { card = CARD_MM, ruler = true, note = null } = {}) {
   const P = PAPERS[paper];
   const portrait = card.h > card.w;
   const pg = portrait ? { w: P.h, h: P.w } : P;
@@ -374,7 +379,12 @@ export function layoutSheet(items, paper = "letter", { card = CARD_MM, ruler = t
     mark(ox - MARK.gap, y, ox - MARK.gap - MARK.len, y);
     mark(right + MARK.gap, y, right + MARK.gap + MARK.len, y);
   }
-  if (!ruler) return { w: pg.w, h: pg.h, cards: placed, lines, texts: [] };
+  if (!ruler) {
+    const texts = note
+      ? [{ str: note, x: ox + card.w * 1.5, y: bottom + MARK.gap + 2.2, size: CAPTION_PT / PT, color: GRAY, center: true }]
+      : [];
+    return { w: pg.w, h: pg.h, cards: placed, lines, texts };
+  }
 
   // The size check. "Fit to page" is the one print-dialog setting that ruins
   // this, so the sheet carries its own proof: measure the bar. It sits under
@@ -420,7 +430,10 @@ function cardBody(prims) {
 
 export function renderSheetSVG(sheet) {
   const cards = sheet.cards.map(c => c.prims
-    ? `<svg x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">${cardBody(c.prims)}</svg>`
+    ? (c.turn
+      // Turned a quarter left: the card's top edge runs up the slot's left side.
+      ? `<g transform="translate(${c.x} ${c.y + c.h}) rotate(-90)"><svg width="${c.h}" height="${c.w}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">${cardBody(c.prims)}</svg></g>`
+      : `<svg x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">${cardBody(c.prims)}</svg>`)
     // A proxy: the small scan stands in for the print one on screen.
     : `<image href="${esc(c.thumb ?? c.img)}" x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" preserveAspectRatio="none"/>`
       + cornerRects(c).map(r => `<rect x="${r.x}" y="${r.y}" width="${r.s}" height="${r.s}" fill="${INK}"/>`).join(""),
@@ -429,7 +442,7 @@ export function renderSheetSVG(sheet) {
     `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${l.color}" stroke-width="${l.width}"/>`,
   ).join("");
   const texts = sheet.texts.map(t =>
-    `<text x="${t.x}" y="${t.y}" font-family="${FONTS.mono500.css}" font-size="${t.size}" fill="${t.color}" style="font-kerning:none">${esc(t.str)}</text>`,
+    `<text x="${t.x}" y="${t.y}"${t.center ? ' text-anchor="middle"' : ""} font-family="${FONTS.mono500.css}" font-size="${t.size}" fill="${t.color}" style="font-kerning:none">${esc(t.str)}</text>`,
   ).join("");
   return `<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 ${sheet.w} ${sheet.h}" role="img" aria-label="Print preview">`
     + `<rect width="${sheet.w}" height="${sheet.h}" fill="#FFFFFF"/>${cards}${lines}${texts}</svg>`;
@@ -460,15 +473,25 @@ function drawSheet(doc, sheet, images) {
       for (const r of cornerRects(card)) doc.rect(r.x, r.y, r.s, r.s, "F");
       continue;
     }
+    // A turned card maps its point (u, v) to (v, slot height − u), the same
+    // quarter-left turn as the SVG preview; its text runs up at 90°.
+    const at = card.turn
+      ? (u, v) => [card.x + mm(v), card.y + card.h - mm(u)]
+      : (u, v) => [card.x + mm(u), card.y + mm(v)];
     for (const p of card.prims) {
       if (p.t === "rect") {
         doc.setFillColor(p.fill);
-        doc.rect(card.x + mm(p.x), card.y + mm(p.y), mm(p.w), mm(p.h), "F");
+        if (card.turn) {
+          const [x, y] = at(p.x + p.w, p.y);   // the corner that lands top-left
+          doc.rect(x, y, mm(p.h), mm(p.w), "F");
+        } else {
+          doc.rect(...at(p.x, p.y), mm(p.w), mm(p.h), "F");
+        }
       } else {
         doc.setFont(FONTS[p.font].pdf, "normal");
         doc.setFontSize(mm(p.size) * PT);
         doc.setTextColor(p.fill);
-        doc.text(p.str, card.x + mm(p.x), card.y + mm(p.y), { charSpace: mm(p.ls * p.size), baseline: "alphabetic" });
+        doc.text(p.str, ...at(p.x, p.y), { charSpace: mm(p.ls * p.size), baseline: "alphabetic", angle: card.turn ? 90 : 0 });
       }
     }
   }
@@ -481,6 +504,6 @@ function drawSheet(doc, sheet, images) {
   for (const t of sheet.texts) {
     doc.setFontSize(t.size * PT);
     doc.setTextColor(t.color);
-    doc.text(t.str, t.x, t.y, { baseline: "alphabetic" });
+    doc.text(t.str, t.x, t.y, { baseline: "alphabetic", align: t.center ? "center" : "left" });
   }
 }

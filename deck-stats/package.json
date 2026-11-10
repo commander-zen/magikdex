@@ -1,5 +1,5 @@
 {
-  "name": "deck-stats",
+  "name": "bracket-card",
   "private": true,
   "version": "0.1.0",
   "description": "Static page + one Vercel function (api/analyze.js). No build step."
