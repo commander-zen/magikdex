@@ -1,0 +1,175 @@
+/* Bracket Card: one stylesheet for the three pages, written phone-first
+   (NN/g's mobile guidance, applied 2026-11-10):
+   - one column, one job per page, one yellow button per screen;
+   - body text 16px in the system sans, sentence case: all-caps and
+     monospace paragraphs are slow to read on a small screen;
+   - every tap target at least 44px, with room between them;
+   - the main action (Download) sticks to the bottom of the screen, in thumb
+     reach, while the thing it acts on is in view;
+   - quiet surfaces instead of a border around everything. */
+@font-face { font-family: "Archivo Black"; src: url(fonts/ArchivoBlack-Regular.ttf); }
+@font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono-Medium.ttf); font-weight: 500; }
+@font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono-Bold.ttf); font-weight: 700; }
+
+:root {
+  --bg: #141110; --surface: #201C19; --ink: #F5F1E6; --dim: #A39C8E; --line: #36312C;
+  --yellow: #F5C400; --red: #F26B5B;
+  --mono: "JetBrains Mono", ui-monospace, monospace;
+  --sans: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --r: 12px;
+}
+* { box-sizing: border-box; }
+body {
+  margin: 0; background: var(--bg); color: var(--ink);
+  font: 16px/1.5 var(--sans); -webkit-text-size-adjust: 100%;
+}
+a { color: inherit; }
+button { font: inherit; color: inherit; cursor: pointer; -webkit-tap-highlight-color: transparent; }
+button:focus-visible, a:focus-visible, summary:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
+[hidden] { display: none !important; }
+
+/* ── Header: the name and the three pages, always visible (NN/g: with
+   only a few top-level pages, show them; don't bury them in a menu) ── */
+.top {
+  max-width: 720px; margin: 0 auto; padding: 14px 16px 0;
+  border-top: 4px solid var(--yellow);
+}
+.mark {
+  display: inline-block; padding: 6px 0; text-decoration: none;
+  font-family: "Archivo Black", sans-serif; font-size: 22px; line-height: 1.1;
+}
+.tabs {
+  display: grid; grid-template-columns: repeat(3, 1fr); gap: 4px; margin-top: 10px;
+  padding: 4px; background: var(--surface); border-radius: var(--r);
+}
+.tabs a {
+  display: grid; place-items: center; min-height: 44px; padding: 0 6px; border-radius: 9px;
+  text-align: center; text-decoration: none; font-size: 15px; font-weight: 600; color: var(--dim);
+}
+.tabs a[aria-current="page"] { background: var(--ink); color: var(--bg); }
+
+main { max-width: 720px; margin: 0 auto; padding: 0 16px 48px; }
+.intro { padding: 28px 0 8px; }
+h1 {
+  margin: 0 0 10px; font-family: "Archivo Black", sans-serif; font-weight: 400;
+  font-size: clamp(30px, 8.5vw, 44px); line-height: 1.05;
+}
+.intro > p { margin: 0; color: var(--dim); font-size: 17px; max-width: 44ch; }
+h2 { margin: 0 0 14px; font-size: 20px; line-height: 1.25; font-weight: 700; }
+h2 .count { font-weight: 500; color: var(--dim); font-size: 16px; }
+.block { margin-top: 36px; }
+
+/* The ScryCheck credit: the same ink-and-yellow chip printed on every card. */
+.credit { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-top: 18px; color: var(--dim); font-size: 14px; }
+.sc {
+  display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
+  background: var(--yellow); color: #161311; text-decoration: none; border-radius: 8px;
+  font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
+}
+.sc b { font-family: "Archivo Black", sans-serif; font-weight: 400; font-size: 16px; letter-spacing: 0.04em; }
+
+/* ── Forms ── */
+.field { margin-top: 18px; }
+label, .label { display: block; margin: 0 0 8px; font-size: 15px; font-weight: 600; }
+.dim { color: var(--dim); font-weight: 400; }
+/* 16px exactly: iOS zooms any focused field under 16px and never zooms back. */
+input, textarea {
+  display: block; width: 100%; min-height: 52px; padding: 0 14px;
+  font: 16px var(--sans); color: var(--ink);
+  background: var(--surface); border: 1px solid transparent; border-radius: var(--r); outline: none;
+}
+textarea { padding: 12px 14px; font-family: var(--mono); font-weight: 500; line-height: 1.5; resize: vertical; }
+input:focus, textarea:focus { border-color: var(--yellow); }
+input::placeholder, textarea::placeholder { color: #7A7368; }
+.stack { margin-top: 8px; }
+
+/* Link or list: a two-way switch. */
+.seg { display: grid; grid-template-columns: 1fr 1fr; gap: 4px; padding: 4px; background: var(--surface); border-radius: var(--r); }
+.seg button { min-height: 44px; border: 0; border-radius: 9px; background: transparent; color: var(--dim); font-weight: 600; font-size: 15px; }
+.seg button.on { background: var(--ink); color: var(--bg); }
+
+.primary, .ghost {
+  display: block; width: 100%; min-height: 52px; margin-top: 18px; border-radius: var(--r);
+  font-size: 17px; font-weight: 700;
+}
+.primary { background: var(--yellow); color: #161311; border: 0; }
+.primary:disabled { opacity: 0.6; cursor: default; }
+.ghost { background: transparent; color: var(--ink); border: 1px solid var(--line); }
+
+.chips { display: flex; flex-wrap: wrap; gap: 8px; }
+.chips:empty { display: none; }
+#tags, #suggestions { margin-bottom: 8px; }
+#suggestions { margin-top: 8px; }
+.chip {
+  min-height: 44px; padding: 0 16px; border-radius: 999px; font-size: 15px;
+  background: var(--surface); color: var(--ink); border: 1px solid var(--line);
+}
+.chip.on { background: var(--yellow); border-color: var(--yellow); color: #161311; font-weight: 600; }
+.chip:disabled { opacity: 0.4; cursor: default; }
+
+.hint { margin: 8px 0 0; font-size: 14px; color: var(--dim); }
+.error { margin: 12px 0 0; font-size: 15px; color: var(--red); }
+.note { margin: 16px 0 0; padding: 12px 14px; background: var(--surface); border-left: 3px solid var(--yellow); border-radius: 0 8px 8px 0; font-size: 15px; }
+.warn { margin: 12px 0 0; font-size: 14px; color: var(--yellow); }
+
+/* ── The card and the sheet ── */
+.card-preview svg, .sheet-preview svg { display: block; width: 100%; height: auto; border-radius: 6px; box-shadow: 0 8px 30px rgba(0,0,0,0.5); }
+.card-preview { max-width: 560px; }
+
+/* Download, in thumb reach while the card is on screen. */
+.actions {
+  position: sticky; bottom: 0; z-index: 2; margin-top: 8px;
+  padding: 10px 0 calc(12px + env(safe-area-inset-bottom));
+  background: linear-gradient(to bottom, rgba(20,17,16,0), var(--bg) 22%);
+}
+.actions .primary { margin-top: 0; }
+
+/* "What else": full-width rows that say where they go. */
+.next { margin-top: 28px; }
+.go {
+  display: flex; align-items: center; gap: 12px; width: 100%; min-height: 64px; margin-top: 8px; padding: 10px 16px;
+  background: var(--surface); border: 0; border-radius: var(--r); text-align: left; text-decoration: none;
+}
+.go::after { content: "→"; margin-left: auto; color: var(--yellow); font-size: 20px; }
+.go-t { display: block; font-weight: 600; }
+.go-d { display: block; font-size: 14px; color: var(--dim); }
+
+/* ── Sheet page: the decks on it ── */
+.deck-row { display: flex; gap: 8px; margin-top: 8px; }
+.deck-open {
+  flex: 1; min-width: 0; min-height: 60px; padding: 8px 14px; text-align: left;
+  background: var(--surface); border: 1px solid transparent; border-radius: var(--r);
+}
+.deck-row.on .deck-open { border-color: var(--yellow); }
+.deck-name, .deck-sub { display: block; white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.deck-name { font-weight: 600; }
+.deck-sub { font-size: 14px; color: var(--dim); }
+.deck-row .chip { flex: none; width: 52px; min-height: 60px; padding: 0; border-radius: var(--r); font-size: 20px; }
+.row-editor { padding: 2px 4px 16px; }
+
+/* ── Play test page ── */
+.chosen { margin: 0; padding: 14px 16px; background: var(--surface); border-radius: var(--r); font-weight: 600; }
+.text-btn { display: block; min-height: 44px; margin-top: 8px; padding: 0; background: none; border: 0; color: var(--dim); text-decoration: underline; }
+#proxy-tools { margin: 12px 0; }
+.pr { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+/* 46 × 64: a card's own shape, and past the 44px tap floor both ways. */
+.pr-thumb { flex: none; width: 46px; height: 64px; padding: 0; border: 0; border-radius: 4px; overflow: hidden; background: #000; }
+.pr-thumb img, .pick img { display: block; width: 100%; height: auto; }
+.pr-info { flex: 1; min-width: 0; }
+.pr-name { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+.pr-sub { font-size: 13px; color: var(--dim); }
+.pr.out .pr-thumb, .pr.out .pr-info { opacity: 0.4; }
+.pr .chip { flex: none; min-width: 64px; }
+.picker {
+  display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px;
+  max-height: 60vh; overflow-y: auto; padding: 12px 0; font-size: 14px; color: var(--dim);
+  border-bottom: 1px solid var(--line);
+}
+.pick { padding: 0; background: transparent; border: 2px solid transparent; border-radius: 6px; color: var(--dim); font-size: 12px; }
+.pick.on { border-color: var(--yellow); color: var(--ink); }
+.pick span { display: block; padding: 4px 0; }
+#pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px; }
+#pages svg { display: block; width: 100%; height: auto; border-radius: 4px; }
+
+footer { max-width: 720px; margin: 0 auto; padding: 32px 16px 48px; font-size: 13px; color: var(--dim); border-top: 1px solid var(--line); }
+footer p { margin: 0 0 6px; }

@@ -2,275 +2,70 @@
 <html lang="en">
 <head>
   <meta charset="utf-8">
-  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
   <title>Bracket Card</title>
   <meta name="description" content="Your Commander deck's power level and bracket on a Magic-card-sized card for the pregame talk. Graded by ScryCheck.">
-  <style>
-    @font-face { font-family: "Archivo Black"; src: url(fonts/ArchivoBlack-Regular.ttf); }
-    @font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono-Medium.ttf); font-weight: 500; }
-    @font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono-Bold.ttf); font-weight: 700; }
-
-    :root {
-      --bg: #161311; --ink: #F5F1E6; --dim: #A39C8E; --line: #3A3530;
-      --yellow: #F5C400; --red: #F26B5B;
-      --mono: "JetBrains Mono", ui-monospace, monospace;
-    }
-    * { box-sizing: border-box; }
-    /* Copy is set in the system sans, sentence case: mono and all-lowercase
-       made every paragraph slow to read (NN/g review, 2026-11-10). Mono is kept
-       for labels, chips and data, the way the card itself is set. */
-    body {
-      margin: 0; background: var(--bg); color: var(--ink);
-      font-family: system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
-      font-size: 15px; line-height: 1.5; -webkit-text-size-adjust: 100%;
-    }
-    main { max-width: 1040px; margin: 0 auto; padding: 24px 16px 64px; }
-
-    header { border-top: 6px solid var(--yellow); padding-top: 18px; margin-bottom: 32px; }
-    h1 {
-      font-family: "Archivo Black", sans-serif; font-weight: 400;
-      font-size: clamp(40px, 11vw, 72px); line-height: 0.94; margin: 0 0 12px;
-    }
-    .lede { font-size: 17px; margin: 0 0 16px; max-width: 40ch; }
-    /* The ScryCheck credit, loud and up front (Ben, 2026-11-10): the same
-       ink-and-yellow chip that's printed on every card. */
-    .by { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; color: var(--dim); font-size: 14px; }
-    .by .sc {
-      display: inline-flex; align-items: center; gap: 8px; min-height: 44px; padding: 0 14px;
-      background: var(--yellow); color: #161311; text-decoration: none;
-      font-family: var(--mono); font-size: 12px; font-weight: 700; letter-spacing: 0.08em; text-transform: uppercase;
-    }
-    .sc b { font-family: "Archivo Black", sans-serif; font-weight: 400; font-size: 17px; letter-spacing: 0.04em; }
-
-    /* Numbered steps: add → customize → print. */
-    h2 {
-      display: flex; align-items: center; gap: 10px; margin: 0 0 14px;
-      font-family: "Archivo Black", sans-serif; font-weight: 400; font-size: 22px; line-height: 1.1;
-    }
-    h2 .n {
-      flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px;
-      background: var(--yellow); color: #161311; font-size: 15px;
-    }
-
-    label, .cap {
-      display: block; margin: 0 0 6px;
-      font-family: var(--mono); font-size: 11px; font-weight: 700; letter-spacing: 0.12em; text-transform: uppercase;
-      color: var(--dim);
-    }
-    .field + .field { margin-top: 16px; }
-    /* 16px exactly: iOS zooms any focused field under 16px and never zooms back. */
-    input, textarea {
-      width: 100%; min-height: 48px; padding: 0 12px; font: inherit; font-size: 16px;
-      color: var(--ink); background: transparent; border: 1px solid var(--line); border-radius: 0;
-      outline: none;
-    }
-    textarea { padding: 10px 12px; font-family: var(--mono); font-size: 16px; resize: vertical; display: block; }
-    input:focus, textarea:focus { border-color: var(--yellow); }
-    button { font: inherit; cursor: pointer; border-radius: 0; -webkit-tap-highlight-color: transparent; }
-    button:focus-visible, a:focus-visible { outline: 2px solid var(--yellow); outline-offset: 2px; }
-    .primary, .ghost {
-      width: 100%; min-height: 50px; margin-top: 12px;
-      font-family: var(--mono); font-weight: 700; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase;
-    }
-    .primary { background: var(--yellow); color: #161311; border: 0; }
-    .primary:disabled { opacity: 0.6; cursor: default; }
-    .ghost { background: transparent; color: var(--yellow); border: 1px solid var(--yellow); }
-    .row { display: flex; flex-wrap: wrap; gap: 6px; }
-    .chip {
-      min-height: 44px; padding: 0 14px; font-family: var(--mono); font-size: 13px;
-      background: transparent; color: var(--dim); border: 1px solid var(--line);
-    }
-    .chip.on { background: var(--yellow); border-color: var(--yellow); color: #161311; }
-    .hint { font-size: 13px; color: var(--dim); margin: 6px 0 0; }
-    .error, #error { color: var(--red); font-size: 14px; margin-top: 10px; }
-    .handoff { margin: 14px 0 0; padding: 10px 12px; border-left: 3px solid var(--yellow); font-size: 14px; }
-    .warn { font-size: 13px; color: var(--yellow); margin: 0 0 10px; }
-
-    /* minmax(0, …): a grid track otherwise grows to its widest unbreakable
-       content (a long deck name), which pushed the page past a phone's width. */
-    #editor { margin-top: 36px; display: grid; gap: 28px; grid-template-columns: minmax(0, 1fr); }
-    #preview svg { display: block; width: 100%; height: auto; box-shadow: 0 10px 40px rgba(0,0,0,0.5); }
-    .deck-row { display: flex; gap: 6px; margin-bottom: 6px; }
-    .deck-pick {
-      flex: 1; min-width: 0; min-height: 44px; padding: 0 12px; text-align: left;
-      font-family: var(--mono); font-size: 13px;
-      background: transparent; color: var(--dim); border: 1px solid var(--line);
-      white-space: nowrap; overflow: hidden; text-overflow: ellipsis;
-    }
-    .deck-row.on .deck-pick { border-color: var(--yellow); color: var(--ink); }
-    .deck-row .chip { min-width: 44px; }
-    /* The extras: closed until asked for (Ben, 2026-11-10: one deck in, one
-       card out; more decks and play test cards are there if you want them).
-       A native <details>, so it opens by keyboard and screen reader too. */
-    .extras { margin-top: 28px; }
-    details { border-top: 1px solid var(--line); }
-    details:last-child { border-bottom: 1px solid var(--line); }
-    summary {
-      display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0;
-      cursor: pointer; list-style: none;
-    }
-    summary::-webkit-details-marker { display: none; }
-    summary::after {
-      content: "+"; margin-left: auto; flex: none; width: 32px; text-align: center;
-      font-family: var(--mono); font-size: 22px; color: var(--yellow);
-    }
-    details[open] > summary::after { content: "–"; }
-    .sum-t { display: block; font-weight: 600; }
-    .sum-d { display: block; font-size: 13px; color: var(--dim); }
-    .det { padding: 0 0 20px; }
-
-    /* Desktop: the sheet stays in view while you edit the cards on it. */
-    @media (min-width: 860px) {
-      #editor { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
-      #preview-wrap { position: sticky; top: 24px; }
-    }
-
-    /* ── Proxies ── */
-    .pr { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
-    /* 46 × 64: a card's own shape, and past the 44px tap floor both ways. */
-    .pr-thumb { flex: none; width: 46px; height: 64px; padding: 0; border: 1px solid var(--line); background: #000; }
-    .pr-thumb img, .pick img { display: block; width: 100%; height: auto; }
-    .pr-info { flex: 1; min-width: 0; font-size: 14px; line-height: 1.4; }
-    .pr-info > div:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
-    .pr-sub { font-family: var(--mono); font-size: 11px; color: var(--dim); }
-    .pr.out .pr-thumb, .pr.out .pr-info { opacity: 0.4; }
-    .pr .chip { flex: none; min-width: 60px; }
-    .picker {
-      display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px;
-      max-height: 60vh; overflow-y: auto; padding: 10px 0; font-size: 13px; color: var(--dim);
-      border-bottom: 1px solid var(--line);
-    }
-    .pick { padding: 0; background: transparent; border: 2px solid transparent; color: var(--dim); font-family: var(--mono); font-size: 11px; }
-    .pick.on { border-color: var(--yellow); color: var(--ink); }
-    .pick span { display: block; padding: 4px 0; }
-    #proxy-rows { max-height: 70vh; overflow-y: auto; }
-    #proxy-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 16px; }
-    #proxy-pages svg { display: block; width: 100%; height: auto; }
-
-    footer { margin-top: 56px; font-size: 13px; color: var(--dim); }
-    footer p { margin: 0 0 6px; }
-    footer a { color: var(--ink); }
-  </style>
+  <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <header class="top">
+    <a class="mark" href="./">Bracket Card</a>
+    <nav class="tabs" aria-label="Pages">
+      <a href="./" aria-current="page">Card</a>
+      <a href="sheet.html">Sheet of 9</a>
+      <a href="playtest.html">Play test</a>
+    </nav>
+  </header>
+
   <main>
-    <header>
-      <h1>Bracket Card</h1>
-      <p class="lede">Your Commander deck&rsquo;s power level and bracket on a Magic-card-sized card. Print it, sleeve it, hand it over before you shuffle.</p>
+    <section class="intro">
+      <h1>Your deck&rsquo;s power level, on a card.</h1>
+      <p>Add a deck, get a Magic-card-sized Bracket Card. Print it, sleeve it, hand it over before you shuffle.</p>
       <!-- Loud on purpose (Ben, 2026-11-10): every number on the card is
            ScryCheck's, and the page says so before it asks for anything. -->
-      <div class="by">
+      <div class="credit">
         <a class="sc" href="https://scrycheck.com/" target="_blank" rel="noopener">graded by <b>SCRYCHECK</b></a>
-        <span>The best EDH tool you don&rsquo;t know about (yet). It belongs next to Moxfield and Scryfall.</span>
+        <span>The best EDH tool you don&rsquo;t know about (yet).</span>
       </div>
-    </header>
+    </section>
 
-    <form id="deck-form">
-      <h2><span class="n">1</span> <span id="form-title">Add your deck</span></h2>
-      <div id="modes" class="row" style="margin-bottom:16px">
-        <button type="button" class="chip on" data-mode="url">Deck link</button>
-        <button type="button" class="chip" data-mode="list">Paste a list</button>
+    <!-- Built by common.js deckForm(). -->
+    <form id="deck-form" class="block" aria-label="Your deck"></form>
+
+    <section id="result" class="block" hidden>
+      <h2>Your Bracket Card</h2>
+      <div id="preview" class="card-preview"></div>
+      <p id="undated" class="warn" hidden>Undated: make this deck&rsquo;s card again to date its grade.</p>
+
+      <!-- Game style and play style are part of the card, not an extra. -->
+      <div id="style"></div>
+
+      <div class="field">
+        <span class="label" id="paper-label">Paper</span>
+        <div id="papers" class="chips" role="group" aria-labelledby="paper-label"></div>
+        <p class="hint">Print at 100% / actual size, not &ldquo;fit to page&rdquo;. Measure the 50&nbsp;mm bar to check, cut on the marks, then sleeve.</p>
       </div>
-
-      <div data-pane="url">
-        <label for="deck-url">Moxfield or Archidekt link</label>
-        <input id="deck-url" type="url" inputmode="url" autocomplete="off" autocapitalize="off"
-               placeholder="https://moxfield.com/decks/…">
-      </div>
-
-      <div data-pane="list" hidden>
-        <div class="field">
-          <label for="commander">Commander</label>
-          <input id="commander" type="text" autocomplete="off" autocapitalize="words"
-                 placeholder="Atraxa, Praetors' Voice">
-          <input id="partner" type="text" autocomplete="off" autocapitalize="words" aria-label="Partner"
-                 placeholder="Partner (optional)" style="margin-top:6px">
-        </div>
-        <div class="field">
-          <label for="deck-list">Deck list</label>
-          <textarea id="deck-list" rows="10" autocomplete="off" autocapitalize="off" spellcheck="false"
-                    placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Command Tower&#10;…"></textarea>
-          <p class="hint">One card per line, as Moxfield, Archidekt or MTGA export it.</p>
-        </div>
-      </div>
-      <p id="handoff" class="handoff" hidden>Sent from magıkdex. Check the commander, then make the card.</p>
-      <button id="analyze" class="primary" type="submit">Make my Bracket Card</button>
-      <div id="error" role="alert" hidden></div>
-    </form>
-
-    <!-- The result: one deck in, one card out, one button to print it. The
-         extras below stay closed until asked for (Ben, 2026-11-10). -->
-    <div id="editor" hidden>
-      <div id="preview-wrap">
-        <h2><span class="n">2</span> <span id="result-title">Your Bracket Card</span></h2>
-        <div id="preview"></div>
-        <p class="hint">Prints at 88 × 63 mm, a Magic card on its side.</p>
-      </div>
-
-      <div>
-        <p id="undated" class="warn" hidden>Undated: make this deck&rsquo;s card again to date its grade.</p>
-        <span class="cap" id="paper-cap">Paper</span>
-        <div id="papers" class="row" role="group" aria-labelledby="paper-cap"></div>
+      <div class="actions">
         <button id="download" class="primary" type="button">Download PDF</button>
-        <p class="hint">Print at <strong>100% / actual size</strong>, not &ldquo;fit to page&rdquo;. Cut on the marks, then sleeve.</p>
-
-        <div class="extras">
-          <details id="x-style">
-            <summary><span><span class="sum-t">Add your play style</span><span class="sum-d">A game style and up to 3 themes, printed under the grade.</span></span></summary>
-            <div class="det">
-              <div class="field">
-                <span class="cap" id="style-cap">Game style</span>
-                <div id="game-styles" class="row" role="group" aria-labelledby="style-cap"></div>
-              </div>
-              <div class="field">
-                <label for="tag-input">Play style · up to 3</label>
-                <div id="tags" class="row" style="margin-bottom:8px"></div>
-                <input id="tag-input" type="text" autocomplete="off" autocapitalize="off"
-                       placeholder="Search themes, or type one + enter">
-                <div id="suggestions" class="row" style="margin-top:8px"></div>
-              </div>
-            </div>
-          </details>
-
-          <details id="x-multi">
-            <summary><span><span class="sum-t">Print several decks</span><span class="sum-d">Up to 9 Bracket Cards on one sheet.</span></span></summary>
-            <div class="det">
-              <p class="cap">On this sheet <span id="count"></span></p>
-              <div id="deck-list-rows"></div>
-              <button id="add-deck" class="ghost" type="button">Add another deck</button>
-            </div>
-          </details>
-
-          <!-- Play test cards for the selected deck: every card in its list,
-               its Bracket Card in the first slot, 9 per page (mtgprint.net is
-               the reference). -->
-          <details id="x-playtest">
-            <summary><span><span class="sum-t">Add play test cards</span><span class="sum-d">Every card in this deck, with its Bracket Card in the first slot.</span></span></summary>
-            <div class="det" id="proxy">
-              <div id="proxy-paste" hidden>
-                <label for="proxy-list">Full deck list</label>
-                <textarea id="proxy-list" rows="8" autocomplete="off" autocapitalize="off" spellcheck="false"
-                          placeholder="1 Sol Ring (C21) 263&#10;1 Arcane Signet&#10;…"></textarea>
-                <p class="hint">Moxfield: Export &rarr; Copy for MTGA keeps your printings.</p>
-                <button id="proxy-use" class="primary" type="button">Use this list</button>
-              </div>
-              <p id="proxy-status" class="hint" aria-live="polite"></p>
-              <div id="proxy-error" class="error" role="alert" hidden></div>
-              <div id="proxy-tools" class="row" style="margin:10px 0"></div>
-              <div id="proxy-rows"></div>
-              <div id="proxy-pages"></div>
-              <button id="proxy-download" class="primary" type="button" hidden>Download PDF</button>
-            </div>
-          </details>
-        </div>
       </div>
-    </div>
 
-    <footer>
-      <p>Grades by <a href="https://scrycheck.com/" target="_blank" rel="noopener">ScryCheck</a>. Card images by <a href="https://scryfall.com/" target="_blank" rel="noopener">Scryfall</a>. Proxies are for playtesting.</p>
-      <p>Bracket Card is unofficial Fan Content, not approved or endorsed by Wizards of the Coast.</p>
-    </footer>
+      <div class="next">
+        <h2>More with this deck</h2>
+        <button id="to-sheet" class="go" type="button">
+          <span><span class="go-t">Add it to a sheet of 9</span><span class="go-d">Print several decks&rsquo; cards on one page</span></span>
+        </button>
+        <p id="sheet-note" class="error" hidden>Your sheet is full (9). <a href="sheet.html">Remove a deck there</a> first.</p>
+        <a class="go" href="playtest.html">
+          <span><span class="go-t">Print play test cards</span><span class="go-d">Every card in this deck, at real size</span></span>
+        </a>
+      </div>
+    </section>
   </main>
+
+  <footer>
+    <p>Grades by <a href="https://scrycheck.com/" target="_blank" rel="noopener">ScryCheck</a>. Card images by <a href="https://scryfall.com/" target="_blank" rel="noopener">Scryfall</a>. Play test cards are for playtesting.</p>
+    <p>Bracket Card is unofficial Fan Content, not approved or endorsed by Wizards of the Coast.</p>
+  </footer>
   <script type="module" src="app.js"></script>
 </body>
 </html>

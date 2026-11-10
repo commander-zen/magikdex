@@ -1,0 +1,58 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <title>Sheet of 9 · Bracket Card</title>
+  <meta name="description" content="Up to nine Commander decks' Bracket Cards on one printable page. Graded by ScryCheck.">
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <header class="top">
+    <a class="mark" href="./">Bracket Card</a>
+    <nav class="tabs" aria-label="Pages">
+      <a href="./">Card</a>
+      <a href="sheet.html" aria-current="page">Sheet of 9</a>
+      <a href="playtest.html">Play test</a>
+    </nav>
+  </header>
+
+  <main>
+    <section class="intro">
+      <h1>Sheet of 9</h1>
+      <p>Up to nine decks&rsquo; Bracket Cards on one page. Grade your shelf, or your whole playgroup&rsquo;s, and cut them all at once.</p>
+    </section>
+
+    <section class="block">
+      <h2>Add a deck</h2>
+      <!-- Built by common.js deckForm(). -->
+      <form id="deck-form" aria-label="Add a deck"></form>
+    </section>
+
+    <section id="decks" class="block" hidden>
+      <h2>On this sheet <span id="count" class="count"></span></h2>
+      <p class="hint">Tap a deck to set its game style and play style.</p>
+      <div id="deck-rows"></div>
+    </section>
+
+    <section id="print" class="block" hidden>
+      <h2>Print</h2>
+      <div id="preview" class="sheet-preview"></div>
+      <div class="field">
+        <span class="label" id="paper-label">Paper</span>
+        <div id="papers" class="chips" role="group" aria-labelledby="paper-label"></div>
+        <p class="hint">Print at 100% / actual size, not &ldquo;fit to page&rdquo;. Measure the 50&nbsp;mm bar to check, cut on the marks, then sleeve.</p>
+      </div>
+      <div class="actions">
+        <button id="download" class="primary" type="button">Download PDF</button>
+      </div>
+    </section>
+  </main>
+
+  <footer>
+    <p>Grades by <a href="https://scrycheck.com/" target="_blank" rel="noopener">ScryCheck</a>.</p>
+    <p>Bracket Card is unofficial Fan Content, not approved or endorsed by Wizards of the Coast.</p>
+  </footer>
+  <script type="module" src="sheet.js"></script>
+</body>
+</html>
