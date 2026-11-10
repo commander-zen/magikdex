@@ -205,12 +205,12 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
         </div>
       </div>
 
-      {/* 2. DETAIL PANE (~55 of 100) — the selected legend's card.
+      {/* 2. DETAIL PANE (~64 of 100) — the selected legend's card.
           This pane is what you READ, the tray is how you NAVIGATE. The tray is
-          three rows of wide name tiles (LegendBox COLS×ROWS), which need a bit
-          under half the height. Change these two flex values together or the
+          two rows of wide name tiles (LegendBox COLS×ROWS), which need about
+          a third of the height. Change these two flex values together or the
           tray's cells squash — they are a pair. */}
-      <div style={{ flex: "55 1 0", minHeight: 0, overflow: "hidden" }}>
+      <div style={{ flex: "64 1 0", minHeight: 0, overflow: "hidden" }}>
         {activeLegend ? (
           <LegendIdentity
             key={`${activeLegend.id}-${reloadSignal}`}
@@ -341,10 +341,10 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
         </div>
       )}
 
-      {/* 3. BOX TRAY (~45 of 100) — pager header + three rows of two wide
+      {/* 3. BOX TRAY (~36 of 100) — pager header + two rows of two wide
           name tiles. */}
       <div style={{
-        flex: "45 1 0",
+        flex: "36 1 0",
         minHeight: 0,
         display: "flex",
         flexDirection: "column",

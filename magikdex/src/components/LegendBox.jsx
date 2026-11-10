@@ -15,11 +15,12 @@ const DECK_GATE = 100;
 // Each slot is the deck's colour identity + its name (Ben, 2026-11-10). The
 // creature-type pixel sprites that were here (2026-11-08/09) read as "crazy
 // confusing". A name needs width more than height, so the grid went from 4×2
-// squares (names cut at "Yargle, Goliat…") to 2 wide columns × 3 rows.
+// squares (names cut at "Yargle, Goliat…") to 2 wide columns × 3 rows, then
+// to 2 × 2 (Ben, 2026-11-10: six was too many).
 // Cells stay well over the 44px tap floor. Home.jsx's flex ratios move with
 // this; the two are a pair.
 const COLS = 2;
-const ROWS = 3;
+const ROWS = 2;
 const PAGE_SIZE = COLS * ROWS;
 const BOX_KEY = "magicdex-box";
 const ORDER_KEY = "magicdex-box-order";

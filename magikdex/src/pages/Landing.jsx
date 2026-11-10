@@ -10,9 +10,6 @@ import SettingsSheet from "../components/SettingsSheet";
 const LAST_KEY = "magicdex-last-legend";
 const DECK_GATE = 100;
 
-// Real Scryfall syntax, so a tap both teaches the syntax and works as-is.
-const EXAMPLES = ["t:dragon c:r", "o:\"draw a card\" mv<=2", "otag:ramp c:g", "is:commander"];
-
 // The front door (Ben, 2026-11-10): two jobs, nothing else.
 //   1. Swipe a Scryfall search  — the screen's one primary action.
 //   2. Open your dex            — a big card at thumb height.
@@ -97,7 +94,7 @@ export default function Landing({ onSearch, onOpenDex, onAbout, reloadSignal, ac
           Swipe through any card
         </label>
         <div style={{ fontFamily: sans, fontSize: 14, color: theme.dim, marginTop: -6 }}>
-          Type a card name or Scryfall search.
+          Search for a card or use Scryfall syntax.
         </div>
         <div style={{
           display: "flex", alignItems: "center", gap: 8,
@@ -133,27 +130,6 @@ export default function Landing({ onSearch, onOpenDex, onAbout, reloadSignal, ac
               <span className="material-symbols-rounded" style={{ fontSize: 18 }}>close</span>
             </button>
           )}
-        </div>
-        <div style={{ display: "flex", flexWrap: "wrap", gap: 8 }}>
-          {EXAMPLES.map(ex => (
-            <button
-              key={ex}
-              type="button"
-              onClick={() => setQ(ex)}
-              className="press"
-              style={{
-                minHeight: 44, padding: "0 12px",
-                background: "transparent",
-                border: `1px solid ${theme.muted}`,
-                color: theme.white,
-                fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
-                cursor: "pointer",
-                WebkitTapHighlightColor: "transparent",
-              }}
-            >
-              {ex}
-            </button>
-          ))}
         </div>
         <button
           type="submit"
