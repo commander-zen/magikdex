@@ -1,5 +1,21 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-09 — ✅ **magikdex: Box tray is Gen-3-style pixel sprites** (replaces the game-icons glyphs)
+
+- ✅ **55 pixel sprites** (top-50 creature types + planeswalker / background / vehicle / spacecraft + `legend` fallback), generated in Gemini by Ben on a magenta or green screen, then snapped to true pixels by our pipeline. Approved one by one on contact sheets. Sources: `magikdex/assets/sprites/<id>.png` (44–56 px tall natively; time-lord is 65 because gears float above his head).
+- ✅ **One atlas** `src/assets/sprites/legend-sprites.png` (60 KB) + `.json` index, built by `npm run build:sprites`. Every cell is 63×65, sprite bottom-centred = one floor line, one shared pixel scale (Ben's pick). Drawn at 1 CSS px per sprite px with `image-rendering: pixelated`.
+- ✅ **Tray is Pokémon-box style**: no names in the cells (the detail pane shows the legend; the slot button's aria-label carries the name). Gated slots fade to 45% opacity and keep the n/100 badge.
+- ✅ **Time Lord is one type.** `legendSpriteId` joins "Time Lord" before splitting the type line, so Doctors get the `time-lord` sprite (they were reading as "Time" + "Lord"). The 2026-11-08 type count double-counted it, but it holds #50 either way.
+- ✅ **game-icons.net sheet removed**, so the CC BY 3.0 credit-line obligation is gone too.
+- ✅ Pipeline committed in `scripts/sprites/`: `slice-sheet.mjs` (multi-sprite sheets; envs KEY=green, PITCH, COLGAP, NOISE), `snap-single.mjs`, `defringe.mjs`, `build-atlas.mjs`.
+- ✅ Verified in a browser with stubbed legends (real Home + LegendBox): 375×812 → slots 84×89; 375×667 → 84×66 with zero clipping after trimming floor padding to 1 px; no horizontal overflow. Mapper ↔ atlas checked: 55 ids each side, none missing or unused. Lint + prod build clean.
+- **Not verified:** a real device; real account data.
+
+### ⚠️ Known Issues — new
+- **IP watch on a few sprites (Ben's call, shipped as approved):** the elf (green hood + blond + bow edges toward Link), and Gemini can drift into lookalikes when re-rolled. Rejected along the way: a Batman-ish hero, a Sauron lord, a Tennant-ish Time Lord.
+- **Gemini sprite gotchas** for any future additions: one character per image comes out low-res (24–28 px), so generate in grid sheets with a reference sheet attached; pitch detection can lock onto a half-pitch harmonic (heights come out doubled → pass `PITCH=`); purple art needs a green screen (`KEY=green`); pasted images are JPEGs with magenta halos (run `defringe.mjs`, or save PNGs straight from Gemini).
+- `legendSpriteId` falls back to the laurel `legend` sprite for ~8% of legends (types outside the top 50).
+
 ## 2026-11-08 (cont. 2) — ✅ **magikdex: Box tray is 4×2 sprites** (step 2)
 
 - ✅ `LegendBox` `ROWS` 1→2; each slot is now the legend's creature-type sprite + name, no card art. Gated slots dim with the `n/100` badge, the active slot takes the accent. `Home.jsx` flex 64/24 → **66/34** (the two are a pair).

@@ -5,7 +5,7 @@ import { fetchCardIdentity, getCardImage } from "../lib/scryfall.js";
 import { deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck, upsertLegend } from "../lib/legendDeck.js";
 import { platformOf } from "../lib/moxfieldImport.js";
 import AddLegendSheet from "./AddLegendSheet";
-import LegendSprite, { SpriteSheet } from "./LegendSprite";
+import LegendSprite from "./LegendSprite";
 
 const DECK_GATE = 100;
 
@@ -434,7 +434,6 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
 
   return (
     <>
-      <SpriteSheet />
       {/* Box header bar — pager, plus a "cancel" escape on the right while a
           move is in flight (arrange mode is entered by long-pressing a slot).
           The pager stays live while arranging so swaps can cross boxes. */}
@@ -561,18 +560,18 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                   touchAction: "manipulation",
                 }}
               >
-                {/* Gated ("not yet a deck") slots read dimmer; the n/100 badge
-                    says how far along. Active slots take the accent. */}
+                {/* Pokémon-box style: the sprite alone, standing on the slot's
+                    floor, no name in the cell — the detail pane above shows
+                    the selected legend in full, and the button's aria-label
+                    carries the name. Gated ("not yet a deck") slots fade back;
+                    the n/100 badge says how far along. */}
                 <div style={{
                   flex: 1, minHeight: 0,
-                  padding: "8px 10px 0",
-                  display: "flex", alignItems: "center", justifyContent: "center",
+                  display: "flex", alignItems: "flex-end", justifyContent: "center",
+                  paddingBottom: 1,
+                  opacity: gated ? 0.45 : 1,
                 }}>
-                  <LegendSprite
-                    typeLine={legend.type_line}
-                    color={isActive ? ringColor : gated ? dimColor : textColor}
-                    style={{ height: "100%", maxHeight: 48, width: "auto", aspectRatio: "1" }}
-                  />
+                  <LegendSprite typeLine={legend.type_line} />
                 </div>
 
                 {gated && (
@@ -586,20 +585,6 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                     {highest}/{DECK_GATE}
                   </div>
                 )}
-
-                <div style={{
-                  flex: "0 0 auto",
-                  padding: "2px 5px 5px",
-                  fontFamily: "'Zilla Slab', serif",
-                  fontSize: 11,
-                  color: isActive ? ringColor : dimColor,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                  textAlign: "center",
-                }}>
-                  {legend.name}
-                </div>
 
                 {/* Selection cursor — overlaid so it paints over the art. */}
                 {isActive && !isPicked && (

@@ -1,6 +1,6 @@
 // Picks the Box-tray sprite for a legend from its stored type_line.
 //
-// Sprite ids match <symbol id="sprite-<id>"> in assets/sprites/legend-sprites.svg.
+// Sprite ids match the file names in assets/sprites/ (packed into the atlas).
 // COUNTS are how many legendary Commander-eligible creatures carry each type
 // (Scryfall oracle_cards, 2026-11-08). A legend with several types shows its
 // RAREST sprite-bearing type: a Human Wizard reads as Wizard, not Human — Human
@@ -12,7 +12,7 @@ const COUNTS = {
   elemental: 67, ninja: 64, goblin: 61, elder: 60, zombie: 60, angel: 59, assassin: 59, cat: 59,
   demon: 57, turtle: 50, dwarf: 49, scientist: 49, spider: 48, horror: 47, robot: 46, scout: 46,
   bird: 45, merfolk: 45, halfling: 42, dinosaur: 39, berserker: 33, monk: 33, detective: 31, beast: 30,
-  bard: 29, lord: 29,
+  bard: 29, "time-lord": 29,
 };
 
 export const FALLBACK_SPRITE = "legend";
@@ -34,7 +34,9 @@ export function legendSpriteId(typeLine) {
     if (front.includes(word)) return id;
   }
 
-  const [, subs = ""] = front.split(" — ");
+  // "Time Lord" is ONE creature type with a space in it (Doctor Who). Join it
+  // before splitting on spaces, or it reads as two types, "Time" and "Lord".
+  const [, subs = ""] = front.replace(/\bTime Lord\b/g, "Time-Lord").split(" — ");
   const known = subs.split(" ")
     .map(s => s.toLowerCase())
     .filter(s => COUNTS[s] !== undefined);
