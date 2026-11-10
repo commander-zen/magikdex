@@ -1,5 +1,26 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-10 (cont. 3) — ✅ **magikdex → deckStats handoff** (`4fcafb5`)
+
+- ✅ **magikdex:** the deck review screen's export menu has a third item, **"bracket card + proxies / opens deckStats"**.
+  - It's a real `<a target="_blank">`, not a button: iOS blocks a window opened after an await. The link is built when the menu opens and dropped when it closes.
+  - New `src/lib/deckStatsLink.js` puts `{ v: 1, c: [commander, partner?], l: plain list }` in the URL fragment: `#bc=z.<deflate-raw base64url>`, or `#bc=j.<json base64url>` where `CompressionStream` is missing.
+  - The list has no `#tags` and no Commander header; the commanders travel separately.
+  - Nothing is uploaded, and magikdex still never calls ScryCheck.
+  - The `onExported` backup nudge fires on tap, the same as the copy exports. The menu's stale "physical card" comment is fixed.
+- ✅ **deckStats:** `readHandoff()` runs on load and on `hashchange`.
+  - It fills the paste form (commander, partner, list) and shows "Brewed in magıkdex… tap analyze".
+  - It clears the fragment.
+  - It never auto-analyzes. Analyzing keeps the list, so proxies work straight away.
+  - A broken link gives a clear error and leaves the form alone.
+- ✅ **Verified:**
+  - **Links:** compressed and plain links built by magikdex's own code (in node) round-trip in deckStats: partners, 96 lines and a curly apostrophe all survive.
+  - **Fragment changes:** a fragment-only change is picked up; a broken link shows the error.
+  - **Real menu:** in a temporary harness (deleted), magikdex's real ReviewScreen export menu produced the right link (50 px row, decoded payload correct).
+  - **Production:** a handoff link opened on the live site fills the form.
+  - **Lint and build:** clean.
+- **Not verified:** tapping the item inside the native iOS/Android app. Capacitor should send `target="_blank"` to the system browser; check on a device. Also not verified: a real Supabase deck's `cardTags`, since the harness used a stub deck.
+
 ## 2026-11-10 (cont. 2) — ✅ **The card is the "Bracket Card"** (`929958b`, live)
 
 - ✅ **Product split, as Ben stated it:**
@@ -1798,7 +1819,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**, latest): **BUILD THE MAGIKDEX → DECKSTATS HANDOFF** (designed in the 2026-11-10 cont. 2 entry). Ben also owes a real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
+Priority (**2026-11-10**, latest): **WALK THE WHOLE FLOW ON A PHONE.** Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens deckStats in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
 
 Priority (**2026-10-01**): **PRINT A REAL DECK STATS SHEET.** Bars chosen, bulk print live. Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
