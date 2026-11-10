@@ -183,10 +183,14 @@ function cardStats(card) {
     score: s.score,
     bracket: s.bracket,
     vectors: s.vectors,
-    // Falls back to ScryCheck itself if a response ever lacks a page link:
-    // the link back is part of the attribution term, not optional.
-    qrUrl: s.deckUrl || s.sourceUrl || "https://scrycheck.com/",
-    catalogSeed: s.sourceUrl || `${s.commanders?.join("|")}|${s.name}`,
+    // The QR goes to the LIVE decklist (Ben, 2026-11-10): the printed grade is
+    // dated, the list it points to stays current. A pasted list has no list
+    // page, so it falls back to ScryCheck's analysis, then ScryCheck itself.
+    qrUrl: s.sourceUrl || s.deckUrl || "https://scrycheck.com/",
+    qrIsList: Boolean(s.sourceUrl),
+    gradedAt: s.gradedAt ?? null,
+    deckHash: s.deckHash ?? null,
+    scoringVersion: s.scoringVersion ?? null,
     gameStyleLabel: GAME_STYLES.find(([v]) => v === card.gameStyle)?.[1] ?? null,
     tags: card.tags,
   };
@@ -241,7 +245,9 @@ function render() {
   ));
   $("#tag-input").hidden = !card || card.tags.length >= MAX_TAGS;
   renderSuggestions();
-  $("#editing").textContent = card ? `editing ${state.sel + 1}. ${cardStats(card).title}` : "";
+  $("#editing").textContent = card
+    ? `editing ${state.sel + 1}. ${cardStats(card).title}${card.stats.gradedAt ? "" : " (undated: analyze it again to grade it)"}`
+    : "";
 
   if (state.cards.length) $("#preview").innerHTML = renderSheetSVG(sheet());
 }

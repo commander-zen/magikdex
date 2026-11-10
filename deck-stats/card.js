@@ -159,14 +159,21 @@ function selfLine(gameStyleLabel, tags) {
   return [gameStyleLabel, ...tags].filter(Boolean).join(" · ");
 }
 
-// The magikdex card's decorative "no. 0042", hashed from the deck link here
-// since there is no deck row. Printed on the owner's own card, never a URL.
-function catalogNo(seed) {
-  if (!seed) return null;
-  let h = 0;
-  for (const ch of String(seed)) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
-  return String(h % 10000).padStart(4, "0");
+// ── THE GRADE IS DATED. Ben, 2026-11-10 ────────────────────────────────────
+// Change one card and the five bars stop describing the deck, so the card
+// claims only what was true of ONE list on ONE day: the date our server
+// stamped (gradedAt) and ScryCheck's fingerprint of that exact list
+// (deckHash). The date is shown in the reader's own time zone.
+function gradeDate(iso) {
+  const d = iso ? new Date(iso) : null;
+  if (!d || Number.isNaN(d.getTime())) return null;
+  const p = n => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${p(d.getMonth() + 1)}-${p(d.getDate())}`;
 }
+
+// "v2026-11-08-3+cedh.f2e434ab1692" → "v2026-11-08-3": the build suffix is
+// ScryCheck's internal detail, the dated version is what a reader can use.
+const shortVersion = v => (v ? v.split("+")[0] : null);
 
 // QR as vector squares, not a bitmap: crisp at any print resolution. Runs of
 // dark modules on a row are merged so the PDF is a few hundred rects, not 1k+.
@@ -192,7 +199,8 @@ function qrRects(url, x, y, size) {
 
 /**
  * Build the card as primitives in card units (1050 × ~752).
- * @param stats  { title, score, bracket, vectors, qrUrl, gameStyle, tags }
+ * @param stats  { title, score, bracket, vectors, qrUrl, qrIsList, gradedAt,
+ *                 deckHash, scoringVersion, gameStyleLabel, tags }
  */
 export function layoutCard(stats) {
   const P = [];
@@ -236,20 +244,19 @@ export function layoutCard(stats) {
     lines.forEach((l, i) => text(l, 46, 434 + i * 32 * 1.3, "mono500", 32, GRAY, 0.04));
   }
 
-  // ⚠️ ATTRIBUTION, NOT DECORATION. Adam approved showing these numbers with
-  // attribution and a link back; this block plus the QR to scrycheck.com is
-  // that term being met. It does not get dropped to free up space.
-  const chipSize = 30, chipPadX = 16, chipPadY = 13;
+  // ⚠️ ATTRIBUTION, LOUD ON PURPOSE. Adam approved showing these numbers with
+  // attribution and a link back, and Ben wants it shouted, not footnoted:
+  // "this grade is brought to you by scrycheck". The QR now goes to the live
+  // decklist, so the printed address IS the link back. Never shrink or drop
+  // this block to free up space.
+  const chipSize = 38, chipPadX = 18, chipPadY = 15;
   const chipH = FONTS.display.cap * chipSize + chipPadY * 2;
   const chipTop = IH - 34 - chipH;
-  text("analysis powered by", 46, chipTop - 12 - FONTS.mono500.cap * 20, "mono500", 20, GRAY, 0.06);
+  text("graded by", 46, chipTop - 12 - FONTS.mono700.cap * 22, "mono700", 22, INK, 0.06);
   const chipW = measure("SCRYCHECK", "display", chipSize, 0.04) + chipPadX * 2;
   rect(46, chipTop, chipW, chipH, INK);
-  text("SCRYCHECK", 46 + chipPadX, chipTop + chipPadY, "display", chipSize, PAPER, 0.04);
-  const cat = catalogNo(stats.catalogSeed);
-  if (cat) {
-    text(`no. ${cat}`, 46 + chipW + 16, chipTop + (chipH - FONTS.mono500.cap * 22) / 2, "mono500", 22, GRAY, 0.06);
-  }
+  text("SCRYCHECK", 46 + chipPadX, chipTop + chipPadY, "display", chipSize, YELLOW, 0.04);
+  text("scrycheck.com", 46 + chipW + 16, chipTop + (chipH - FONTS.mono700.cap * 24) / 2, "mono700", 24, INK, 0.02);
 
   rect(612, 44, 2, IH - 88, TRACK);
 
@@ -276,9 +283,28 @@ export function layoutCard(stats) {
     text(val, colR - vw, mid - (FONTS.mono800.cap * VALUE) / 2, "mono800", VALUE, has ? INK : GRAY);
   });
 
-  // QR → the ScryCheck analysis page.
+  // ── The grade stamp, right under the bars it dates ───────────────────────
+  // A card saved before grades were dated has no gradedAt: it says UNDATED
+  // rather than borrowing a date it was never graded on.
+  const date = gradeDate(stats.gradedAt);
+  const stampTop = 100 + VECTORS.length * ROW + 16;
+  rect(colX, stampTop - 18, colR - colX, 2, INK);
+  text(date ? `GRADED ${date}` : "UNDATED", colX, stampTop, "mono800", 26, date ? INK : GRAY, 0.04);
+  const proof = date
+    ? [stats.deckHash && `list #${stats.deckHash.slice(0, 8)}`, shortVersion(stats.scoringVersion)].filter(Boolean).join(" · ")
+    : "re-analyze to grade this list";
+  // The version is the first thing to go if the line runs out of room.
+  const proofLine = measure(proof, "mono500", 18, 0.02) <= colR - colX ? proof : proof.split(" · ")[0];
+  if (proofLine) text(proofLine, colX, stampTop + FONTS.mono800.cap * 26 + 14, "mono500", 18, GRAY, 0.02);
+
+  // QR → the deck's own list (Moxfield / Archidekt), which stays current when
+  // the owner edits it; a pasted list has no list page, so it goes to the
+  // ScryCheck analysis instead. The caption says which.
   const QR = 230;
   const qx = colR - QR, qy = IH - 34 - QR;
+  const caption = stats.qrIsList ? "scan for the live decklist" : "scan for the full analysis";
+  wrap(caption, "mono500", 18, qx - colX - 14, 0.02)
+    .forEach((l, i) => text(l, colX, qy + 6 + i * 18 * 1.35, "mono500", 18, GRAY, 0.02));
   rect(qx, qy, QR, QR, INK);
   rect(qx + 2, qy + 2, QR - 4, QR - 4, "#FFFFFF");
   if (stats.qrUrl) P.push(...qrRects(stats.qrUrl, qx + 2, qy + 2, QR - 4));

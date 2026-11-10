@@ -77,6 +77,20 @@
       #editor { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
       #preview-wrap { position: sticky; top: 24px; }
     }
+    .shout {
+      border: 2px solid var(--yellow); padding: 16px; margin: 0 0 28px;
+      font-size: 14px; line-height: 1.6; color: var(--dim);
+    }
+    .shout p { margin: 0 0 10px; }
+    .shout-head {
+      font-family: "Archivo Black", sans-serif; font-size: 22px; line-height: 1.15; color: var(--ink);
+    }
+    .shout-head a { color: var(--yellow); text-decoration: none; }
+    /* A real tap target: 44px tall, not just a line of text. */
+    .shout-go {
+      display: inline-flex; align-items: center; min-height: 44px; color: var(--yellow);
+      font-weight: 700; text-decoration: none;
+    }
     footer { margin-top: 56px; font-size: 11px; color: var(--dim); line-height: 1.7; }
     footer a { color: var(--ink); }
   </style>
@@ -87,6 +101,14 @@
       <h1>deckStats</h1>
       <p class="lede">Paste your deck link or list. Get a stat card the size of a Magic card. Print it, sleeve it, and keep it in the deck box for the pregame talk.</p>
     </header>
+
+    <!-- Loud on purpose (Ben, 2026-11-10): every number on the card is
+         ScryCheck's, and the page says so before it asks for anything. -->
+    <aside class="shout">
+      <p class="shout-head">Every grade here is by <a href="https://scrycheck.com/" target="_blank" rel="noopener">ScryCheck</a>.</p>
+      <p>The best EDH tool you don&rsquo;t know about (yet). It settles the rule&nbsp;0 talk and the pregame power-level debate before anyone shuffles. It belongs right next to Moxfield and Scryfall.</p>
+      <a class="shout-go" href="https://scrycheck.com/" target="_blank" rel="noopener">go use scrycheck.com &rarr;</a>
+    </aside>
 
     <form id="deck-form">
       <div id="modes" class="row" style="margin-bottom:16px">
