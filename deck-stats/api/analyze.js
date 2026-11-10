@@ -64,8 +64,7 @@ function buildPayload(body) {
 
 // ── Throttles and cache ─────────────────────────────────────────────────────
 // All in-process: a warm instance remembers, a recycled one forgets. The cache
-// is what makes re-tapping "analyze" on the same deck free, which is the
-// common case while someone fiddles with their tags — and Adam asked that a
+// is what makes re-tapping "analyze" on the same deck free — Adam asked that a
 // deck only be checked when it actually changes.
 const IP_LIMIT = 8;
 const IP_WINDOW_MS = 10 * 60_000;
@@ -91,12 +90,20 @@ function overRateLimit(ip) {
   return null;
 }
 
+// A pasted list is keyed by its own text, so a hit is always that exact list.
+// A LINK is not: the owner can edit the deck on Moxfield, re-analyze, and a
+// long cache would hand back the old grade under a new date. Links are cached
+// only long enough to absorb a double tap. (ScryCheck also caches by deckHash
+// on its side — the response says cache.hit — so an unchanged deck re-checked
+// after 5 minutes is cheap for them, not a fresh analysis.)
 const CACHE_TTL_MS = 6 * 60 * 60_000;
+const URL_CACHE_TTL_MS = 5 * 60_000;
 const cache = new Map();
 
 function cached(key) {
   const hit = cache.get(key);
-  if (hit && Date.now() - hit.at < CACHE_TTL_MS) return hit.data;
+  const ttl = key.startsWith('{"url"') ? URL_CACHE_TTL_MS : CACHE_TTL_MS;
+  if (hit && Date.now() - hit.at < ttl) return hit.data;
   cache.delete(key);
   return null;
 }
@@ -122,6 +129,15 @@ function normalize(data, payload) {
     // "manual", deckUrl scrycheck.com/deck/<hash>).
     deckUrl: data.deckUrl ?? null,
     sourceUrl: payload.url ?? null,
+    // THE PROOF ON A PRINTED CARD. A card is a grade of one exact list on one
+    // day: change one card and the five bars no longer describe the deck.
+    // deckHash is ScryCheck's fingerprint of the list (16 hex, verified live
+    // 2026-11-10) and scoringVersion is the model that graded it. ScryCheck
+    // sends no timestamp, so gradedAt is OUR server's clock, never the
+    // browser's.
+    deckHash: typeof data.deckHash === "string" ? data.deckHash : null,
+    scoringVersion: typeof data.scoringVersion === "string" ? data.scoringVersion : null,
+    gradedAt: new Date().toISOString(),
     vectors: {
       speed:       num(v.velocity),
       consistency: num(v.consistency),
