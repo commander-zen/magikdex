@@ -1,5 +1,23 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-10 (cont. 2) — ✅ **The card is the "Bracket Card"** (`929958b`, live)
+
+- ✅ **Product split, as Ben stated it:**
+  - **magikdex** is the only App Store app (99¢): a mobile-first swipe brewer, not a Scryfall/Moxfield replacement.
+  - **deckStats** is free, web-only and standalone: the Bracket Card plus proxies, powered by ScryCheck, usable with no magikdex.
+  - **magikdex pushes to deckStats, one way.**
+- ✅ **Name:** "Bracket Card", the deck's business card for the pregame power-level / bracket talk.
+  - Rejected "Rule 0": that's a different conversation (bringing a non-legal card or a house rule).
+  - Rejected bare phrases: the name has to say it's a card.
+  - The site stays **deckStats**.
+- ✅ **Copy updated:** lede, meta description, the proxy status line and help text, comments.
+  - The printed card's top label still says `deckStats`; that's the site brand, unchanged.
+- ⏳ **Next: the magikdex → deckStats handoff** (designed, not built).
+  - **magikdex side:** a "Send to deckStats" item in `ReviewScreen.jsx`'s export menu. It opens deckStats with the commander, partner and list compressed into the URL fragment (`#…`, never sent to a server).
+  - **deckStats side:** opens with the paste form prefilled and "from magikdex, tap analyze". It never auto-analyzes, so a ScryCheck request is spent only on a tap.
+  - The kept list then feeds proxies directly.
+  - While in there: fix the export menu's stale comment about a "physical card" option.
+
 ## 2026-11-10 (cont.) — ✅ **deckStats: print a deck as proxies** (`6fef425`, live)
 
 Ben: grade 4 decks (multi-deck sheets already existed: 9 grading cards per page), then print one deck as a proxy set with its grading card. Reference: **mtgprint.net**, which Ben uses today. **Ben dropped custom art and the "UB Proxy" frame:** proxies are official Scryfall printings only, picked per card. That replaces the original "Alter mode" item.
@@ -1780,7 +1798,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**, later): **BEN GRADES HIS 4 DECKS AND PRINTS ONE AS PROXIES.** Both are live at https://deck-stats-mauve.vercel.app: dated grading card (`817eb07`) and proxy printing (`6fef425`). Print at 100%, measure the 50 mm bar and one proxy (63×88), scan a grading card's QR with a phone. Tell Adam about the QR move. Next in the pasted list: Profile, then polish pass, then App Store checklist (decide whether proxies stay out of the store build).
+Priority (**2026-11-10**, latest): **BUILD THE MAGIKDEX → DECKSTATS HANDOFF** (designed in the 2026-11-10 cont. 2 entry). Ben also owes a real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
 
 Priority (**2026-10-01**): **PRINT A REAL DECK STATS SHEET.** Bars chosen, bulk print live. Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
