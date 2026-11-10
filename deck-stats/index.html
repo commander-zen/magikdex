@@ -11,7 +11,7 @@
     @font-face { font-family: "JetBrains Mono"; src: url(fonts/JetBrainsMono-Bold.ttf); font-weight: 700; }
 
     :root {
-      --bg: #161311; --ink: #F5F1E6; --dim: #A39C8E; --line: #3A3530; --panel: #1E1A17;
+      --bg: #161311; --ink: #F5F1E6; --dim: #A39C8E; --line: #3A3530;
       --yellow: #F5C400; --red: #F26B5B;
       --mono: "JetBrains Mono", ui-monospace, monospace;
     }
@@ -51,10 +51,6 @@
       flex: none; display: inline-grid; place-items: center; width: 28px; height: 28px;
       background: var(--yellow); color: #161311; font-size: 15px;
     }
-    h2 .count { font-family: var(--mono); font-size: 13px; color: var(--dim); }
-    h3 { font-size: 15px; margin: 0 0 4px; }
-    .sub h3 { margin-bottom: 14px; }
-    .step + .step { margin-top: 36px; }
 
     label, .cap {
       display: block; margin: 0 0 6px;
@@ -103,11 +99,25 @@
     }
     .deck-row.on .deck-pick { border-color: var(--yellow); color: var(--ink); }
     .deck-row .chip { min-width: 44px; }
-    .sub { margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--line); }
-
-    /* Print: two choices, each a box that says what you get. */
-    .option { border: 1px solid var(--line); background: var(--panel); padding: 14px; margin-top: 12px; }
-    .option p { margin: 0; font-size: 14px; color: var(--dim); }
+    /* The extras: closed until asked for (Ben, 2026-11-10: one deck in, one
+       card out; more decks and play test cards are there if you want them).
+       A native <details>, so it opens by keyboard and screen reader too. */
+    .extras { margin-top: 28px; }
+    details { border-top: 1px solid var(--line); }
+    details:last-child { border-bottom: 1px solid var(--line); }
+    summary {
+      display: flex; align-items: center; gap: 12px; min-height: 56px; padding: 8px 0;
+      cursor: pointer; list-style: none;
+    }
+    summary::-webkit-details-marker { display: none; }
+    summary::after {
+      content: "+"; margin-left: auto; flex: none; width: 32px; text-align: center;
+      font-family: var(--mono); font-size: 22px; color: var(--yellow);
+    }
+    details[open] > summary::after { content: "–"; }
+    .sum-t { display: block; font-weight: 600; }
+    .sum-d { display: block; font-size: 13px; color: var(--dim); }
+    .det { padding: 0 0 20px; }
 
     /* Desktop: the sheet stays in view while you edit the cards on it. */
     @media (min-width: 860px) {
@@ -116,7 +126,6 @@
     }
 
     /* ── Proxies ── */
-    #proxy { margin-top: 14px; }
     .pr { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
     /* 46 × 64: a card's own shape, and past the 44px tap floor both ways. */
     .pr-thumb { flex: none; width: 46px; height: 64px; padding: 0; border: 1px solid var(--line); background: #000; }
@@ -156,8 +165,8 @@
       </div>
     </header>
 
-    <form id="deck-form" class="step">
-      <h2><span class="n">1</span> Add a deck</h2>
+    <form id="deck-form">
+      <h2><span class="n">1</span> <span id="form-title">Add your deck</span></h2>
       <div id="modes" class="row" style="margin-bottom:16px">
         <button type="button" class="chip on" data-mode="url">Deck link</button>
         <button type="button" class="chip" data-mode="list">Paste a list</button>
@@ -184,59 +193,60 @@
           <p class="hint">One card per line, as Moxfield, Archidekt or MTGA export it.</p>
         </div>
       </div>
-      <p id="handoff" class="handoff" hidden>Sent from magıkdex. Check the commander, then tap Analyze.</p>
-      <button id="analyze" class="primary" type="submit">Analyze</button>
+      <p id="handoff" class="handoff" hidden>Sent from magıkdex. Check the commander, then make the card.</p>
+      <button id="analyze" class="primary" type="submit">Make my Bracket Card</button>
       <div id="error" role="alert" hidden></div>
     </form>
 
+    <!-- The result: one deck in, one card out, one button to print it. The
+         extras below stay closed until asked for (Ben, 2026-11-10). -->
     <div id="editor" hidden>
       <div id="preview-wrap">
-        <h2><span class="n">2</span> Your cards <span id="count" class="count"></span></h2>
+        <h2><span class="n">2</span> <span id="result-title">Your Bracket Card</span></h2>
         <div id="preview"></div>
-        <p class="hint">Actual size when printed: 88 × 63 mm, a Magic card on its side.</p>
+        <p class="hint">Prints at 88 × 63 mm, a Magic card on its side.</p>
       </div>
 
       <div>
-        <section class="step">
-          <div id="deck-list-rows"></div>
-          <p class="hint">Add more decks in step 1, up to nine on one sheet.</p>
+        <p id="undated" class="warn" hidden>Undated: make this deck&rsquo;s card again to date its grade.</p>
+        <span class="cap" id="paper-cap">Paper</span>
+        <div id="papers" class="row" role="group" aria-labelledby="paper-cap"></div>
+        <button id="download" class="primary" type="button">Download PDF</button>
+        <p class="hint">Print at <strong>100% / actual size</strong>, not &ldquo;fit to page&rdquo;. Cut on the marks, then sleeve.</p>
 
-          <div class="sub">
-            <h3 id="editing"></h3>
-            <p id="undated" class="warn" hidden>Undated: analyze this deck again to date its grade.</p>
-            <div class="field">
-              <span class="cap" id="style-cap">Game style</span>
-              <div id="game-styles" class="row" role="group" aria-labelledby="style-cap"></div>
+        <div class="extras">
+          <details id="x-style">
+            <summary><span><span class="sum-t">Add your play style</span><span class="sum-d">A game style and up to 3 themes, printed under the grade.</span></span></summary>
+            <div class="det">
+              <div class="field">
+                <span class="cap" id="style-cap">Game style</span>
+                <div id="game-styles" class="row" role="group" aria-labelledby="style-cap"></div>
+              </div>
+              <div class="field">
+                <label for="tag-input">Play style · up to 3</label>
+                <div id="tags" class="row" style="margin-bottom:8px"></div>
+                <input id="tag-input" type="text" autocomplete="off" autocapitalize="off"
+                       placeholder="Search themes, or type one + enter">
+                <div id="suggestions" class="row" style="margin-top:8px"></div>
+              </div>
             </div>
-            <div class="field">
-              <label for="tag-input">Play style · up to 3</label>
-              <div id="tags" class="row" style="margin-bottom:8px"></div>
-              <input id="tag-input" type="text" autocomplete="off" autocapitalize="off"
-                     placeholder="Search themes, or type one + enter">
-              <div id="suggestions" class="row" style="margin-top:8px"></div>
+          </details>
+
+          <details id="x-multi">
+            <summary><span><span class="sum-t">Print several decks</span><span class="sum-d">Up to 9 Bracket Cards on one sheet.</span></span></summary>
+            <div class="det">
+              <p class="cap">On this sheet <span id="count"></span></p>
+              <div id="deck-list-rows"></div>
+              <button id="add-deck" class="ghost" type="button">Add another deck</button>
             </div>
-          </div>
-        </section>
+          </details>
 
-        <section class="step">
-          <h2><span class="n">3</span> Print</h2>
-          <span class="cap" id="paper-cap">Paper</span>
-          <div id="papers" class="row" role="group" aria-labelledby="paper-cap"></div>
-
-          <div class="option">
-            <h3>Bracket Cards</h3>
-            <p id="sheet-desc"></p>
-            <button id="download" class="primary" type="button">Download PDF</button>
-          </div>
-
-          <!-- Proxies for the deck being edited: every card in its list, its
-               Bracket Card in the first slot, 9 per page (mtgprint.net is the
-               reference). -->
-          <div class="option">
-            <h3>Deck + proxies</h3>
-            <p id="proxy-desc"></p>
-            <button id="proxy-open" class="ghost" type="button">Choose cards</button>
-            <div id="proxy" hidden>
+          <!-- Play test cards for the selected deck: every card in its list,
+               its Bracket Card in the first slot, 9 per page (mtgprint.net is
+               the reference). -->
+          <details id="x-playtest">
+            <summary><span><span class="sum-t">Add play test cards</span><span class="sum-d">Every card in this deck, with its Bracket Card in the first slot.</span></span></summary>
+            <div class="det" id="proxy">
               <div id="proxy-paste" hidden>
                 <label for="proxy-list">Full deck list</label>
                 <textarea id="proxy-list" rows="8" autocomplete="off" autocapitalize="off" spellcheck="false"
@@ -251,10 +261,8 @@
               <div id="proxy-pages"></div>
               <button id="proxy-download" class="primary" type="button" hidden>Download PDF</button>
             </div>
-          </div>
-
-          <p class="hint">Print at <strong>100% / actual size</strong>, not &ldquo;fit to page&rdquo;. Cut on the marks, then sleeve.</p>
-        </section>
+          </details>
+        </div>
       </div>
     </div>
 

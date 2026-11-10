@@ -1,12 +1,17 @@
-import { loadFonts, layoutCard, layoutSheet, renderSheetSVG, renderPDF, PAPERS, MAX_CARDS, PROXY_MM } from "./card.js";
+import { loadFonts, layoutCard, layoutSheet, renderSheetSVG, renderPDF, PAPERS, MAX_CARDS, PROXY_MM, CARD_MM } from "./card.js";
 import { GAME_STYLES, MAX_TAGS } from "./tags.js";
 import { parseList, resolveRows, printingsOf, proxyItems, fetchImages, faces, isBasicLand, nameKey } from "./proxies.js";
 
 const $ = sel => document.querySelector(sel);
 
 // The sheet: up to nine decks, each with its own game style and tags. `sel` is
-// the card the style/tag controls are editing.
-const state = { mode: "url", cards: [], sel: -1, paper: "letter" };
+// the card being shown and edited.
+//
+// ONE DECK, ONE CARD by default (Ben, 2026-11-10: "user puts in a link or
+// pastes in a decklist and gets a commander card"). `multi` is "Print several
+// decks" being open: only then does a new deck JOIN the sheet. Otherwise it
+// replaces the card on screen.
+const state = { mode: "url", cards: [], sel: -1, paper: "letter", multi: false };
 
 // ── Kept in this browser, so a refresh doesn't throw away a half-built sheet.
 // A convenience only: storage can be blocked or empty, and the page works
@@ -17,7 +22,7 @@ const STORE_KEY = "deck-stats:sheet:v1";
 
 function save() {
   try {
-    localStorage.setItem(STORE_KEY, JSON.stringify({ cards: state.cards, paper: state.paper }));
+    localStorage.setItem(STORE_KEY, JSON.stringify({ cards: state.cards, paper: state.paper, multi: state.multi }));
   } catch { /* storage unavailable */ }
 }
 
@@ -27,6 +32,8 @@ function restore() {
     if (Array.isArray(saved?.cards)) state.cards = saved.cards.slice(0, MAX_CARDS);
     if (PAPERS[saved?.paper]) state.paper = saved.paper;
     state.sel = state.cards.length - 1;
+    // A sheet saved before the extras were folded away opens on its decks.
+    state.multi = Boolean(saved?.multi) || state.cards.length > 1;
   } catch { /* storage unavailable or corrupt */ }
 }
 
@@ -101,7 +108,7 @@ $("#deck-form").addEventListener("submit", async e => {
   e.preventDefault();
   setError(null);
   // Checked before calling ScryCheck, so a full sheet never spends a request.
-  if (state.cards.length >= MAX_CARDS) {
+  if (state.multi && state.cards.length >= MAX_CARDS) {
     setError(`The sheet is full (${MAX_CARDS}). Download it, or remove a deck.`);
     return;
   }
@@ -110,7 +117,7 @@ $("#deck-form").addEventListener("submit", async e => {
 
   const btn = $("#analyze");
   btn.disabled = true;
-  btn.textContent = "Analyzing…";
+  btn.textContent = "Grading…";
   try {
     let res;
     try {
@@ -127,8 +134,13 @@ $("#deck-form").addEventListener("submit", async e => {
     await fontsReady;
     // A pasted list is kept: it is what the proxy print prints. A linked deck
     // gets its list later, in the proxy panel.
-    state.cards.push({ stats: json, gameStyle: "", tags: [], list: body.deckList ?? null, proxy: { exclude: [], picks: {} } });
-    state.sel = state.cards.length - 1;
+    const made = { stats: json, gameStyle: "", tags: [], list: body.deckList ?? null, proxy: { exclude: [], picks: {} } };
+    if (state.multi || !current()) {
+      state.cards.push(made);
+      state.sel = state.cards.length - 1;
+    } else {
+      state.cards[state.sel] = made;   // one deck, one card: the new one replaces it
+    }
     clearInputs();
     commit();
     $("#editor").scrollIntoView({ behavior: "smooth", block: "start" });
@@ -208,10 +220,20 @@ for (const [key, p] of Object.entries(PAPERS)) {
 const slug = s => (s || "deck").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
 
 $("#download").addEventListener("click", () => {
-  if (!state.cards.length) return;
-  const doc = renderPDF([sheet()]);
-  const name = state.cards.length === 1 ? slug(cardStats(state.cards[0]).title) : `sheet-${state.cards.length}`;
-  doc.save(`bracket-card-${name}.pdf`);
+  const printed = onSheet();
+  if (!printed.length) return;
+  const name = printed.length === 1 ? slug(cardStats(printed[0]).title) : `sheet-${printed.length}`;
+  renderPDF([sheet()]).save(`bracket-card-${name}.pdf`);
+});
+
+// ── Print several decks ─────────────────────────────────────────────────────
+$("#x-multi").addEventListener("toggle", e => {
+  state.multi = e.target.open;
+  commit();
+});
+$("#add-deck").addEventListener("click", () => {
+  $("#deck-form").scrollIntoView({ behavior: "smooth", block: "start" });
+  $(state.mode === "url" ? "#deck-url" : "#commander").focus({ preventScroll: true });
 });
 
 // ── Proxies: print the selected deck, mtgprint-style ────────────────────────
@@ -254,13 +276,19 @@ async function loadProxies() {
   }
 }
 
-$("#proxy-open").addEventListener("click", () => {
+// Opening "Add play test cards" starts on the deck on screen: straight to
+// its cards if its list is known, else to the paste box.
+function startProxy() {
   const card = current();
   if (!card) return;
   if (card.list) { loadProxies(); return; }
   $("#proxy-list").value = "";
   Object.assign(proxy, { deck: card, editing: true });
   renderProxy();
+}
+$("#x-playtest").addEventListener("toggle", e => {
+  if (e.target.open) startProxy();
+  else { closeProxy(); renderProxy(); }
 });
 
 $("#proxy-use").addEventListener("click", () => {
@@ -322,7 +350,7 @@ $("#proxy-download").addEventListener("click", async () => {
     const images = await fetchImages(items.map(i => i.img), (n, total) => { btn.textContent = `loading cards ${n} / ${total}…`; });
     btn.textContent = "building the PDF…";
     await new Promise(r => setTimeout(r, 30));   // let the label paint first
-    renderPDF(proxyPages(card, items), images).save(`bracket-card-${slug(cardStats(card).title)}-proxies.pdf`);
+    renderPDF(proxyPages(card, items), images).save(`bracket-card-${slug(cardStats(card).title)}-play-test.pdf`);
   } catch (err) {
     proxy.error = err.message;
   } finally {
@@ -399,10 +427,7 @@ function pickerEl(row) {
 
 function renderProxy() {
   const card = current();
-  const open = Boolean(card) && proxy.deck === card;
-  $("#proxy-open").hidden = open || !card;
-  $("#proxy").hidden = !open;
-  if (!open) return;
+  if (!card || proxy.deck !== card) return;
 
   const pasting = !card.list || proxy.editing;
   $("#proxy-paste").hidden = !pasting;
@@ -417,7 +442,7 @@ function renderProxy() {
   let status = "";
   if (proxy.busy) status = "Finding your cards on Scryfall…";
   else if (proxy.rows && !pasting) {
-    status = `Bracket Card + ${items.length} cards · ${pages} ${pages === 1 ? "page" : "pages"}`;
+    status = `Bracket Card + ${items.length} play test cards · ${pages} ${pages === 1 ? "page" : "pages"}`;
     // Three names at most: each one also has its own "not found" row below.
     if (missing.length) {
       const names = missing.slice(0, 3).map(r => r.name).join(", ");
@@ -472,7 +497,16 @@ function cardStats(card) {
   };
 }
 
-const sheet = () => layoutSheet(state.cards.map(c => ({ prims: layoutCard(cardStats(c)) })), state.paper);
+// What prints: every deck when "Print several decks" is open, else the one
+// on screen.
+const onSheet = () => (state.multi ? state.cards : [current()].filter(Boolean));
+const sheet = () => layoutSheet(onSheet().map(c => ({ prims: layoutCard(cardStats(c)) })), state.paper);
+
+// One card on screen is shown as the card, big, not as a mostly-blank page.
+function cardSVG(card) {
+  const { w, h } = CARD_MM;
+  return renderSheetSVG({ w, h, cards: [{ x: 0, y: 0, w, h, prims: layoutCard(cardStats(card)) }], lines: [], texts: [] });
+}
 
 function commit() {
   save();
@@ -489,20 +523,24 @@ function chip(text, on, onClick, label) {
   return b;
 }
 
-const analyzeLabel = () => (state.cards.length ? "Analyze + add to sheet" : "Analyze");
+// Says what the button will do to the sheet: make the first card, replace
+// the one on screen, or add one more.
+const analyzeLabel = () => {
+  if (!state.cards.length) return "Make my Bracket Card";
+  return state.multi ? "Add to sheet" : "Make a new card";
+};
 
 function render() {
   const card = current();
   const n = state.cards.length;
   $("#editor").hidden = !n;
-  $("#count").textContent = `${n} of ${MAX_CARDS}`;
-  $("#sheet-desc").textContent = n === 1
-    ? "This deck's card on one sheet. Add decks in step 1 to share the sheet."
-    : `All ${n} decks' cards on one sheet.`;
-  $("#proxy-desc").textContent = card
-    ? `Every card in ${cardStats(card).title}, with its Bracket Card in the first slot.`
-    : "";
   $("#analyze").textContent = analyzeLabel();
+  $("#form-title").textContent = state.multi && n ? "Add another deck" : "Add your deck";
+  $("#result-title").textContent = state.multi ? "Your sheet" : "Your Bracket Card";
+  $("#count").textContent = `${n} of ${MAX_CARDS}`;
+  // Setting `open` to what it already is fires no toggle event, so this
+  // can't loop back through the listener.
+  $("#x-multi").open = state.multi;
 
   // The decks on the sheet, in print order. Tap one to edit it.
   $("#deck-list-rows").replaceChildren(...state.cards.map((c, i) => {
@@ -530,13 +568,15 @@ function render() {
   ));
   $("#tag-input").hidden = !card || card.tags.length >= MAX_TAGS;
   renderSuggestions();
-  $("#editing").textContent = card ? `Customize ${state.sel + 1}. ${cardStats(card).title}` : "";
   $("#undated").hidden = !card || Boolean(card.stats.gradedAt);
 
-  if (state.cards.length) $("#preview").innerHTML = renderSheetSVG(sheet());
+  if (card) $("#preview").innerHTML = state.multi ? renderSheetSVG(sheet()) : cardSVG(card);
 
-  // The proxy panel belongs to one deck; picking another closes it.
-  if (proxy.deck && proxy.deck !== card) closeProxy();
+  // The play test panel belongs to one deck: showing another starts over on it.
+  if (proxy.deck && proxy.deck !== card) {
+    closeProxy();
+    if ($("#x-playtest").open) startProxy();
+  }
   renderProxy();
 }
 
