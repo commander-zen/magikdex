@@ -1,5 +1,35 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-10 (cont. 4) — ✅ **deckStats is now "Bracket Card"; the card rides in the proxy deck; NN/g pass** (`9342fd0`, live)
+
+Ben's feedback from printing on his phone: the Bracket Card wasted a whole sheet in the proxy PDF, the site should be named after the card, and the page was "a text wall".
+
+- ✅ **Card in the proxy deck:** the proxy PDF no longer has a landscape page 1. The deck's Bracket Card takes slot 1 of the first portrait page, turned a quarter left (`{ prims, turn: true }` in `layoutSheet`; both the SVG preview and `drawSheet` rotate it). A 99-card deck is now 100 slots, 12 pages, not 1 + 11.
+  - Proxy pages have no 50 mm ruler (portrait Letter has under 8 mm of margin, and the caption would cross the crop marks). Page 1 instead carries `print at 100%, not "fit to page"`, centered between the bottom marks. Any proxy is its own size check against a real card.
+  - The multi-deck Bracket Card sheet (landscape 3×3) is unchanged and keeps its ruler.
+- ✅ **Rename:** the title, header, card label (`BRACKET CARD`, uppercase like PLAY PROFILE), PDF filenames (`bracket-card-…`), footer, meta and package name.
+  - In magikdex, `src/lib/deckStatsLink.js` became `bracketCardLink.js` (`bracketCardLink`, `BRACKET_CARD_URL`). The menu reads "bracket card + proxies / opens in your browser".
+  - Kept the old name on purpose: the `deck-stats/` directory (the Vercel root), the Vercel project and URL, and the localStorage key `deck-stats:sheet:v1` (renaming it would drop saved sheets).
+- ✅ **NN/g pass:**
+  - Intro cut from about 230 words to one line plus a yellow "graded by SCRYCHECK" badge with Ben's one-liner.
+  - Numbered steps: 1 Add a deck, 2 Your cards, 3 Print.
+  - Copy in system sans and sentence case; mono only for labels and data.
+  - Real `<label>`s, and `role=group` on the chip rows.
+  - Help paragraphs removed.
+  - One Print step with two named options: "Bracket Cards" (the sheet) and "Deck + proxies" (Choose cards).
+  - The proxy download says the page count.
+  - The "not found" line is capped at 3 names plus "and N more".
+- ✅ **Verified:**
+  - **375 px and 1280 px:** checked in the browser; no sideways scroll.
+  - **Proxy PDF:** captured from the real download button and rasterized with pdf.js. Page 1 is Letter portrait, 215.9 × 279.4 mm, with the turned card in slot 1 matching the preview.
+  - **magikdex:** lint and build clean.
+  - **Production:** the title reads "Bracket Card", and card.js prints `BRACKET CARD`.
+- **Not verified:** a physical print of the turned card (does it cut and sleeve cleanly?), and the native app tap (still owed from cont. 3).
+
+### ⚠️ Known Issues — new
+- **The URL still says deck-stats** (`deck-stats-mauve.vercel.app`). Renaming it is Ben's step in the Vercel dashboard: rename the project, or add a domain. Then update `BRACKET_CARD_URL` in `magikdex/src/lib/bracketCardLink.js`, or the magikdex handoff keeps opening the old address. That's fine while the old address still resolves.
+- The memory files and older SESSION_STATE entries still say "deckStats"; history is left as written.
+
 ## 2026-11-10 (cont. 3) — ✅ **magikdex → deckStats handoff** (`4fcafb5`)
 
 - ✅ **magikdex:** the deck review screen's export menu has a third item, **"bracket card + proxies / opens deckStats"**.
@@ -1819,7 +1849,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**, latest): **WALK THE WHOLE FLOW ON A PHONE.** Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens deckStats in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
+Priority (**2026-11-10**, latest): **WALK THE WHOLE FLOW ON A PHONE, THEN PRINT ONE DECK.** The site is now Bracket Card, and the card prints in slot 1 of the proxy deck (`9342fd0`). Print one deck as proxies at 100% and check that the turned Bracket Card cuts and sleeves like the rest. Then decide whether to rename the Vercel URL (see Known Issues). Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens the Bracket Card site in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
 
 Priority (**2026-10-01**): **PRINT A REAL DECK STATS SHEET.** Bars chosen, bulk print live. Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
