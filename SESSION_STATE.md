@@ -1,14 +1,16 @@
 # SESSION_STATE — MTG DNA
 
-## 2026-11-10 — ✅ **deckStats: the Commander Card becomes a dated grade** (step 1 of 2)
+## 2026-11-10 — ✅ **deckStats: the Commander Card becomes a dated grade**
 
 Ben's problem: change one card in a deck and the printed card is wrong. Power + bracket mostly survive small edits; **the five bars don't**. Decision: a printed card is **a grade of one exact list on one date**, proven by our server + ScryCheck, and its **QR points at the decklist** (Moxfield/Archidekt), which stays current when the owner edits it.
 
 - ✅ **Step 1 — the API keeps the proof** (`4771989`). `/api/analyze` now also returns ScryCheck's `deckHash` (16 hex, its fingerprint of the list) and `scoringVersion` (e.g. `v2026-11-08-3+cedh.…`), plus `gradedAt` from **our server's clock** (ScryCheck sends no timestamp; verified with one live call). Link analyses are cached **5 min** instead of 6 h, so an edited Moxfield deck never gets its old grade under a new date; pasted lists keep 6 h (keyed by their own text). ScryCheck caches by deckHash on its side (`cache.hit` in the response), so re-checking an unchanged deck is cheap for them. Smoke-tested in node with a stubbed ScryCheck (fields present; URL re-fetched after 6 min, list still cached). **Verified live** through https://deck-stats-mauve.vercel.app/api/analyze: deckHash `98491fc81cfa77ca`, scoringVersion, gradedAt all returned.
-- ⏳ **Step 2 — the card prints it** (not built): `GRADED <date>` on the PLAY PROFILE header, `#<first 6 of deckHash>` replacing the decorative `no. 0042` (`catalogNo` goes), QR → `sourceUrl` with ScryCheck `deckUrl` as the pasted-list fallback, old saved cards print `UNDATED`, and `scrycheck.com` printed under the SCRYCHECK chip.
+- ✅ **Step 2 — the card prints it** (`817eb07`, live). Under the bars: `GRADED <date>` (reader's time zone) and `list #<8 of deckHash> · <scoringVersion before the +>` (the version drops first if it doesn't fit). Old saved cards print `UNDATED / re-analyze to grade this list`, and the editor says so. QR → `sourceUrl` (live Moxfield/Archidekt list), captioned "scan for the live decklist"; pasted lists fall back to ScryCheck's `deckUrl`, captioned "scan for the full analysis". `catalogNo` / `catalogSeed` deleted.
+- ✅ **ScryCheck credit made loud** (Ben: "loudly and proudly… belongs in the tier with moxfield and scryfall"). Card: "graded by" + a bigger (38) **yellow** SCRYCHECK chip + `scrycheck.com` beside it. Page: a yellow-bordered shout-out above the form ("Every grade here is by ScryCheck." + Ben's pitch + a 44px "go use scrycheck.com →" link).
+- ✅ Verified in a browser against a stubbed analyzer: link deck, pasted deck, and a pre-change saved card all render the right stamp/caption; text boxes measured clear of the divider and QR; PDF is 1 Letter page; 375px no sideways scroll. Live site confirmed serving the new card.js + page. **Not verified:** a phone scanning the printed QR; a real deck through the live page.
 
 ### ⚠️ Known Issues — new
-- **Step 2 needs Adam first.** His approval was numbers + attribution + a link back, and the QR WAS the link back. Moving the QR to Moxfield needs his OK that the SCRYCHECK chip + printed `scrycheck.com` still meets the term.
+- **Tell Adam.** Ben shipped without waiting for him. His approval was numbers + attribution + a link back; the QR now links back to ScryCheck only for pasted lists. The card's credit is louder than before and prints `scrycheck.com`, but he should hear about it.
 - ScryCheck's response carries more than we print (`powerLevel.confidence`/`interval`, `winSpeed`, `bracket.name`, `incomplete`, `summary.warnings` e.g. "Illegal Duplicate(s)"). Not used; noted in case the card should warn on an incomplete or illegal list.
 
 ## 2026-11-09 — ✅ **magikdex: Box tray is Gen-3-style pixel sprites** (replaces the game-icons glyphs)
@@ -1757,7 +1759,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**): **ASK ADAM, THEN BUILD STEP 2 OF THE DATED COMMANDER CARD.** The API half is live (`deckHash`, `scoringVersion`, `gradedAt`). Ben confirms with Adam that moving the QR from ScryCheck to the decklist is OK if the card keeps the SCRYCHECK chip + printed `scrycheck.com`; then build the card half (see the 2026-11-10 entry at the top). After that in the pasted list: proxy deck + Alter mode, Profile, polish pass, App Store checklist.
+Priority (**2026-11-10**): **PRINT ONE DATED COMMANDER CARD AND SCAN ITS QR WITH A PHONE.** The dated card + loud ScryCheck credit are live (`817eb07`). Run a real Moxfield deck through https://deck-stats-mauve.vercel.app, print at 100%, check the QR opens the live list. Tell Adam about the QR move. Next in the pasted list: proxy deck + Alter mode, then Profile, polish pass, App Store checklist.
 
 Priority (**2026-10-01**): **PRINT A REAL DECK STATS SHEET.** Bars chosen, bulk print live. Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
