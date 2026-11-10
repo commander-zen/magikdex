@@ -322,9 +322,16 @@ export function layoutCard(stats) {
 //
 // ONE layout feeds both renderers, so the on-screen preview is the page you
 // print, not an approximation of it.
+//
+// The same sheet prints PROXIES (2026-11-10): 63 × 88 mm cards upright, so
+// the page turns PORTRAIT — 189 × 264 mm also clears Letter and A4. An item
+// is either { prims } (a grading card, drawn) or { img, thumb } (a Scryfall
+// scan, placed whole).
 export const MAX_CARDS = 9;
 const COLS = 3;
+export const PROXY_MM = { w: 63, h: 88 };
 
+// Stored landscape; a portrait sheet swaps them.
 export const PAPERS = {
   letter: { label: "US Letter", w: 279.4, h: 215.9 },
   a4: { label: "A4", w: 297, h: 210 },
@@ -334,33 +341,40 @@ const MARK = { gap: 1, len: 3, color: "#999999", width: 0.15 };
 const CAPTION_PT = 6.5;
 const PT = 72 / 25.4;   // points per mm
 
-export function layoutSheet(cards, paper = "letter") {
-  const pg = PAPERS[paper];
-  const n = Math.min(cards.length, MAX_CARDS);
-  const ox = (pg.w - COLS * CARD_MM.w) / 2;
-  const oy = (pg.h - 3 * CARD_MM.h) / 2;
-  const placed = cards.slice(0, n).map((prims, i) => ({
-    x: ox + (i % COLS) * CARD_MM.w,
-    y: oy + Math.floor(i / COLS) * CARD_MM.h,
-    prims,
+// `ruler: false` on proxy pages: the 50 mm check prints once, on the first
+// page of the PDF, and its caption is wider than a portrait page anyway.
+export function layoutSheet(items, paper = "letter", { card = CARD_MM, ruler = true } = {}) {
+  const P = PAPERS[paper];
+  const portrait = card.h > card.w;
+  const pg = portrait ? { w: P.h, h: P.w } : P;
+  const n = Math.min(items.length, MAX_CARDS);
+  const ox = (pg.w - COLS * card.w) / 2;
+  const oy = (pg.h - 3 * card.h) / 2;
+  const placed = items.slice(0, n).map((item, i) => ({
+    x: ox + (i % COLS) * card.w,
+    y: oy + Math.floor(i / COLS) * card.h,
+    w: card.w,
+    h: card.h,
+    ...item,
   }));
 
   // Crop marks on every grid line the used cards touch, kept in the margin so
   // a cut never shows a line.
   const cols = Math.min(n, COLS), rows = Math.ceil(n / COLS);
-  const right = ox + cols * CARD_MM.w, bottom = oy + rows * CARD_MM.h;
+  const right = ox + cols * card.w, bottom = oy + rows * card.h;
   const lines = [];
   const mark = (x1, y1, x2, y2) => lines.push({ x1, y1, x2, y2, color: MARK.color, width: MARK.width });
   for (let c = 0; c <= cols; c++) {
-    const x = ox + c * CARD_MM.w;
+    const x = ox + c * card.w;
     mark(x, oy - MARK.gap, x, oy - MARK.gap - MARK.len);
     mark(x, bottom + MARK.gap, x, bottom + MARK.gap + MARK.len);
   }
   for (let r = 0; r <= rows; r++) {
-    const y = oy + r * CARD_MM.h;
+    const y = oy + r * card.h;
     mark(ox - MARK.gap, y, ox - MARK.gap - MARK.len, y);
     mark(right + MARK.gap, y, right + MARK.gap + MARK.len, y);
   }
+  if (!ruler) return { w: pg.w, h: pg.h, cards: placed, lines, texts: [] };
 
   // The size check. "Fit to page" is the one print-dialog setting that ruins
   // this, so the sheet carries its own proof: measure the bar. It sits under
@@ -383,6 +397,16 @@ export function layoutSheet(cards, paper = "letter") {
   return { w: pg.w, h: pg.h, cards: placed, lines, texts };
 }
 
+// Black squares over a proxy's four corners (see proxyItems' `corners`). A
+// Magic card's corner radius is 1/8" ≈ 3.2 mm; 2.5 mm squares leave less
+// than 0.1 mm of the white arc and stay inside the ~3 mm black border.
+const CORNER_MM = 2.5;
+function cornerRects(c) {
+  if (!c.corners) return [];
+  const s = CORNER_MM, x2 = c.x + c.w - s, y2 = c.y + c.h - s;
+  return [{ x: c.x, y: c.y, s }, { x: x2, y: c.y, s }, { x: c.x, y: y2, s }, { x: x2, y: y2, s }];
+}
+
 // ── Renderer 1: SVG preview of the whole page ───────────────────────────────
 const esc = s => s.replace(/[&<>"]/g, c => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;" }[c]));
 
@@ -395,8 +419,11 @@ function cardBody(prims) {
 }
 
 export function renderSheetSVG(sheet) {
-  const cards = sheet.cards.map(c =>
-    `<svg x="${c.x}" y="${c.y}" width="${CARD_MM.w}" height="${CARD_MM.h}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">${cardBody(c.prims)}</svg>`,
+  const cards = sheet.cards.map(c => c.prims
+    ? `<svg x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" viewBox="0 0 ${W} ${H}" shape-rendering="crispEdges">${cardBody(c.prims)}</svg>`
+    // A proxy: the small scan stands in for the print one on screen.
+    : `<image href="${esc(c.thumb ?? c.img)}" x="${c.x}" y="${c.y}" width="${c.w}" height="${c.h}" preserveAspectRatio="none"/>`
+      + cornerRects(c).map(r => `<rect x="${r.x}" y="${r.y}" width="${r.s}" height="${r.s}" fill="${INK}"/>`).join(""),
   ).join("");
   const lines = sheet.lines.map(l =>
     `<line x1="${l.x1}" y1="${l.y1}" x2="${l.x2}" y2="${l.y2}" stroke="${l.color}" stroke-width="${l.width}"/>`,
@@ -409,11 +436,30 @@ export function renderSheetSVG(sheet) {
 }
 
 // ── Renderer 2: the print PDF ───────────────────────────────────────────────
-export function renderSheetPDF(sheet) {
-  const doc = makeDoc({ unit: "mm", format: [sheet.w, sheet.h], orientation: "landscape" });
+// One page per sheet; a page is landscape or portrait by its own size, so the
+// grading card and the proxies share one file. `images` maps each proxy's
+// scan URL to its bytes (proxies.js fetchImages); the URL doubles as the
+// image's PDF alias, so a card printed thirty times is embedded once.
+export function renderPDF(sheets, images = new Map()) {
+  const orient = s => (s.w > s.h ? "landscape" : "portrait");
+  const doc = makeDoc({ unit: "mm", format: [sheets[0].w, sheets[0].h], orientation: orient(sheets[0]) });
+  sheets.forEach((sheet, i) => {
+    if (i) doc.addPage([sheet.w, sheet.h], orient(sheet));
+    drawSheet(doc, sheet, images);
+  });
+  return doc;
+}
+
+function drawSheet(doc, sheet, images) {
   const mm = u => u * K;
 
   for (const card of sheet.cards) {
+    if (card.img) {
+      doc.addImage(images.get(card.img), "JPEG", card.x, card.y, card.w, card.h, card.img, "NONE");
+      doc.setFillColor(INK);
+      for (const r of cornerRects(card)) doc.rect(r.x, r.y, r.s, r.s, "F");
+      continue;
+    }
     for (const p of card.prims) {
       if (p.t === "rect") {
         doc.setFillColor(p.fill);
@@ -437,5 +483,4 @@ export function renderSheetPDF(sheet) {
     doc.setTextColor(t.color);
     doc.text(t.str, t.x, t.y, { baseline: "alphabetic" });
   }
-  return doc;
 }

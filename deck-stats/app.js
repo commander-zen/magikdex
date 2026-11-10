@@ -1,5 +1,6 @@
-import { loadFonts, layoutCard, layoutSheet, renderSheetSVG, renderSheetPDF, PAPERS, MAX_CARDS } from "./card.js";
+import { loadFonts, layoutCard, layoutSheet, renderSheetSVG, renderPDF, PAPERS, MAX_CARDS, PROXY_MM } from "./card.js";
 import { GAME_STYLES, MAX_TAGS } from "./tags.js";
+import { parseList, resolveRows, printingsOf, proxyItems, fetchImages, faces, isBasicLand, nameKey } from "./proxies.js";
 
 const $ = sel => document.querySelector(sel);
 
@@ -86,7 +87,9 @@ $("#deck-form").addEventListener("submit", async e => {
     const json = await res.json().catch(() => null);
     if (!res.ok || !json) throw new Error(json?.error ?? `Analysis failed (${res.status}).`);
     await fontsReady;
-    state.cards.push({ stats: json, gameStyle: "", tags: [] });
+    // A pasted list is kept: it is what the proxy print prints. A linked deck
+    // gets its list later, in the proxy panel.
+    state.cards.push({ stats: json, gameStyle: "", tags: [], list: body.deckList ?? null, proxy: { exclude: [], picks: {} } });
     state.sel = state.cards.length - 1;
     clearInputs();
     commit();
@@ -164,14 +167,240 @@ for (const [key, p] of Object.entries(PAPERS)) {
   paperRow.append(b);
 }
 
+const slug = s => (s || "deck").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "");
+
 $("#download").addEventListener("click", () => {
   if (!state.cards.length) return;
-  const doc = renderSheetPDF(sheet());
-  const name = state.cards.length === 1
-    ? (cardStats(state.cards[0]).title || "deck").toLowerCase().replace(/[^a-z0-9]+/g, "-").replace(/^-|-$/g, "")
-    : `sheet-${state.cards.length}`;
+  const doc = renderPDF([sheet()]);
+  const name = state.cards.length === 1 ? slug(cardStats(state.cards[0]).title) : `sheet-${state.cards.length}`;
   doc.save(`deck-stats-${name}.pdf`);
 });
+
+// ── Proxies: print the selected deck, mtgprint-style ────────────────────────
+// Ben's reference is mtgprint.net (see proxies.js). One PDF: the deck's
+// grading card first, then every card in its list at 63 × 88 mm, 9 per page.
+// The resolved Scryfall cards live only in memory (refetched after a
+// refresh); what is saved with the deck is its list, the cards left out and
+// the printings picked.
+const proxy = { deck: null, rows: null, busy: false, error: null, editing: false, picking: null, prints: null };
+const closeProxy = () => Object.assign(proxy, { deck: null, rows: null, busy: false, error: null, editing: false, picking: null, prints: null });
+
+function proxyPrefs(card) {
+  card.proxy ??= { exclude: [], picks: {} };
+  return card.proxy;
+}
+
+// The commander has to print too, and a pasted list often leaves it out,
+// since deckStats asks for the commander in its own field.
+function deckRows(card) {
+  const rows = parseList(card.list);
+  const have = new Set(rows.map(r => r.key));
+  const missing = (card.stats.commanders ?? [])
+    .filter(n => !have.has(nameKey(n)))
+    .map(name => ({ key: nameKey(name), name, qty: 1, set: null, cn: null }));
+  return [...missing, ...rows];
+}
+
+async function loadProxies() {
+  const card = current();
+  if (!card?.list) return;
+  Object.assign(proxy, { deck: card, rows: null, busy: true, error: null, editing: false, picking: null });
+  renderProxy();
+  try {
+    const rows = await resolveRows(deckRows(card), proxyPrefs(card).picks);
+    if (proxy.deck === card) proxy.rows = rows;
+  } catch (err) {
+    if (proxy.deck === card) proxy.error = err.message;
+  } finally {
+    if (proxy.deck === card) { proxy.busy = false; renderProxy(); }
+  }
+}
+
+$("#proxy-open").addEventListener("click", () => {
+  const card = current();
+  if (!card) return;
+  if (card.list) { loadProxies(); return; }
+  $("#proxy-list").value = "";
+  Object.assign(proxy, { deck: card, editing: true });
+  renderProxy();
+});
+
+$("#proxy-use").addEventListener("click", () => {
+  const card = current();
+  const text = $("#proxy-list").value.trim();
+  if (!card || !text) return;
+  card.list = text;
+  save();
+  loadProxies();
+});
+
+function openPicker(row) {
+  Object.assign(proxy, { picking: row.key, prints: null });
+  renderProxy();
+  printingsOf(row.card)
+    .then(prints => { if (proxy.picking === row.key) proxy.prints = prints; })
+    .catch(() => { if (proxy.picking === row.key) proxy.prints = []; })
+    .finally(renderProxy);
+}
+
+function choosePrinting(row, printing) {
+  proxyPrefs(current()).picks[row.key] = printing.id;
+  row.card = printing;
+  Object.assign(proxy, { picking: null, prints: null });
+  save();
+  renderProxy();
+}
+
+function toggleExclude(keys, out) {
+  const prefs = proxyPrefs(current());
+  const set = new Set(prefs.exclude);
+  for (const k of keys) out ? set.add(k) : set.delete(k);
+  prefs.exclude = [...set];
+  save();
+  renderProxy();
+}
+
+const proxyPages = items => {
+  const pages = [];
+  for (let i = 0; i < items.length; i += MAX_CARDS) {
+    pages.push(layoutSheet(items.slice(i, i + MAX_CARDS), state.paper, { card: PROXY_MM, ruler: false }));
+  }
+  return pages;
+};
+
+$("#proxy-download").addEventListener("click", async () => {
+  const card = current();
+  if (!card || !proxy.rows) return;
+  const items = proxyItems(proxy.rows, new Set(proxyPrefs(card).exclude));
+  if (!items.length) return;
+  const btn = $("#proxy-download");
+  btn.disabled = true;
+  proxy.error = null;
+  try {
+    const images = await fetchImages(items.map(i => i.img), (n, total) => { btn.textContent = `loading cards ${n} / ${total}…`; });
+    btn.textContent = "building the PDF…";
+    await new Promise(r => setTimeout(r, 30));   // let the label paint first
+    const grade = layoutSheet([{ prims: layoutCard(cardStats(card)) }], state.paper);
+    renderPDF([grade, ...proxyPages(items)], images).save(`deck-stats-${slug(cardStats(card).title)}-proxies.pdf`);
+  } catch (err) {
+    proxy.error = err.message;
+  } finally {
+    btn.disabled = false;
+    btn.textContent = "download deck + proxies PDF";
+    renderProxy();
+  }
+});
+
+function proxyRow(row, excluded) {
+  const el = document.createElement("div");
+  el.className = excluded || !row.card ? "pr out" : "pr";
+
+  const thumb = document.createElement("button");
+  thumb.type = "button";
+  thumb.className = "pr-thumb";
+  if (row.card) {
+    const img = document.createElement("img");
+    img.src = faces(row.card)[0]?.small ?? "";
+    img.alt = "";
+    img.loading = "lazy";
+    thumb.append(img);
+    thumb.setAttribute("aria-label", `Choose a printing of ${row.name}`);
+    thumb.addEventListener("click", () => (proxy.picking === row.key ? (closePicker(), renderProxy()) : openPicker(row)));
+  } else {
+    thumb.disabled = true;
+  }
+
+  const info = document.createElement("div");
+  info.className = "pr-info";
+  const name = document.createElement("div");
+  name.textContent = `${row.qty} × ${row.name}`;
+  const sub = document.createElement("div");
+  sub.className = "pr-sub";
+  sub.textContent = row.card ? `${row.card.set.toUpperCase()} ${row.card.collector_number} · tap the card to change` : "not found on Scryfall";
+  info.append(name, sub);
+
+  const toggle = chip(excluded ? "out" : "in", !excluded && Boolean(row.card), () => toggleExclude([row.key], !excluded),
+    `${excluded ? "Include" : "Leave out"} ${row.name}`);
+  toggle.disabled = !row.card;
+  el.append(thumb, info, toggle);
+  return el;
+}
+
+const closePicker = () => Object.assign(proxy, { picking: null, prints: null });
+
+function pickerEl(row) {
+  const el = document.createElement("div");
+  el.className = "picker";
+  if (!proxy.prints) {
+    el.textContent = "loading every printing…";
+    return el;
+  }
+  if (!proxy.prints.length) {
+    el.textContent = "Couldn't load the printings. Try again.";
+    return el;
+  }
+  el.append(...proxy.prints.map(p => {
+    const b = document.createElement("button");
+    b.type = "button";
+    b.className = p.id === row.card.id ? "pick on" : "pick";
+    b.setAttribute("aria-label", `${p.set_name} ${p.collector_number}`);
+    const img = document.createElement("img");
+    img.src = faces(p)[0]?.small ?? "";
+    img.alt = "";
+    img.loading = "lazy";
+    const cap = document.createElement("span");
+    cap.textContent = `${p.set.toUpperCase()} ${p.collector_number}`;
+    b.append(img, cap);
+    b.addEventListener("click", () => choosePrinting(row, p));
+    return b;
+  }));
+  return el;
+}
+
+function renderProxy() {
+  const card = current();
+  const open = Boolean(card) && proxy.deck === card;
+  $("#proxy-open").hidden = open || !card;
+  $("#proxy").hidden = !open;
+  if (!open) return;
+
+  const pasting = !card.list || proxy.editing;
+  $("#proxy-paste").hidden = !pasting;
+  if (pasting && !$("#proxy-list").value) $("#proxy-list").value = card.list ?? "";
+
+  const rows = pasting ? [] : (proxy.rows ?? []);
+  const exclude = new Set(proxyPrefs(card).exclude);
+  const items = proxyItems(rows, exclude);
+  const missing = rows.filter(r => !r.card);
+
+  let status = "";
+  if (proxy.busy) status = "finding your cards on Scryfall…";
+  else if (proxy.rows && !pasting) {
+    status = `${items.length} cards · ${Math.ceil(items.length / MAX_CARDS)} pages of proxies, after the grading card`;
+    if (missing.length) status += `. not found: ${missing.map(r => r.name).join(", ")}`;
+  }
+  $("#proxy-status").textContent = status;
+  $("#proxy-error").hidden = !proxy.error;
+  $("#proxy-error").textContent = proxy.error ?? "";
+
+  const basics = rows.filter(r => isBasicLand(r.card)).map(r => r.key);
+  const basicsOut = basics.length > 0 && basics.every(k => exclude.has(k));
+  $("#proxy-tools").hidden = pasting || !proxy.rows;
+  $("#proxy-tools").replaceChildren(
+    chip("skip basic lands", basicsOut, () => toggleExclude(basics, !basicsOut)),
+    chip("edit list", false, () => { proxy.editing = true; $("#proxy-list").value = card.list ?? ""; renderProxy(); }),
+  );
+
+  $("#proxy-rows").replaceChildren(...rows.flatMap(row => {
+    const els = [proxyRow(row, exclude.has(row.key))];
+    if (proxy.picking === row.key) els.push(pickerEl(row));
+    return els;
+  }));
+
+  $("#proxy-download").hidden = pasting || !items.length;
+  // The 1:1 rule: the pages exactly as they print, small scans standing in.
+  $("#proxy-pages").innerHTML = pasting ? "" : proxyPages(items).map(renderSheetSVG).join("");
+}
 
 // ── Render ──────────────────────────────────────────────────────────────────
 function cardStats(card) {
@@ -196,7 +425,7 @@ function cardStats(card) {
   };
 }
 
-const sheet = () => layoutSheet(state.cards.map(c => layoutCard(cardStats(c))), state.paper);
+const sheet = () => layoutSheet(state.cards.map(c => ({ prims: layoutCard(cardStats(c)) })), state.paper);
 
 function commit() {
   save();
@@ -250,6 +479,10 @@ function render() {
     : "";
 
   if (state.cards.length) $("#preview").innerHTML = renderSheetSVG(sheet());
+
+  // The proxy panel belongs to one deck; picking another closes it.
+  if (proxy.deck && proxy.deck !== card) closeProxy();
+  renderProxy();
 }
 
 restore();

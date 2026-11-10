@@ -77,6 +77,31 @@
       #editor { grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); align-items: start; }
       #preview-wrap { position: sticky; top: 24px; }
     }
+    /* ── Proxies ── */
+    .ghost {
+      width: 100%; min-height: 50px; background: transparent; color: var(--yellow);
+      border: 1px solid var(--yellow); font-weight: 700; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase;
+    }
+    .error { color: var(--red); font-size: 13px; line-height: 1.5; margin-top: 10px; }
+    .pr { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
+    /* 46 × 64: a card's own shape, and past the 44px tap floor both ways. */
+    .pr-thumb { flex: none; width: 46px; height: 64px; padding: 0; border: 1px solid var(--line); background: #000; }
+    .pr-thumb img, .pick img { display: block; width: 100%; height: auto; }
+    .pr-info { flex: 1; min-width: 0; font-size: 13px; line-height: 1.4; }
+    .pr-info > div:first-child { white-space: nowrap; overflow: hidden; text-overflow: ellipsis; }
+    .pr-sub { font-size: 11px; color: var(--dim); }
+    .pr.out .pr-thumb, .pr.out .pr-info { opacity: 0.4; }
+    .pr .chip { flex: none; min-width: 52px; }
+    .picker {
+      display: grid; grid-template-columns: repeat(auto-fill, minmax(84px, 1fr)); gap: 8px;
+      max-height: 60vh; overflow-y: auto; padding: 10px 0; font-size: 12px; color: var(--dim);
+      border-bottom: 1px solid var(--line);
+    }
+    .pick { padding: 0; background: transparent; border: 2px solid transparent; color: var(--dim); font-size: 11px; }
+    .pick.on { border-color: var(--yellow); color: var(--ink); }
+    .pick span { display: block; padding: 4px 0; }
+    #proxy-pages { display: grid; grid-template-columns: repeat(auto-fill, minmax(140px, 1fr)); gap: 10px; margin-top: 16px; }
+    #proxy-pages svg { display: block; width: 100%; height: auto; }
     .shout {
       border: 2px solid var(--yellow); padding: 16px; margin: 0 0 28px;
       font-size: 14px; line-height: 1.6; color: var(--dim);
@@ -170,6 +195,28 @@
           <div id="papers" class="row"></div>
           <button id="download" class="primary" type="button">download PDF</button>
           <p class="help">print at <strong>100% / actual size</strong>, not &ldquo;fit to page&rdquo;. the sheet has a 50&nbsp;mm bar to check it. cut on the marks.</p>
+        </section>
+
+        <!-- Proxies for the deck being edited: its grading card, then every
+             card in its list, 9 per page (mtgprint.net is the reference). -->
+        <section>
+          <p class="cap">proxies</p>
+          <button id="proxy-open" class="ghost" type="button">print this deck as proxies</button>
+          <div id="proxy" hidden>
+            <div id="proxy-paste" hidden>
+              <textarea id="proxy-list" rows="8" autocomplete="off" autocapitalize="off" spellcheck="false"
+                        placeholder="1 Sol Ring (C21) 263&#10;1 Arcane Signet&#10;…"></textarea>
+              <p class="help">paste the full list. on Moxfield: Export &rarr; Copy for MTGA keeps the printings you chose.</p>
+              <button id="proxy-use" class="primary" type="button">use this list</button>
+            </div>
+            <p id="proxy-status" class="help" aria-live="polite"></p>
+            <div id="proxy-error" class="error" role="alert" hidden></div>
+            <div id="proxy-tools" class="row" style="margin:10px 0"></div>
+            <div id="proxy-rows"></div>
+            <div id="proxy-pages"></div>
+            <button id="proxy-download" class="primary" type="button" hidden>download deck + proxies PDF</button>
+            <p class="help">proxies are for playtesting. same rule as the stat card: print at 100%.</p>
+          </div>
         </section>
       </div>
     </div>
