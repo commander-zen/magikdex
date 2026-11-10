@@ -1,5 +1,39 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-10 (cont. 6) — ✅ **Bracket Card: three pages, one job each** (`98eb0cc`, live)
+
+Ben rejected the expanders ("confusing"). He wants separate pages for the sheet and for play test cards, and the game style and play style tags are "a must", not a subfield.
+
+- ✅ **Card** (`index.html` + `app.js`):
+  - Add a deck, get its Bracket Card. Game style and play style sit right under it.
+  - Then paper, and a Download button that stays on screen while you scroll.
+  - Two "More with this deck" rows: "Add it to a sheet of 9" (copies the deck there and opens that page; the same grade isn't added twice) and "Print play test cards".
+  - magikdex handoff links still land here.
+- ✅ **Sheet of 9** (`sheet.html` + `sheet.js`):
+  - Has its own list (`deck-stats:sheet:v1`, the same key as before, so old sheets survive).
+  - Add decks to it. Tap a deck to set its styles; each closed row still shows them ("cEDH · reanimator").
+  - Then the 3×3 preview, paper and download.
+- ✅ **Play test** (`playtest.html` + `playtest.js`):
+  - Steps: 1 your deck, 2 its Bracket Card + styles, 3 choose cards/printings, 4 print.
+  - Shares "your deck" (`deck-stats:card:v1`) with the card page; "Use a different deck" replaces it.
+- ✅ **Shared code:** `common.js` holds the deck form, style editor, storage, paper and card helpers; `style.css` holds the look.
+- ✅ **Mobile-first restyle (NN/g):**
+  - one column, 16px sans, sentence case
+  - tap targets 44px or larger
+  - the three pages always visible as tabs
+  - a link/list switch
+  - one yellow button per screen, with Download in thumb reach
+  - surfaces instead of borders
+- ✅ **Verified at 375 px:**
+  - Card → tags → sheet carries the tags; a second deck joins.
+  - The play test page pastes a list and lays out 5 cards + the turned Bracket Card, with "not found" reported.
+  - Change/keep deck works; no sideways scroll.
+  - Production serves all three pages.
+- **Not verified:** a physical print from the new pages; Ben's real phone.
+
+### ⚠️ Known Issues — new
+- A sheet saved on Ben's phone before this lives on the Sheet page now. The Card page starts empty until he makes a card.
+
 ## 2026-11-10 (cont. 5) — ✅ **Bracket Card: one deck in, one card out** (`a452f1f`, live)
 
 Ben: "the initial user flow [should] be super no duh… puts in a link or pastes in a decklist and gets a [Bracket Card]". More decks and play test cards stay hidden until asked for.
@@ -1863,7 +1897,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**, latest): **WALK THE WHOLE FLOW ON A PHONE, THEN PRINT ONE DECK.** The site is now Bracket Card, one deck → one card by default, with play test cards and several-decks behind expanders (`a452f1f`). Walk it as a first-time visitor on a phone, then print one deck with play test cards at 100% and check that the turned Bracket Card cuts and sleeves like the rest. Then decide whether to rename the Vercel URL (see Known Issues). Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens the Bracket Card site in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
+Priority (**2026-11-10**, latest): **WALK THE WHOLE FLOW ON A PHONE, THEN PRINT ONE DECK.** The site is now Bracket Card in three pages: Card, Sheet of 9, Play test (`98eb0cc`). Walk all three as a first-time visitor on a phone, then print one deck with play test cards at 100% and check that the turned Bracket Card cuts and sleeves like the rest. Then decide whether to rename the Vercel URL (see Known Issues). Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens the Bracket Card site in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
 
 Priority (**2026-10-01**): **PRINT A REAL DECK STATS SHEET.** Bars chosen, bulk print live. Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
