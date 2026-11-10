@@ -1,5 +1,26 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-10 (cont.) — ✅ **deckStats: print a deck as proxies** (`6fef425`, live)
+
+Ben: grade 4 decks (multi-deck sheets already existed: 9 grading cards per page), then print one deck as a proxy set with its grading card. Reference: **mtgprint.net**, which Ben uses today. **Ben dropped custom art and the "UB Proxy" frame:** proxies are official Scryfall printings only, picked per card. That replaces the original "Alter mode" item.
+
+- ✅ **Proxy panel** per deck ("print this deck as proxies"). A pasted-list deck keeps its list (`card.list`). A linked deck asks for one (Moxfield → Export → Copy for MTGA), because our server can't read Moxfield.
+- ✅ **Card rows:** picture + qty + in/out; "skip basic lands"; "edit list". Tap the picture for the **printing picker**: every paper printing (`oracleid:… game:paper`, newest first, capped at 400) as images; tap to choose. Exclusions + picks persist in localStorage with the deck (`card.proxy = { exclude, picks }`).
+- ✅ **One PDF:** page 1 is the grading card (landscape, with the 50 mm ruler), then 63×88 mm proxies 9 per portrait page with crop marks, no ruler. Each scan is embedded once.
+- ✅ New `deck-stats/proxies.js`: list parser (ported from magikdex `moxfieldImport.js` but KEEPS `(SET) 123`; skips sideboard/maybeboard/tokens; merges duplicate lines), Scryfall resolve, printings, image fetch. `card.js`: `layoutSheet(items, paper, { card, ruler })`; `renderSheetPDF` → multi-page `renderPDF(sheets, images)`.
+- ✅ **Black corners** (mtgprint's option, applied automatically): Scryfall scans have white rounded corners, so black-bordered printings get 2.5 mm ink squares at each corner. Borderless and white-bordered printings are left alone.
+- ✅ Verified against live Scryfall at 375 px with a stubbed analyzer:
+  - **Resolve:** a missing commander is added; `(SET) 123` is kept; a bad set falls back to the name; a DFC gives 2 faces; a fake card is listed as not found.
+  - **Panel:** exclude, skip basics, picker (Sol Ring: 141 paper printings) and pick persistence across a reload all work; linked decks get the paste box; the panel closes when you switch decks.
+  - **PDF (rasterized with pdf.js):** landscape page 1 + 5 portrait pages, 42 cards in 2.1 MB; a 3-card row measures 188.9 mm (expected 189); corners are ink.
+  - **Not verified:** a full 100-card print measured on paper.
+
+### ⚠️ Known Issues — new
+- **Scryfall `/cards/collection` misses full "A // B" names** ("Fire // Ice", "Esika… // The Prismatic Bridge") but finds the front face. `proxies.js` always asks by front face, then up to 20 fuzzy lookups for anything still missing.
+- **Node's default fetch User-Agent gets a 400 from Scryfall**; browsers are fine. Scripts that call Scryfall from node must set a User-Agent.
+- **App Store:** printing official card scans is fine on the free web tool, but a review risk in the 99¢ app. Keep proxies out of the store build until that's decided.
+- Not built (mtgprint options, only if Ben asks): bleed, gap, decklist page, "Playtest Card" watermark.
+
 ## 2026-11-10 — ✅ **deckStats: the Commander Card becomes a dated grade**
 
 Ben's problem: change one card in a deck and the printed card is wrong. Power + bracket mostly survive small edits; **the five bars don't**. Decision: a printed card is **a grade of one exact list on one date**, proven by our server + ScryCheck, and its **QR points at the decklist** (Moxfield/Archidekt), which stays current when the owner edits it.
@@ -1759,7 +1780,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**): **PRINT ONE DATED COMMANDER CARD AND SCAN ITS QR WITH A PHONE.** The dated card + loud ScryCheck credit are live (`817eb07`). Run a real Moxfield deck through https://deck-stats-mauve.vercel.app, print at 100%, check the QR opens the live list. Tell Adam about the QR move. Next in the pasted list: proxy deck + Alter mode, then Profile, polish pass, App Store checklist.
+Priority (**2026-11-10**, later): **BEN GRADES HIS 4 DECKS AND PRINTS ONE AS PROXIES.** Both are live at https://deck-stats-mauve.vercel.app: dated grading card (`817eb07`) and proxy printing (`6fef425`). Print at 100%, measure the 50 mm bar and one proxy (63×88), scan a grading card's QR with a phone. Tell Adam about the QR move. Next in the pasted list: Profile, then polish pass, then App Store checklist (decide whether proxies stay out of the store build).
 
 Priority (**2026-10-01**): **PRINT A REAL DECK STATS SHEET.** Bars chosen, bulk print live. Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
