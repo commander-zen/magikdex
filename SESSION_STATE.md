@@ -1,5 +1,38 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-10 (cont. 7) — ✅ **magikdex: Landing page, wordmark explainer, pips + deck names replace sprites** (`1c7005c`)
+
+Ben: the app "still feels clunky", the chibi sprites are "crazy confusing", and he wants a landing page and an explainer behind the name.
+
+- ✅ **Landing is the front door** (`src/pages/Landing.jsx`). It has two jobs:
+  - "Swipe through any card": a search box with Scryfall-syntax example chips. **Start swiping** is the one primary button and lands straight on the carousel (new `initialQuery` prop on Brew).
+  - A big **Your dex** card at thumb height. It shows the brew count and the last-opened brew's pips, name and n/100.
+- ✅ **Landing and dex share a sliding track** in `App.jsx`. It slides with `margin-left`, not `transform`, so the dex's fixed sheets aren't trapped. The dex has a visible back chevron. The search glyph moved off the Box header onto Landing.
+- ✅ **Wordmark explainer:** `Wordmark.jsx` (a button with an info glyph) opens `AboutSheet.jsx`. The sheet covers what magikdex is, the three swipe gestures, and that it is not a Moxfield/Scryfall replacement. It closes on Got it, a scrim tap, Escape or a drag down.
+- ✅ **Sprites gone.** Box tiles are now `ColorPips` (CSS dots, offline-safe) plus the deck name, in a **2×3** grid (was 4×2). The component, mapper, atlas, `scripts/sprites/`, the source PNGs and `build:sprites` are all removed; they're still in git history.
+- ✅ **Deck names:** `decks.build_name` already existed (no migration). `deckDisplayName()` and `renameDeck()` live in `lib/legendDeck.js`. A visible name row under the card art has a pencil to rename and an **Open brew** primary button. Renaming creates the deck row if it's missing; an empty name reverts to the legend's name. The long-press sheet also has rename.
+- ✅ **Motion pass** (`index.html`):
+  - `.press` tap feedback
+  - sliding screens, sheets that slide up, takeover fade-in, an animated selection ring, a box-page fade
+  - all of it off under `prefers-reduced-motion`
+- ✅ **Browse carousel now has a back chevron** (`SwipeScreen` `onExit`). Before, the only way out was the hardware Back, and iOS has none. It takes the same rung: carousel → search (query prefilled) → Landing.
+- ✅ **Verified in the browser at 375×812 and 375×667, as a fresh anonymous user on the live DB:**
+  - Landing and the explainer render correctly.
+  - Landing → dex → add Slimefoot shows pips + name.
+  - Rename to "Saproling Swarm" survives a reload and shows on the Landing card.
+  - Tiles are 175×60 at 667.
+  - `t:dragon c:r` lands on the carousel; back → search → Landing.
+  - Open brew → deck view; backing out returns to the dex.
+  - No sideways scroll. Lint has 0 errors; the build is clean.
+- **Not verified:** a real device, the reduced-motion path, and the long-press rename (built, not clicked).
+
+### ⚠️ Known Issues — new
+- **Deck name isn't shown inside Brew.** The deck view and swipe header still say the legend's name, because that string doubles as the commander-card lookup there. If Ben wants the custom name inside the brew, add it as a separate subtitle.
+- **Leaving a browse loses kept cards** unless you SAVE BREW. This is unchanged behaviour, but the new back chevron makes leaving easier. Consider a "you kept N — save?" prompt.
+- **Native haptics** would make swipes feel better. That needs `@capacitor/haptics` and a native rebuild, so it's a backlog item.
+- A test anon account on the live DB holds one legend ("Slimefoot", renamed "Saproling Swarm"). It's disposable.
+- Landing re-reads legends every time you return from the dex. It's cheap, but it is a second legends query on that path.
+
 ## 2026-11-10 (cont. 6) — ✅ **Bracket Card: three pages, one job each** (`98eb0cc`, live)
 
 Ben rejected the expanders ("confusing"). He wants separate pages for the sheet and for play test cards, and the game style and play style tags are "a must", not a subfield.
@@ -1897,7 +1930,9 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**, latest): **WALK THE WHOLE FLOW ON A PHONE, THEN PRINT ONE DECK.** The site is now Bracket Card in three pages: Card, Sheet of 9, Play test (`98eb0cc`). Walk all three as a first-time visitor on a phone, then print one deck with play test cards at 100% and check that the turned Bracket Card cuts and sleeves like the rest. Then decide whether to rename the Vercel URL (see Known Issues). Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens the Bracket Card site in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
+Priority (**2026-11-10**, latest): **WALK MAGIKDEX'S NEW FRONT DOOR ON A PHONE.** Landing → explainer (tap the wordmark) → Start swiping with a Scryfall query → back out, then Your dex → rename a brew → Open brew (`1c7005c`). Judge the swipe feel and motion on device, and decide whether the custom deck name should show inside Brew (see Known Issues).
+
+Priority (**2026-11-10**, earlier): **WALK THE WHOLE FLOW ON A PHONE, THEN PRINT ONE DECK.** The site is now Bracket Card in three pages: Card, Sheet of 9, Play test (`98eb0cc`). Walk all three as a first-time visitor on a phone, then print one deck with play test cards at 100% and check that the turned Bracket Card cuts and sleeves like the rest. Then decide whether to rename the Vercel URL (see Known Issues). Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens the Bracket Card site in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
 
 Priority (**2026-10-01**): **PRINT A REAL DECK STATS SHEET.** Bars chosen, bulk print live. Live and working end to end at https://deck-stats-mauve.vercel.app (link + paste-list both). Then run a real deck through it, print at 100%, measure the 50 mm bar, then sleeve it.
 
