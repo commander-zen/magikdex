@@ -49,6 +49,7 @@ Ben rejected the expanders ("confusing"). He wants separate pages for the sheet 
 - ✅ **Play test** (`playtest.html` + `playtest.js`):
   - Steps: 1 your deck, 2 its Bracket Card + styles, 3 choose cards/printings, 4 print.
   - Shares "your deck" (`deck-stats:card:v1`) with the card page; "Use a different deck" replaces it.
+  - **Tokens** (Ben, 2026-11-10): "Tokens this deck makes" under the card rows, from each card's Scryfall `all_parts` (component `token`, emblems included), one row per token **oracle id** (two Soldiers with different P/T stay apart; ten Treasure makers are one row). 1 of each by default with − n + (0 = out, max 20), a "Skip tokens" chip that keeps the counts, tap the art for printings. Tokens whose makers are all left out disappear. Saved as `card.proxy.tokens` / `tokensOff`, picks share `card.proxy.picks` under `token:<oracle_id>` keys. They print after the cards. Copy tokens have no token card. ⚠️ Verified only against a stubbed Scryfall (the cloud sandbox blocks api.scryfall.com): check one real deck's token list on the live site.
 - ✅ **Shared code:** `common.js` holds the deck form, style editor, storage, paper and card helpers; `style.css` holds the look.
 - ✅ **Mobile-first restyle (NN/g):**
   - one column, 16px sans, sentence case

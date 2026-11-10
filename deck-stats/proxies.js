@@ -131,6 +131,63 @@ export async function resolveRows(rows, picks = {}) {
   return rows.map((row, i) => ({ ...row, card: found.get(i) ?? null }));
 }
 
+// ── Tokens ──────────────────────────────────────────────────────────────────
+// What the deck's cards make, from Scryfall's `all_parts` (component "token":
+// Krenko's Goblin, Dockside's Treasure, emblems). Copy tokens ("a token that's
+// a copy of…") have no token card, so nothing prints for them.
+//
+// One row per token by ORACLE id, never by name: a 1/1 Soldier and a 2/2
+// Soldier share a name and are different cards, while ten cards that each make
+// a Treasure (each pointing at a different printing) are one Treasure row.
+// `from` names the cards that make it. qty is filled in by the page (1 each
+// unless the owner changed it).
+export const tokenKey = card => `token:${card.oracle_id ?? card.id}`;
+
+export async function tokensFor(rows, picks = {}) {
+  const makers = new Map();   // token printing id → names of the cards that make it
+  for (const row of rows) {
+    if (!row.card) continue;
+    for (const part of row.card.all_parts ?? []) {
+      if (part.component !== "token" || part.id === row.card.id) continue;
+      if (!makers.has(part.id)) makers.set(part.id, new Set());
+      makers.get(part.id).add(row.name);
+    }
+  }
+  if (!makers.size) return [];
+
+  const ids = [...makers.keys()];
+  const fetched = new Map();
+  const fetchIds = async list => {
+    for (let i = 0; i < list.length; i += 75) {
+      for (const card of await collection(list.slice(i, i + 75).map(id => ({ id })))) fetched.set(card.id, card);
+      await pause(100);
+    }
+  };
+  await fetchIds(ids);
+
+  const byKey = new Map();
+  for (const id of ids) {
+    const card = fetched.get(id);
+    if (!card) continue;
+    const key = tokenKey(card);
+    const seen = byKey.get(key);
+    if (seen) { makers.get(id).forEach(n => seen.from.add(n)); continue; }
+    byKey.set(key, { key, name: card.name, card, from: new Set(makers.get(id)), qty: 1, set: null, cn: null });
+  }
+
+  // The printing the owner picked for a token replaces the default one.
+  const picked = [...byKey.values()].filter(t => picks[t.key] && picks[t.key] !== t.card.id);
+  if (picked.length) {
+    try {
+      await fetchIds(picked.map(t => picks[t.key]));
+      for (const t of picked) t.card = fetched.get(picks[t.key]) ?? t.card;
+    } catch { /* keep the default printings */ }
+  }
+  return [...byKey.values()]
+    .map(t => ({ ...t, from: [...t.from] }))
+    .sort((a, b) => a.name.localeCompare(b.name));
+}
+
 // Every paper printing of a card, newest first. Fetched only when the owner
 // opens the picker for that card; Sol Ring alone has a few hundred.
 export async function printingsOf(card) {

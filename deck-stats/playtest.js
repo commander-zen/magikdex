@@ -1,20 +1,20 @@
 // The play test page (playtest.html): print one deck as play test cards,
 // mtgprint-style (Ben's reference is mtgprint.net; see proxies.js). One PDF:
 // every card in the list at 63 × 88 mm, 9 per page, with the deck's Bracket
-// Card riding in the first slot.
+// Card riding in the first slot and the tokens the deck makes after its cards.
 //
 // It works on "your deck", the same one the card page shows. The resolved
 // Scryfall cards live only in memory (refetched after a refresh); what is
 // saved with the deck is its list, the cards left out and the printings picked.
 import { layoutCard, layoutSheet, renderSheetSVG, renderPDF, MAX_CARDS, PROXY_MM } from "./card.js";
-import { parseList, resolveRows, printingsOf, proxyItems, fetchImages, faces, isBasicLand, nameKey } from "./proxies.js";
+import { parseList, resolveRows, tokensFor, printingsOf, proxyItems, fetchImages, faces, isBasicLand, nameKey } from "./proxies.js";
 import {
   $, KEYS, load, store, loadPaper, fontsReady, chip, slug, cardStats, cardSVG,
   paperPicker, deckForm, styleEditor,
 } from "./common.js";
 
 const state = { card: load(KEYS.deck)?.card ?? null, paper: loadPaper(), changing: false };
-const proxy = { rows: null, busy: false, error: null, editing: false, picking: null, prints: null };
+const proxy = { rows: null, tokens: null, busy: false, error: null, editing: false, picking: null, prints: null };
 
 const save = () => store(KEYS.deck, { card: state.card });
 function commit() {
@@ -42,8 +42,21 @@ const renderStyles = styleEditor($("#style"), { get: () => state.card, onChange:
 // ── 3. The cards ────────────────────────────────────────────────────────────
 function prefs(card) {
   card.proxy ??= { exclude: [], picks: {} };
+  card.proxy.tokens ??= {};   // token key → how many to print (1 when unset)
   return card.proxy;
 }
+
+const MAX_TOKENS = 20;
+const tokenCount = (card, key) => prefs(card).tokens[key] ?? 1;
+
+// The tokens worth showing: those made by at least one card that prints. Leave
+// out Krenko and his Goblins go with him.
+function liveTokens(card, exclude) {
+  return (proxy.tokens ?? []).filter(t => t.from.some(n => !exclude.has(nameKey(n))));
+}
+// "Skip tokens" is its own switch, so turning it back on keeps the counts.
+const tokenRowsToPrint = (card, exclude) => prefs(card).tokensOff ? [] :
+  liveTokens(card, exclude).map(t => ({ ...t, qty: tokenCount(card, t.key) })).filter(t => t.qty > 0);
 
 // The commander has to print too, and a pasted list often leaves it out,
 // since the deck form asks for the commander in its own field.
@@ -60,20 +73,27 @@ function deckRows(card) {
 // (a deck added by link: our server can't read its list).
 async function start() {
   const card = state.card;
-  Object.assign(proxy, { rows: null, busy: false, error: null, editing: !card?.list, picking: null, prints: null });
+  Object.assign(proxy, { rows: null, tokens: null, busy: false, error: null, editing: !card?.list, picking: null, prints: null });
   $("#proxy-list").value = card?.list ?? "";
   render();
   if (!card?.list) return;
   proxy.busy = true;
   render();
+  let rows = null;
   try {
-    const rows = await resolveRows(deckRows(card), prefs(card).picks);
+    rows = await resolveRows(deckRows(card), prefs(card).picks);
     if (state.card === card) proxy.rows = rows;
   } catch (err) {
     if (state.card === card) proxy.error = err.message;
   } finally {
     if (state.card === card) { proxy.busy = false; render(); }
   }
+  if (!rows || state.card !== card) return;
+  // The cards show first; the tokens follow. A token lookup that fails costs
+  // the tokens, never the deck.
+  let tokens = [];
+  try { tokens = await tokensFor(rows, prefs(card).picks); } catch { /* print without tokens */ }
+  if (state.card === card && proxy.rows === rows) { proxy.tokens = tokens; render(); }
 }
 
 $("#proxy-use").addEventListener("click", () => {
@@ -109,10 +129,7 @@ function toggleExclude(keys, out) {
   commit();
 }
 
-function proxyRow(row, excluded) {
-  const el = document.createElement("div");
-  el.className = excluded || !row.card ? "pr out" : "pr";
-
+function thumbEl(row) {
   const thumb = document.createElement("button");
   thumb.type = "button";
   thumb.className = "pr-thumb";
@@ -127,6 +144,13 @@ function proxyRow(row, excluded) {
   } else {
     thumb.disabled = true;
   }
+  return thumb;
+}
+
+function proxyRow(row, excluded) {
+  const el = document.createElement("div");
+  el.className = excluded || !row.card ? "pr out" : "pr";
+  const thumb = thumbEl(row);
 
   const info = document.createElement("div");
   info.className = "pr-info";
@@ -142,6 +166,47 @@ function proxyRow(row, excluded) {
     `${excluded ? "Include" : "Leave out"} ${row.name}`);
   toggle.disabled = !row.card;
   el.append(thumb, info, toggle);
+  return el;
+}
+
+function setTokenCount(key, n) {
+  prefs(state.card).tokens[key] = Math.max(0, Math.min(MAX_TOKENS, n));
+  commit();
+}
+
+// A token row: its art (tap for printings), what makes it, and − n + where 0
+// leaves it out.
+function tokenRow(row) {
+  const n = tokenCount(state.card, row.key);
+  const el = document.createElement("div");
+  el.className = n && !prefs(state.card).tokensOff ? "pr" : "pr out";
+
+  const info = document.createElement("div");
+  info.className = "pr-info";
+  const name = document.createElement("div");
+  name.className = "pr-name";
+  name.textContent = row.name;
+  const sub = document.createElement("div");
+  sub.className = "pr-sub";
+  // P/T tells apart two tokens with one name (a 1/1 and a 2/2 Soldier).
+  const pt = row.card.power != null ? `${row.card.power}/${row.card.toughness} · ` : "";
+  sub.textContent = `${pt}from ${row.from.join(", ")}`;
+  info.append(name, sub);
+
+  const step = document.createElement("div");
+  step.className = "stepper";
+  const minus = chip("−", false, () => setTokenCount(row.key, n - 1), `One fewer ${row.name}`);
+  minus.disabled = n <= 0;
+  const count = document.createElement("span");
+  count.className = "step-n";
+  count.textContent = String(n);
+  count.setAttribute("aria-label", `${n} ${row.name} to print`);
+  const plus = chip("+", false, () => setTokenCount(row.key, n + 1), `One more ${row.name}`);
+  plus.disabled = n >= MAX_TOKENS;
+  step.append(minus, count, plus);
+  if (prefs(state.card).tokensOff) [minus, plus].forEach(b => { b.disabled = true; });
+
+  el.append(thumbEl(row), info, step);
   return el;
 }
 
@@ -188,7 +253,10 @@ function pages(card, items) {
 }
 
 const renderPaper = paperPicker($("#papers"), () => state.paper, p => { state.paper = p; render(); });
-const itemsNow = () => proxyItems(proxy.rows ?? [], new Set(prefs(state.card).exclude));
+function itemsNow() {
+  const exclude = new Set(prefs(state.card).exclude);
+  return [...proxyItems(proxy.rows ?? [], exclude), ...proxyItems(tokenRowsToPrint(state.card, exclude), new Set())];
+}
 
 $("#download").addEventListener("click", async () => {
   const card = state.card;
@@ -228,14 +296,19 @@ function render() {
   $("#proxy-paste").hidden = !pasting;
   const rows = pasting ? [] : (proxy.rows ?? []);
   const exclude = new Set(prefs(card).exclude);
-  const items = proxyItems(rows, exclude);
+  const cardItems = proxyItems(rows, exclude);
+  const tokens = pasting ? [] : liveTokens(card, exclude);
+  const tokenItems = pasting ? [] : proxyItems(tokenRowsToPrint(card, exclude), new Set());
+  const items = [...cardItems, ...tokenItems];
   const missing = rows.filter(r => !r.card);
   const pageCount = Math.ceil((items.length + 1) / MAX_CARDS);
 
   let status = "";
   if (proxy.busy) status = "Finding your cards on Scryfall…";
   else if (proxy.rows && !pasting) {
-    status = `${items.length} play test cards + the Bracket Card · ${pageCount} ${pageCount === 1 ? "page" : "pages"}`;
+    const tokenPart = tokenItems.length ? ` + ${tokenItems.length} ${tokenItems.length === 1 ? "token" : "tokens"}` : "";
+    status = `${cardItems.length} play test cards${tokenPart} + the Bracket Card · ${pageCount} ${pageCount === 1 ? "page" : "pages"}`;
+    if (!proxy.tokens) status += " · finding tokens…";
     // Three names at most: each one also has its own "not found" row below.
     if (missing.length) {
       const names = missing.slice(0, 3).map(r => r.name).join(", ");
@@ -249,12 +322,21 @@ function render() {
   const basics = rows.filter(r => isBasicLand(r.card)).map(r => r.key);
   const basicsOut = basics.length > 0 && basics.every(k => exclude.has(k));
   $("#proxy-tools").hidden = pasting || !proxy.rows;
+  const tokensOut = Boolean(prefs(card).tokensOff);
+  const toggleTokens = () => { prefs(card).tokensOff = !tokensOut; commit(); };
   $("#proxy-tools").replaceChildren(
     chip("Skip basic lands", basicsOut, () => toggleExclude(basics, !basicsOut)),
+    ...(tokens.length ? [chip("Skip tokens", tokensOut, toggleTokens)] : []),
     chip("Edit list", false, () => { proxy.editing = true; $("#proxy-list").value = card.list ?? ""; render(); }),
   );
   $("#proxy-rows").replaceChildren(...rows.flatMap(row => {
     const els = [proxyRow(row, exclude.has(row.key))];
+    if (proxy.picking === row.key) els.push(pickerEl(row));
+    return els;
+  }));
+  $("#token-block").hidden = !tokens.length;
+  $("#token-rows").replaceChildren(...tokens.flatMap(row => {
+    const els = [tokenRow(row)];
     if (proxy.picking === row.key) els.push(pickerEl(row));
     return els;
   }));
