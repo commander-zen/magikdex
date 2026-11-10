@@ -325,7 +325,7 @@ export function layoutCard(stats) {
 //
 // The same sheet prints PROXIES (2026-11-10): 63 × 88 mm cards upright, so
 // the page turns PORTRAIT — 189 × 264 mm also clears Letter and A4. An item
-// is either { prims } (a grading card, drawn) or { img, thumb } (a Scryfall
+// is either { prims } (a Bracket Card, drawn) or { img, thumb } (a Scryfall
 // scan, placed whole).
 export const MAX_CARDS = 9;
 const COLS = 3;
@@ -437,7 +437,7 @@ export function renderSheetSVG(sheet) {
 
 // ── Renderer 2: the print PDF ───────────────────────────────────────────────
 // One page per sheet; a page is landscape or portrait by its own size, so the
-// grading card and the proxies share one file. `images` maps each proxy's
+// Bracket Card and the proxies share one file. `images` maps each proxy's
 // scan URL to its bytes (proxies.js fetchImages); the URL doubles as the
 // image's PDF alias, so a card printed thirty times is embedded once.
 export function renderPDF(sheets, images = new Map()) {

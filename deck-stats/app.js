@@ -178,7 +178,7 @@ $("#download").addEventListener("click", () => {
 
 // ── Proxies: print the selected deck, mtgprint-style ────────────────────────
 // Ben's reference is mtgprint.net (see proxies.js). One PDF: the deck's
-// grading card first, then every card in its list at 63 × 88 mm, 9 per page.
+// Bracket Card first, then every card in its list at 63 × 88 mm, 9 per page.
 // The resolved Scryfall cards live only in memory (refetched after a
 // refresh); what is saved with the deck is its list, the cards left out and
 // the printings picked.
@@ -376,7 +376,7 @@ function renderProxy() {
   let status = "";
   if (proxy.busy) status = "finding your cards on Scryfall…";
   else if (proxy.rows && !pasting) {
-    status = `${items.length} cards · ${Math.ceil(items.length / MAX_CARDS)} pages of proxies, after the grading card`;
+    status = `${items.length} cards · ${Math.ceil(items.length / MAX_CARDS)} pages of proxies, after the Bracket Card`;
     if (missing.length) status += `. not found: ${missing.map(r => r.name).join(", ")}`;
   }
   $("#proxy-status").textContent = status;
