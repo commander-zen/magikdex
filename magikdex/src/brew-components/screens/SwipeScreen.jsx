@@ -49,7 +49,7 @@ export default function SwipeScreen({
   onEditQuery,
   handMode = false, onHandCut, onHandUncut,
   cardTags, onToggleTag,
-  browse = false,
+  browse = false, onExit,
 }) {
   // Cards already sorted into a pile/decklist leave the carousel entirely —
   // decided cards never reappear when browsing back.
@@ -808,6 +808,26 @@ export default function SwipeScreen({
                   browse (no commander, no deck — how many cards you've kept
                   and a tap to go read them). UNDO and the search spyglass
                   belong to both. */}
+              {/* A browse has no deck list to climb back to, and iOS has no
+                  hardware Back — so it gets a visible way out, the same rung
+                  the system Back takes (2026-11-10, Landing made browse a
+                  front door). */}
+              {browse && onExit && (
+                <button
+                  onClick={onExit}
+                  aria-label="Back"
+                  className="press"
+                  style={{
+                    width: 44, height: 44, flexShrink: 0,
+                    display: "flex", alignItems: "center", justifyContent: "center",
+                    background: "transparent", border: "none", padding: 0,
+                    color: "rgba(255,255,255,0.85)",
+                    cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: 22 }}>chevron_left</span>
+                </button>
+              )}
               {browse ? (
                 <button
                   onClick={onGoToPile}

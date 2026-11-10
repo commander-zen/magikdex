@@ -41,6 +41,33 @@ export function resolveLegendDeck(decks) {
   );
 }
 
+// The name a brew goes by: the user's own deck name (decks.build_name) when
+// they've set one, else the legend's name. Every surface that names a deck
+// reads it from here so a rename shows up everywhere at once.
+export function deckDisplayName(legend, deck) {
+  const custom = deck?.build_name?.trim();
+  return custom || legend?.name || "";
+}
+
+// Rename a legend's brew. The deck row is created lazily elsewhere, so a
+// legend that has never been opened may not have one yet — create it here
+// rather than dropping the name. An empty name clears back to the legend's.
+export async function renameDeck(legend, deckId, name) {
+  const build_name = name.trim() || null;
+  if (deckId) {
+    const { error } = await supabase.from("decks").update({ build_name }).eq("id", deckId);
+    if (error) throw error;
+    return deckId;
+  }
+  const { data, error } = await supabase
+    .from("decks")
+    .insert({ legend: legend.name, legend_id: legend.id, build_name, status: "Active" })
+    .select("id")
+    .single();
+  if (error) throw error;
+  return data.id;
+}
+
 // One door for creating-or-matching a legend row. Names are unique PER USER
 // after migration 013 (user_id defaults to auth.uid() server-side, so it's
 // never sent from here); the legacy "name" conflict target is retried when

@@ -1,12 +1,15 @@
 import { useEffect, useRef, useState } from "react";
 import { useTheme } from "./theme/ThemeContext";
 import Home from "./pages/Home";
+import Landing from "./pages/Landing";
+import AboutSheet from "./components/AboutSheet";
 import Brew from "./pages/Brew";
 import { supabase } from "./lib/supabase.js";
 
-// One concern: the Box is the root and the only home. There are no tabs — the
-// root is a single scrolling surface (Home), and brewing opens Brew as a
-// full-screen takeover over it.
+// Two root screens side by side on one sliding track: Landing (search-to-swipe,
+// or go to your dex) and the dex (Home, the Box). Brewing and browsing open
+// Brew as a full-screen takeover over both. The wordmark on either root screen
+// opens the "what is magikdex" sheet.
 
 // UAT batch 2, item 5 — the active brew session is persisted so backgrounding
 // (which reloads the Capacitor WebView) resumes the session instead of dumping
@@ -56,7 +59,13 @@ export default function App() {
   // carousel. Deliberately NOT persisted the way an active session is — a brew
   // is a thing you are building and must survive a WebView reload; a browse is
   // a thing you are doing, and resuming it would be resuming a scroll position.
+  // false, or { query } — the Landing search box's text ("" opens the search
+  // screen, anything else lands straight on the carousel).
   const [browsing, setBrowsing] = useState(false);
+  // Which root screen is showing. Always opens on Landing; an active brew
+  // session still resumes over it.
+  const [screen, setScreen] = useState("landing");
+  const [aboutOpen, setAboutOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -125,21 +134,52 @@ export default function App() {
       background: theme.base,
       overflow: "hidden",
     }}>
-      <Home
-        onLaunchBrew={handleLaunchBrew}
-        onBrowse={() => setBrowsing(true)}
-        reloadSignal={reloadSignal}
-      />
+      {/* The two root screens on one track; the inactive one is inert so
+          focus and taps can't reach it while it's slid off-screen.
+          ⚠️ Slides with margin-left, NOT transform: a transformed ancestor
+          becomes the containing block for position:fixed, which would pin the
+          dex's sheets (settings, long-press, add legend) to the 200%-wide
+          track instead of the screen. */}
+      <div
+        className="screen-track"
+        style={{
+          display: "flex", width: "200%", height: "100%",
+          marginLeft: screen === "dex" ? "-100%" : 0,
+        }}
+      >
+        <div style={{ width: "50%", height: "100%" }} inert={screen !== "landing"}>
+          <Landing
+            onSearch={q => setBrowsing({ query: q })}
+            onOpenDex={() => setScreen("dex")}
+            onAbout={() => setAboutOpen(true)}
+            reloadSignal={reloadSignal}
+            active={screen === "landing"}
+          />
+        </div>
+        <div style={{ width: "50%", height: "100%" }} inert={screen !== "dex"}>
+          <Home
+            onLaunchBrew={handleLaunchBrew}
+            onBack={() => setScreen("landing")}
+            onAbout={() => setAboutOpen(true)}
+            reloadSignal={reloadSignal}
+          />
+        </div>
+      </div>
 
-      {/* A real session always wins: if one is open the Box (and its search
-          glyph) is behind a takeover and unreachable anyway. */}
+      {/* A real session always wins: if one is open both root screens are
+          behind a takeover and unreachable anyway. */}
       {(brewSession || browsing) && (
-        <Brew
-          session={brewSession}
-          browse={browsing && !brewSession}
-          onSessionDone={handleBrewSessionDone}
-        />
+        <div className="takeover-in" style={{ position: "fixed", inset: 0, zIndex: 100 }}>
+          <Brew
+            session={brewSession}
+            browse={Boolean(browsing) && !brewSession}
+            initialQuery={browsing?.query ?? ""}
+            onSessionDone={handleBrewSessionDone}
+          />
+        </div>
       )}
+
+      <AboutSheet open={aboutOpen} onClose={() => setAboutOpen(false)} />
     </div>
   );
 }

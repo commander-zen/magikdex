@@ -14,8 +14,7 @@
     "ingest:cards": "node scripts/ingest-cards.mjs",
     "ingest:tags": "node scripts/ingest-tags.mjs",
     "ingest:legend-tags": "node scripts/ingest-legend-tags.mjs",
-    "ingest:legend-edhrec": "node scripts/ingest-legend-edhrec.mjs",
-    "build:sprites": "node scripts/sprites/build-atlas.mjs"
+    "ingest:legend-edhrec": "node scripts/ingest-legend-edhrec.mjs"
   },
   "dependencies": {
     "@capacitor/android": "^8.4.1",

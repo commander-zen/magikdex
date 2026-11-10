@@ -2,24 +2,24 @@ import { useEffect, useRef, useState } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import { supabase } from "../lib/supabase";
 import { fetchCardIdentity, getCardImage } from "../lib/scryfall.js";
-import { deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck, upsertLegend } from "../lib/legendDeck.js";
+import { deckDisplayName, deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck, upsertLegend } from "../lib/legendDeck.js";
 import { platformOf } from "../lib/moxfieldImport.js";
 import AddLegendSheet from "./AddLegendSheet";
-import LegendSprite from "./LegendSprite";
+import ColorPips from "./ColorPips";
 
 const DECK_GATE = 100;
 
-// Fixed 4×2 box of slots, Pokémon-storage style — never scrolls; legends
+// Fixed 2×3 box of slots, Pokémon-storage style — never scrolls; legends
 // beyond one box page onto the next via the header chevrons.
 //
-// TWO ROWS AGAIN, now of SPRITES (Ben, 2026-11-08). It was one row of card-art
-// tiles (2026-08-11) because tall art tiles ate half the screen for what is the
-// navigation, not the content. A creature-type sprite needs about a square cell,
-// so two rows cost less height than one row of art did, and the tray holds 8.
-// Cells stay well over the 44px tap floor (Apple HIG / WCAG AAA; NN/g's own
-// floor is 1cm ≈ 38px). Home.jsx's flex ratios move with this; the two are a pair.
-const COLS = 4;
-const ROWS = 2;
+// Each slot is the deck's colour identity + its name (Ben, 2026-11-10). The
+// creature-type pixel sprites that were here (2026-11-08/09) read as "crazy
+// confusing". A name needs width more than height, so the grid went from 4×2
+// squares (names cut at "Yargle, Goliat…") to 2 wide columns × 3 rows.
+// Cells stay well over the 44px tap floor. Home.jsx's flex ratios move with
+// this; the two are a pair.
+const COLS = 2;
+const ROWS = 3;
 const PAGE_SIZE = COLS * ROWS;
 const BOX_KEY = "magicdex-box";
 const ORDER_KEY = "magicdex-box-order";
@@ -50,7 +50,7 @@ function saveBoxOrder(list) {
   catch { /* storage full/disabled — arranging still works for this visit */ }
 }
 
-export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSignal, activeId }) {
+export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLegend, reloadSignal, activeId }) {
   const { theme } = useTheme();
   const [legends, setLegends] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -103,7 +103,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
       // `decks(...)` embed is ambiguous (PostgREST PGRST201) — it fails for
       // every user, which is what emptied the Box. We want the deck this legend
       // COMMANDS, never the decks it's a partner in.
-      .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks!decks_legend_id_fkey(id, status, deck_cards(quantity, section))")
+      .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks!decks_legend_id_fkey(id, status, build_name, deck_cards(quantity, section))")
       .order("name");
     // A failed read used to leave `legends` at [] silently, which renders as
     // BOX EMPTY — identical to a genuinely empty box. That made a broken query
@@ -170,6 +170,14 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
     setArranging(true);
     setPickedId(actionLegend.id);
     closeActionSheet();
+  }
+
+  // "rename" from the sheet: Home owns the rename field (it sits under the
+  // card art, visible), so hand the legend up and let it open there.
+  function handleRenameAction() {
+    const legend = actionLegend;
+    closeActionSheet();
+    onRenameLegend?.(legend);
   }
 
   // Delete OUTRIGHT from the Box, same one-door delete + local-key hygiene as
@@ -442,7 +450,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
         flex: "0 0 auto",
         display: "flex", alignItems: "center", justifyContent: "center",
         gap: 16,
-        padding: "6px 12px",
+        padding: "0 12px",
         borderBottom: `1px solid ${borderColor}`,
       }}>
         {chevron("left", atFirst, () => setBox(b => Math.max(0, b - 1)))}
@@ -496,8 +504,9 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
         </div>
       )}
 
-      {/* Fixed 4×1 slot grid — fills the tray, no scroll */}
-      <div style={{
+      {/* Fixed 2×3 slot grid — fills the tray, no scroll. Keyed by box so a
+          page turn replays the short fade-in instead of snapping. */}
+      <div key={safeBox} className="fade-in" style={{
         flex: 1,
         minHeight: 0,
         display: "grid",
@@ -546,7 +555,8 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                 onPointerUp={endPress}
                 onPointerCancel={endPress}
                 onContextMenu={(e) => e.preventDefault()}
-                aria-label={legend.name}
+                aria-label={deckDisplayName(legend, legendDeck)}
+                className="press"
                 style={{
                   ...slotBase,
                   display: "flex", flexDirection: "column",
@@ -560,26 +570,37 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                   touchAction: "manipulation",
                 }}
               >
-                {/* Pokémon-box style: the sprite alone, standing on the slot's
-                    floor, no name in the cell — the detail pane above shows
-                    the selected legend in full, and the button's aria-label
-                    carries the name. Gated ("not yet a deck") slots fade back;
-                    the n/100 badge says how far along. */}
+                {/* Colour identity on top, the deck's name under it (its own
+                    name if the user gave one, else the legend's). Gated ("not
+                    yet a deck") slots fade back; n/100 says how far along. */}
                 <div style={{
                   flex: 1, minHeight: 0,
-                  display: "flex", alignItems: "flex-end", justifyContent: "center",
-                  paddingBottom: 1,
-                  opacity: gated ? 0.45 : 1,
+                  display: "flex", flexDirection: "column",
+                  justifyContent: "center", gap: 6,
+                  padding: "6px 10px",
+                  textAlign: "left",
+                  opacity: gated ? 0.5 : 1,
                 }}>
-                  <LegendSprite typeLine={legend.type_line} />
+                  <ColorPips identity={legend.color_identity} />
+                  <span style={{
+                    fontFamily: "'Noto Sans', sans-serif",
+                    fontSize: 13, lineHeight: 1.25,
+                    color: textColor,
+                    display: "-webkit-box",
+                    WebkitLineClamp: 2, WebkitBoxOrient: "vertical",
+                    overflow: "hidden",
+                    paddingRight: gated ? 30 : 0,
+                  }}>
+                    {deckDisplayName(legend, legendDeck)}
+                  </span>
                 </div>
 
                 {gated && (
                   <div style={{
                     position: "absolute",
-                    top: 3, right: 4,
+                    top: 6, right: 8,
                     fontFamily: "'Noto Sans Mono', monospace",
-                    fontSize: 9,
+                    fontSize: 10,
                     color: dimColor,
                   }}>
                     {highest}/{DECK_GATE}
@@ -588,7 +609,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
 
                 {/* Selection cursor — overlaid so it paints over the art. */}
                 {isActive && !isPicked && (
-                  <div style={{
+                  <div className="ring-in" style={{
                     position: "absolute", inset: 0,
                     border: `2px solid ${ringColor}`,
                     pointerEvents: "none",
@@ -633,11 +654,11 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
                   add
                 </span>
                 <span style={{
-                  fontFamily: "'Noto Sans Mono', monospace",
-                  fontSize: 9,
+                  fontFamily: "'Noto Sans', sans-serif",
+                  fontSize: 12,
                   color: dimColor,
                 }}>
-                  add
+                  Add legend
                 </span>
               </button>
             );
@@ -694,9 +715,11 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
             background: "rgba(0,0,0,0.55)",
             display: "flex", alignItems: "flex-end", justifyContent: "center",
           }}
+          className="fade-in"
         >
           <div
             onClick={(e) => e.stopPropagation()}
+            className="sheet-up"
             style={{
               width: "100%", maxWidth: 430,
               background: theme.base,
@@ -711,10 +734,28 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, reloadSigna
               color: textColor,
               overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
             }}>
-              {actionLegend.name}
+              {deckDisplayName(actionLegend, resolveLegendDeck(actionLegend.decks))}
             </div>
             {!confirmingDelete ? (
               <div style={{ display: "flex", gap: 10 }}>
+                <button
+                  onClick={handleRenameAction}
+                  className="press"
+                  style={{
+                    minHeight: 44, flex: 1,
+                    display: "flex", alignItems: "center", justifyContent: "center", gap: 6,
+                    background: "transparent",
+                    border: `1px solid ${dimColor}`,
+                    color: textColor,
+                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontSize: 12, letterSpacing: "0.08em",
+                    cursor: "pointer",
+                    WebkitTapHighlightColor: "transparent",
+                  }}
+                >
+                  <span className="material-symbols-rounded" style={{ fontSize: 16 }}>edit</span>
+                  rename
+                </button>
                 <button
                   onClick={handleMoveAction}
                   style={{

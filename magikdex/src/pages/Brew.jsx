@@ -319,7 +319,7 @@ function buildCardRows(deckId, boards) {
   return rows;
 }
 
-export default function Brew({ session, browse = false, onSessionDone, resetSignal }) {
+export default function Brew({ session, browse = false, initialQuery = "", onSessionDone, resetSignal }) {
   const { theme } = useTheme();
   // shell | modes | search | swipe | review
   // Browse (no legend, launched from the Box's wordmark search) opens ON the
@@ -1284,6 +1284,18 @@ export default function Brew({ session, browse = false, onSessionDone, resetSign
     return res;
   }
 
+  // A browse launched from the Landing page's search box arrives WITH its
+  // query: run it once on mount so the user lands on the carousel, not on a
+  // second search screen. A failure leaves them on the search screen with the
+  // query prefilled and Scryfall's reason shown.
+  const initialRunRef = useRef(false);
+  useEffect(() => {
+    if (!browse || session || !initialQuery || initialRunRef.current) return;
+    initialRunRef.current = true;
+    runBrowseSearch(initialQuery);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
   // The in-swipe search box for a legend session NARROWS the current relevance/
   // wrec stack client-side instead of running a generic Scryfall search — the
   // EDHREC ordering is preserved and only cards the stack already holds are ever
@@ -1602,7 +1614,7 @@ export default function Brew({ session, browse = false, onSessionDone, resetSign
             // Legend sessions narrow the current stack — prefill the box with the
             // active filter (not `query`, which is the stack identity), and drop
             // into narrow mode (no otag chips: they can't be evaluated locally).
-            initialQuery={session ? stackNarrow : query}
+            initialQuery={session ? stackNarrow : (query || initialQuery)}
             narrowStack={!!session}
             stackCount={totalStackCount}
           />
@@ -1638,6 +1650,7 @@ export default function Brew({ session, browse = false, onSessionDone, resetSign
             onSearchAll={session || browse ? runGlobalSearch : undefined}
             onEditQuery={session || browse ? runGlobalSearch : undefined}
             browse={browse}
+            onExit={goBack}
           />
         )}
 
