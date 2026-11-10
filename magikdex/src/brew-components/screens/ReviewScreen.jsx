@@ -6,6 +6,18 @@ import FlipCard from "../FlipCard.jsx";
 import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { partnerVariant } from "../../lib/partners.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
+import { deckStatsLink } from "../../lib/deckStatsLink.js";
+
+// One row of the export menu; the copy buttons and the deckStats link share it.
+const EXPORT_ITEM_STYLE = {
+  minHeight: 50, width: "100%", padding: "0 14px",
+  display: "flex", alignItems: "center", gap: 12,
+  background: "transparent",
+  border: "1px solid var(--bevel-dark)", borderRadius: 0,
+  color: "var(--text, #e8eaed)",
+  fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
+  cursor: "pointer", WebkitTapHighlightColor: "transparent",
+};
 
 // Change 14 — how far left a decklist row must be dragged to commit a delete.
 const ROW_DELETE_AT = 88;
@@ -278,6 +290,10 @@ export default function ReviewScreen({
   // different jobs: a decklist to paste, and one that carries our WREC tags.
   // (The printed deck ID card moved out to its own app, deck-stats/.)
   const [exportMenu, setExportMenu] = useState(false);
+  // The "send to deckStats" link, built when the menu opens. It has to exist
+  // BEFORE the tap: iOS blocks a new window opened after an await, so the
+  // menu item is a plain link, not a button that builds one.
+  const [deckStatsHref, setDeckStatsHref] = useState(null);
   // WREC filter — tapping a category in the composition panel narrows the list
   // to that category's cards; tapping it again clears. One category at a time
   // (the panel is a composition readout, not a query builder).
@@ -522,6 +538,21 @@ export default function ReviewScreen({
     // them — Brew uses it to offer a backup. Last, so it never delays the copy.
     onExported?.();
   }
+
+  // Build the deckStats link each time the menu opens, from the deck as it is
+  // now. The commander and partner travel as their own fields (deckStats
+  // asks for them separately), so the list is the 98/99 without a header.
+  useEffect(() => {
+    if (!exportMenu) return;
+    let cancelled = false;
+    deckStatsLink({
+      commanders: [commander?.name, partner?.name],
+      list: buildMoxfieldExport(cardTags, null, { withTags: false }),
+    }).then(href => { if (!cancelled) setDeckStatsHref(href); });
+    // Closing the menu (or a deck edit) drops the old link, so a stale deck
+    // can never be sent.
+    return () => { cancelled = true; setDeckStatsHref(null); };
+  }, [exportMenu, commander?.name, partner?.name, cardTags]);
 
   const groups = {
     decklist: groupByName(decklist),
@@ -1820,9 +1851,10 @@ export default function ReviewScreen({
       {/* ── Export menu ──────────────────────────────────────────────────────
           Three destinations, genuinely different jobs rather than three formats
           of one thing: a decklist to paste anywhere, the same list carrying our
-          WREC tags (which are noise outside magikdex), and a physical card.
-          Tapping the backdrop dismisses — a chooser escapable only by choosing
-          is a trap. */}
+          WREC tags (which are noise outside magikdex), and deckStats, the
+          separate site that grades the deck (its Bracket Card) and prints it
+          as proxies. Tapping the backdrop dismisses — a chooser escapable only
+          by choosing is a trap. */}
       {exportMenu && (
         <div
           onClick={() => setExportMenu(false)}
@@ -1849,15 +1881,7 @@ export default function ReviewScreen({
               <button
                 key={label}
                 onClick={() => { setExportMenu(false); run(); }}
-                style={{
-                  minHeight: 50, width: "100%", padding: "0 14px",
-                  display: "flex", alignItems: "center", gap: 12,
-                  background: "transparent",
-                  border: "1px solid var(--bevel-dark)", borderRadius: 0,
-                  color: "var(--text, #e8eaed)",
-                  fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
-                  cursor: "pointer", WebkitTapHighlightColor: "transparent",
-                }}
+                style={EXPORT_ITEM_STYLE}
               >
                 <span className="material-symbols-rounded" style={{ fontSize: 20, color: "var(--muted)" }}>
                   {icon}
@@ -1865,6 +1889,29 @@ export default function ReviewScreen({
                 {label}
               </button>
             ))}
+            {/* A real link, not a button: it opens deckStats in the browser
+                (the system browser from the native app), with the deck in the
+                URL fragment. magikdex itself never calls ScryCheck. */}
+            <a
+              href={deckStatsHref ?? undefined}
+              target="_blank"
+              rel="noopener noreferrer"
+              aria-disabled={!deckStatsHref}
+              onClick={e => {
+                if (!deckStatsHref) { e.preventDefault(); return; }
+                setExportMenu(false);
+                onExported?.();
+              }}
+              style={{ ...EXPORT_ITEM_STYLE, textDecoration: "none", boxSizing: "border-box", opacity: deckStatsHref ? 1 : 0.5 }}
+            >
+              <span className="material-symbols-rounded" style={{ fontSize: 20, color: "var(--muted)" }}>
+                open_in_new
+              </span>
+              <span>
+                bracket card + proxies
+                <span style={{ display: "block", fontSize: 11, color: "var(--muted)" }}>opens deckStats</span>
+              </span>
+            </a>
             <button
               onClick={() => setExportMenu(false)}
               style={{

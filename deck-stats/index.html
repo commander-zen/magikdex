@@ -82,6 +82,7 @@
       width: 100%; min-height: 50px; background: transparent; color: var(--yellow);
       border: 1px solid var(--yellow); font-weight: 700; font-size: 14px; letter-spacing: 0.06em; text-transform: uppercase;
     }
+    .handoff { margin: 12px 0 0; padding: 10px 12px; border-left: 3px solid var(--yellow); font-size: 13px; line-height: 1.5; }
     .error { color: var(--red); font-size: 13px; line-height: 1.5; margin-top: 10px; }
     .pr { display: flex; align-items: center; gap: 10px; padding: 6px 0; border-bottom: 1px solid var(--line); }
     /* 46 × 64: a card's own shape, and past the 44px tap floor both ways. */
@@ -161,6 +162,7 @@
                   placeholder="1 Sol Ring&#10;1 Arcane Signet&#10;1 Command Tower&#10;…"></textarea>
         <p class="help">one card per line, the way Moxfield, Archidekt or MTGA export it.</p>
       </div>
+      <p id="handoff" class="handoff" hidden>Brewed in magıkdex and filled in for you. Check the commander, then tap analyze.</p>
       <button id="analyze" class="primary" type="submit">analyze</button>
       <div id="error" role="alert" hidden></div>
     </form>

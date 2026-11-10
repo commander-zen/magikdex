@@ -56,6 +56,42 @@ function requestBody() {
 
 function clearInputs() {
   for (const id of ["#deck-url", "#commander", "#partner", "#deck-list"]) $(id).value = "";
+  $("#handoff").hidden = true;
+}
+
+// ── A deck sent from magikdex ───────────────────────────────────────────────
+// magikdex's "bracket card + proxies" opens this page with the deck in the URL
+// fragment (magikdex src/lib/deckStatsLink.js writes it; change both
+// together):
+//   #bc=z.<base64url(deflate-raw(json))>  or  #bc=j.<base64url(json)>
+//   json = { v: 1, c: [commander, partner?], l: "1 Sol Ring\n…" }
+// It only FILLS the paste form. Nothing is analyzed until the owner taps, so
+// a ScryCheck request is never spent on a link alone.
+async function readHandoff() {
+  const m = location.hash.match(/^#bc=([zj])\.([A-Za-z0-9_-]+)$/);
+  if (!m) return;
+  // Clear the fragment first, so a refresh doesn't refill a form the owner
+  // has since edited.
+  history.replaceState(null, "", location.pathname + location.search);
+  try {
+    const b64 = m[2].replace(/-/g, "+").replace(/_/g, "/");
+    let bytes = Uint8Array.from(atob(b64 + "===".slice((b64.length + 3) % 4)), c => c.charCodeAt(0));
+    if (m[1] === "z") {
+      const stream = new Blob([bytes]).stream().pipeThrough(new DecompressionStream("deflate-raw"));
+      bytes = new Uint8Array(await new Response(stream).arrayBuffer());
+    }
+    const deck = JSON.parse(new TextDecoder().decode(bytes));
+    const [commander = "", partner = ""] = Array.isArray(deck.c) ? deck.c.map(String) : [];
+    if (deck.v !== 1 || !commander) throw new Error("unknown handoff");
+    $('[data-mode="list"]').click();
+    $("#commander").value = commander;
+    $("#partner").value = partner;
+    $("#deck-list").value = String(deck.l ?? "");
+    $("#handoff").hidden = false;
+    $("#deck-form").scrollIntoView({ block: "start" });
+  } catch {
+    setError("That magikdex link didn't come through. Export the deck again, or paste the list.");
+  }
 }
 
 // ── Analyze: each deck becomes the next card on the sheet ───────────────────
@@ -487,3 +523,7 @@ function render() {
 
 restore();
 fontsReady.then(render, () => setError("The card fonts failed to load. Refresh to try again."));
+readHandoff();
+// If deckStats is already open in that tab, only the fragment changes, and a
+// fragment change doesn't reload the page.
+addEventListener("hashchange", readHandoff);
