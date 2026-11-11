@@ -10,10 +10,13 @@ Ben had a 5-deck Sheet of 9 PDF and wanted the 4 empty slots filled with a busin
 - **Not verified:** a real print, or a phone scan off paper.
 - It was a one-off script (PyMuPDF + the repo's fonts), not a site feature. If Ben wants "fill the empty slots with a promo card" on the Sheet of 9 page, that's a backlog item.
 
+- ✅ **Repo now points at `https://bracketcard.vercel.app`** (same day, Ben: "yes, fix them"). `deck-stats-mauve.vercel.app` is dead (`DEPLOYMENT_NOT_FOUND`), so seven links changed:
+  - `BRACKET_CARD_URL` in `magikdex/src/lib/bracketCardLink.js`. The "bracket card + proxies" handoff was opening a 404.
+  - `og:url` and `og:image` in `deck-stats/index.html`, `sheet.html` and `playtest.html`.
+  - Checked that `/og.png`, `/sheet.html` and `/playtest.html` answer 200 on the new address. **Not verified:** the handoff tapped in magikdex, and the native app, which keeps the old address until it is rebuilt.
+
 ### ⚠️ Known Issues — new
-- **The site moved to `https://bracketcard.vercel.app` and `deck-stats-mauve.vercel.app` is dead** (`DEPLOYMENT_NOT_FOUND`, checked 2026-11-11). The repo still points at the dead address in seven places:
-  - `magikdex/src/lib/bracketCardLink.js` (`BRACKET_CARD_URL`), so **the magikdex "bracket card + proxies" handoff opens a 404**.
-  - `og:url` and `og:image` in `deck-stats/index.html`, `sheet.html` and `playtest.html`, so link previews have no image.
+- **The installed native magikdex build still opens the dead address** until the next Capacitor build ships.
 - `bracket-card.vercel.app` (with the hyphen) is a 404, so nobody else has it yet. People will mistype it that way.
 
 ## 2026-11-11 (cont. 2) — ✅ **Pre-launch pass** (branch `claude/elegant-ride-mpyg7q`, NOT on main)
@@ -1985,7 +1988,7 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-11**, latest): **POINT THE REPO AT `bracketcard.vercel.app`.** The old `deck-stats-mauve` address is dead, so the magikdex handoff opens a 404 and the Bracket Card link previews have no image. Update `BRACKET_CARD_URL` and the six Open Graph URLs (see the 2026-11-11 cont. 3 Known Issues).
+Priority (**2026-11-11**, latest): **TAP THE MAGIKDEX → BRACKET CARD HANDOFF.** The repo now points at `bracketcard.vercel.app` (the old address was dead). Export a brew with "bracket card + proxies" on the web build and confirm it opens the site with the form filled; rebuild the native app so it gets the new address too. Then the walk below.
 
 Priority (**2026-11-10**): **WALK MAGIKDEX'S NEW FRONT DOOR ON A PHONE.** Landing → explainer (tap the wordmark) → Start swiping with a Scryfall query → back out, then Your dex → rename a brew → Open brew (`1c7005c`). Judge the swipe feel and motion on device, and decide whether the custom deck name should show inside Brew (see Known Issues).
 
