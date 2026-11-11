@@ -3,10 +3,10 @@
   "appName": "magikdex",
   "webDir": "dist",
   "android": {
-    "backgroundColor": "#1a1410"
+    "backgroundColor": "#060a0a"
   },
   "ios": {
-    "backgroundColor": "#1a1410",
+    "backgroundColor": "#060a0a",
     "contentInset": "never"
   }
 }
