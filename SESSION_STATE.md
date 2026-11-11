@@ -1,5 +1,21 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-11 (cont. 3) — ✅ **Bracket Card business cards for commander night** (no repo code changed)
+
+Ben had a 5-deck Sheet of 9 PDF and wanted the 4 empty slots filled with a business card for the site.
+
+- ✅ **`Downloads/bracket card + business cards.pdf`** (his original is untouched). Slots 6 to 9 hold a card in the Bracket Card's own black-on-white layout and fonts: "MAKE ONE FOR YOUR DECK", a `FREE · PASTE · PRINT` tag, three steps, "GRADED BY SCRYCHECK", a QR to the site and the address typed out in a black chip.
+- ✅ The third row now has its own crop marks, and the 50 mm ruler moved under it. The old ruler sat where row three goes.
+- ✅ **Verified:** rendered at 300 dpi and decoded all nine QR codes. The five deck codes still go to their Moxfield lists; the four new ones read `https://bracketcard.vercel.app`.
+- **Not verified:** a real print, or a phone scan off paper.
+- It was a one-off script (PyMuPDF + the repo's fonts), not a site feature. If Ben wants "fill the empty slots with a promo card" on the Sheet of 9 page, that's a backlog item.
+
+### ⚠️ Known Issues — new
+- **The site moved to `https://bracketcard.vercel.app` and `deck-stats-mauve.vercel.app` is dead** (`DEPLOYMENT_NOT_FOUND`, checked 2026-11-11). The repo still points at the dead address in seven places:
+  - `magikdex/src/lib/bracketCardLink.js` (`BRACKET_CARD_URL`), so **the magikdex "bracket card + proxies" handoff opens a 404**.
+  - `og:url` and `og:image` in `deck-stats/index.html`, `sheet.html` and `playtest.html`, so link previews have no image.
+- `bracket-card.vercel.app` (with the hyphen) is a 404, so nobody else has it yet. People will mistype it that way.
+
 ## 2026-11-11 (cont. 2) — ✅ **Pre-launch pass** (branch `claude/elegant-ride-mpyg7q`, NOT on main)
 
 - ✅ **Bracket Card link previews:** Open Graph + Twitter tags on all three pages and `public/og.png` (1200×630). ⚠️ The URLs are absolute (`deck-stats-mauve.vercel.app`); update them when the domain changes.
@@ -1969,7 +1985,9 @@ Ben: *"ensure that user information is stored but they dont have to sign up as s
 
 ## Cold Start Prompt
 
-Priority (**2026-11-10**, latest): **WALK MAGIKDEX'S NEW FRONT DOOR ON A PHONE.** Landing → explainer (tap the wordmark) → Start swiping with a Scryfall query → back out, then Your dex → rename a brew → Open brew (`1c7005c`). Judge the swipe feel and motion on device, and decide whether the custom deck name should show inside Brew (see Known Issues).
+Priority (**2026-11-11**, latest): **POINT THE REPO AT `bracketcard.vercel.app`.** The old `deck-stats-mauve` address is dead, so the magikdex handoff opens a 404 and the Bracket Card link previews have no image. Update `BRACKET_CARD_URL` and the six Open Graph URLs (see the 2026-11-11 cont. 3 Known Issues).
+
+Priority (**2026-11-10**): **WALK MAGIKDEX'S NEW FRONT DOOR ON A PHONE.** Landing → explainer (tap the wordmark) → Start swiping with a Scryfall query → back out, then Your dex → rename a brew → Open brew (`1c7005c`). Judge the swipe feel and motion on device, and decide whether the custom deck name should show inside Brew (see Known Issues).
 
 Priority (**2026-11-10**, earlier): **WALK THE WHOLE FLOW ON A PHONE, THEN PRINT ONE DECK.** The site is now Bracket Card in three pages: Card, Sheet of 9, Play test (`98eb0cc`). Walk all three as a first-time visitor on a phone, then print one deck with play test cards at 100% and check that the turned Bracket Card cuts and sleeves like the rest. Then decide whether to rename the Vercel URL (see Known Issues). Brew a deck in magikdex, then export → "bracket card + proxies". Confirm it opens the Bracket Card site in the browser (from the native app too) with the form filled, then analyze and print proxies. Then the real-world test: grade his 4 decks, print one as proxies at 100%, measure the 50 mm bar and one proxy (63×88), scan a Bracket Card's QR with a phone, and tell Adam about the QR move. Then Profile, polish pass, App Store checklist (magikdex only: proxies and ScryCheck stay out of the store build).
 
