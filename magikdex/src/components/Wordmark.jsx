@@ -1,4 +1,5 @@
 import { useTheme } from "../theme/ThemeContext";
+import Icon from "./Icon.jsx";
 
 // The magıkdex wordmark, top left on every root screen. It is a button: tapping
 // it opens the "what is magikdex" sheet (Ben, 2026-11-10). The small info glyph
@@ -29,7 +30,7 @@ export default function Wordmark({ onClick }) {
       }}>
         mag&#x0131;kdex
       </span>
-      <span className="material-symbols-rounded" style={{ fontSize: 16, color: theme.dim }}>info</span>
+      <Icon name="info" style={{ fontSize: 16, color: theme.dim }} />
     </button>
   );
 }

@@ -12,6 +12,7 @@ import { tagCard, untagCard, fetchDeckCardsWithTags, autoWrecTags, applyAutoTags
 import { fetchLegendDeck, deleteLegend, upsertLegend, fetchDeckPartner, combinedColorIdentity } from "../lib/legendDeck.js";
 import { supabase } from "../lib/supabase.js";
 import { pendingStep, snoozeStep, exportPromptDue, markExportPrompted, clearBackupPrompts } from "../lib/backupState.js";
+import Icon from "../components/Icon.jsx";
 
 // deck_card ids the user has curated (or that auto-tagging has already been
 // offered to). The deck-list "heal" only re-suggests to ZERO-tag rows, so
@@ -40,18 +41,18 @@ function markHealed(ids) {
 const BASIC_FOR_COLOR = { W: "Plains", U: "Island", B: "Swamp", R: "Mountain", G: "Forest" };
 
 // Brew sub-screens are always dark — card art is designed against dark.
-// Jackson Storm "steel storm" recolor (UAT batch 2, item 3): near-black
-// grounds, one electric-steel accent replacing the old gold/amber, a dimmer
-// steel secondary replacing the green.
+// Teal on black (2026-11-11), the same palette as theme/tokens.js and the
+// Bracket Card site: near-black grounds, one teal accent, a dimmer teal
+// secondary.
 const BREW = {
-  base:    "#08090c",
-  surface: "#12151a",
-  text:    "#e8eaed",
-  dim:     "#5a6672",
-  accent:  "#38bdf8",
-  accent2: "#5f9bbf",
-  red:     "#e0555f",
-  border:  "#1b2129",
+  base:    "#060a0a",
+  surface: "#0c1414",
+  text:    "#e9f3f1",
+  dim:     "#a2b8b5",
+  accent:  "#2bc4ae",
+  accent2: "#5fb3a6",
+  red:     "#ff8f85",
+  border:  "#223232",
 };
 
 // The brew-components were ported from Deck Stack, whose styles reference
@@ -87,7 +88,7 @@ const BREW_VARS = {
   "--bevel-dark": BREW.border,
   "--bevel-inset-light": BREW.border,
   "--bevel-inset-dark": BREW.border,
-  "--font-system": "'Noto Sans', sans-serif",
+  "--font-system": "'Atkinson Hyperlegible Next Variable', sans-serif",
   "--font-size-base": "13px",
   "--font-size-sm": "11px",
   "--font-size-lg": "16px",
@@ -1594,15 +1595,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <span
-              className="material-symbols-rounded"
-              style={{
-                fontSize: 22,
-                fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
-              }}
-            >
-              arrow_back
-            </span>
+            <Icon name="arrow_back" style={{ fontSize: 22, fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24", }} />
           </button>
         )}
 
@@ -1735,7 +1728,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
               {!nudgeSent ? (
                 <>
                   <div style={{
-                    fontFamily: "'Noto Sans', sans-serif",
+                    fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                     fontSize: 13, lineHeight: 1.5,
                     color: "var(--text)",
                   }}>
@@ -1756,7 +1749,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
                       background: "transparent",
                       color: "var(--text)",
                       // 16 or iOS zooms the whole deck screen on focus.
-                      fontFamily: "'Noto Sans Mono', monospace", fontSize: 16,
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 16,
                       border: "1px solid var(--muted)",
                       padding: "0 12px", borderRadius: 0, outline: "none",
                     }}
@@ -1770,7 +1763,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
                         background: "transparent",
                         border: "1px solid var(--primary)",
                         color: "var(--primary)",
-                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 11, letterSpacing: "0.06em",
                         cursor: "pointer",
                         opacity: nudgeBusy || !nudgeEmail.trim() ? 0.5 : 1,
@@ -1786,7 +1779,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
                         background: "transparent",
                         border: "1px solid var(--muted)",
                         color: "var(--muted)",
-                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 11, letterSpacing: "0.06em",
                         cursor: "pointer",
                         WebkitTapHighlightColor: "transparent",
@@ -1804,7 +1797,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
               ) : (
                 <>
                   <div style={{
-                    fontFamily: "'Noto Sans', sans-serif",
+                    fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                     fontSize: 13, lineHeight: 1.5,
                     color: "var(--text)",
                   }}>
@@ -1818,7 +1811,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
                       background: "transparent",
                       border: "1px solid var(--primary)",
                       color: "var(--primary)",
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 11, letterSpacing: "0.06em",
                       cursor: "pointer",
                       WebkitTapHighlightColor: "transparent",
@@ -1882,7 +1875,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
         <div style={{
           width: "100%", maxWidth: 430,
           padding: "0 20px",
-          fontFamily: "'Noto Sans Mono', monospace",
+          fontFamily: "'JetBrains Mono', monospace",
           fontSize: 12,
           color: BREW.dim,
           marginBottom: 16,

@@ -1,5 +1,19 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-11 (cont.) — ✅ **magikdex on the Bracket Card theme (pass 1); Bracket Card prints black on white** (branch `claude/elegant-ride-mpyg7q`, NOT on main)
+
+- ✅ **Bracket Card print is black on white** (`deck-stats/src/lib/card.js`): white paper, pure black, outlined power/bracket box, neutral greys. No cream, no yellow; the teal never goes on the card.
+- ✅ **magikdex pass 1, app-wide through the tokens:**
+  - `src/theme/tokens.js`, `BREW` in `Brew.jsx` and every hard-coded steel-blue hex now use the teal-on-black palette. ⚠️ Values are COPIED from `deck-stats/src/styles.css` (separate Vercel projects); change all three together.
+  - `dim` went from `#5a6672` (~3:1) to `#a2b8b5` (9:1). Faint white-alpha text in SwipeScreen now uses `--muted-foreground`.
+  - Fonts: Atkinson Hyperlegible Next (bundled via fontsource) replaces Noto Sans; JetBrains Mono replaces Noto Sans Mono; Zilla Slab stays for the wordmark.
+  - Icons: Material Symbols font removed. `src/components/Icon.jsx` maps the old names to Lucide SVGs (43 call sites converted by codemod; they keep `style={{ fontSize, color }}`).
+- ✅ **Tailwind 4 + shadcn-style components installed** (`src/styles.css`, `src/components/ui/`: button, input, sheet). Tailwind is loaded WITHOUT preflight because most screens are still inline-styled; the margin/padding reset moved from `index.html` into `@layer base` so utilities can win.
+- ✅ **Rebuilt on the components:** `Landing.jsx` (Button, Input, Lucide) and `AboutSheet.jsx` (Radix dialog sheet; the drag-down-to-close gesture is gone, it closes on Got it / × / scrim / Escape).
+- ✅ **Verified** at 390 px with Supabase and Scryfall stubbed: Landing, About, Settings, dex and the browse carousel render; axe WCAG 2.2 AA scan clean on all five; lint 0 errors; build clean.
+- **Not verified:** real data, a real phone, the native (Capacitor) build, the brew/review screens beyond the build.
+- ⏳ **Still inline-styled (pass 2):** Home, LegendBox, SettingsSheet, AddLegendSheet, Brew, SwipeScreen, ReviewScreen, SearchForm. They have the new colours, font and icons but square corners and their old component shapes.
+
 ## 2026-11-11 — ✅ **Bracket Card rebuilt on shadcn/ui + Radix + Tailwind + Lucide, teal-on-black theme** (branch `claude/elegant-ride-mpyg7q`, NOT on main)
 
 Ben: the site shouldn't look vibe coded; use shadcn/ui, Radix, Tailwind and Lucide with an original locally-tokened theme, WCAG 2.2 AA, dark only, teal + black, legible on a phone. Both apps are to share the theme; Bracket Card went first.

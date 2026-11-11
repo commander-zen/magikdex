@@ -108,7 +108,7 @@ export default function WrecBand({ counts, accent, muted, text, activeTag = null
                 each cell reads count/target (Rachel's template). Deliberately
                 plain: no on/over/under tint — the band is busy enough open. */}
             <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 13,
               color: dim ? muted : active ? accent : text,
             }}>
@@ -116,7 +116,7 @@ export default function WrecBand({ counts, accent, muted, text, activeTag = null
               <span style={{ color: muted }}>/{CATEGORY_META[tag]?.target ?? 0}</span>
             </span>
             <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 8,
               letterSpacing: "0.1em",
               color: muted,

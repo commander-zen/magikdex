@@ -1,0 +1,98 @@
+/* Tailwind WITHOUT its preflight reset: most of magikdex is still styled
+   inline (the screens are being moved to these components one at a time), and
+   a global reset would shift them. The reset below applies only to the
+   shadcn/ui components, which all carry data-slot. */
+@layer theme, base, components, utilities;
+@import "tailwindcss/theme.css" layer(theme);
+@import "tailwindcss/utilities.css" layer(utilities);
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+
+/* ── Design tokens: the SAME values as the Bracket Card site ────────────────
+   ⚠️ Copied from deck-stats/src/styles.css (separate Vercel projects, so not
+   imported). Change both, and src/theme/tokens.js, together. Contrast ratios
+   are recorded in that file's header. */
+:root {
+  color-scheme: dark;
+
+  --background: #060a0a;
+  --foreground: #e9f3f1;
+  --card: #0c1414;
+  --card-foreground: #e9f3f1;
+  --raised: #121d1d;
+  --popover: #0c1414;
+  --popover-foreground: #e9f3f1;
+
+  --primary: #2bc4ae;
+  --primary-hover: #4fd3bf;
+  --primary-foreground: #021412;
+  --secondary: #121d1d;
+  --secondary-foreground: #e9f3f1;
+  --muted: #121d1d;
+  --muted-foreground: #a2b8b5;
+  --accent: #0d2725;
+  --accent-foreground: #7fe3d3;
+
+  --destructive: #ff8f85;
+  --warning: #f2c35b;
+
+  --border: #223232;
+  --control: #5c7a78;
+  --input: #5c7a78;
+  --ring: #2bc4ae;
+
+  --radius: 0.625rem;
+
+  --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+  --font-display: "Archivo Black", var(--font-sans);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-raised: var(--raised);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-control: var(--control);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+}
+
+@layer base {
+  *, *::before, *::after { margin: 0; padding: 0; }
+  [data-slot], [data-slot] * { box-sizing: border-box; border: 0 solid var(--border); }
+  button[data-slot], a[data-slot] { font: inherit; color: inherit; background: transparent; text-decoration: none; -webkit-tap-highlight-color: transparent; }
+  input[data-slot] { font: inherit; outline: none; }
+  body { font-family: var(--font-sans); color: var(--foreground); }
+  /* One focus style everywhere (WCAG 2.4.7): a 2px teal ring with a gap. */
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+}
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }
+@media (prefers-reduced-motion: reduce) {
+  [data-slot] { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; }
+}

@@ -4,6 +4,7 @@ import { ThemeProvider } from "./theme/ThemeContext";
 import { ErrorBoundary } from "./CrashScreen.jsx";
 import { installGlobalCrashHandler } from "./crashHandler.js";
 import App from "./App.jsx";
+import "./styles.css";
 
 // Installed before anything else renders: a crash during module evaluation or a
 // mount that silently never happens both need to be caught, and neither is

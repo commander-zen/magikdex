@@ -1,6 +1,7 @@
 import { useEffect, useState } from "react";
 import { PARTNER_VARIANTS, partnerVariant, fetchPartnerCandidates } from "../lib/partners.js";
 import { getCardImage } from "../lib/scryfall.js";
+import Icon from "../components/Icon.jsx";
 
 // Picks a deck's SECOND commander. Which cards are legal depends entirely on
 // which partner mechanic the primary commander uses, so the pool comes from
@@ -90,7 +91,7 @@ export default function PartnerPickerSheet({ open, commanderCard, current, onSel
             padding: "16px 20px 10px",
           }}>
             <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 12, letterSpacing: "0.1em",
               color: "var(--muted)",
             }}>
@@ -107,7 +108,7 @@ export default function PartnerPickerSheet({ open, commanderCard, current, onSel
                 WebkitTapHighlightColor: "transparent",
               }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 22 }}>close</span>
+              <Icon name="close" style={{ fontSize: 22 }} />
             </button>
           </div>
 
@@ -121,7 +122,7 @@ export default function PartnerPickerSheet({ open, commanderCard, current, onSel
               <button onClick={() => choose(null)} disabled={busy} style={{
                 ...rowStyle,
                 color: "var(--danger)",
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12, letterSpacing: "0.06em",
                 opacity: busy ? 0.5 : 1,
               }}>
@@ -132,7 +133,7 @@ export default function PartnerPickerSheet({ open, commanderCard, current, onSel
             {candidates === null && (
               <div style={{
                 padding: "20px 0",
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12, color: "var(--muted)",
               }}>
                 finding partners…
@@ -142,7 +143,7 @@ export default function PartnerPickerSheet({ open, commanderCard, current, onSel
             {candidates?.length === 0 && (
               <div style={{
                 padding: "20px 0", lineHeight: 1.5,
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12, color: "var(--muted)",
               }}>
                 no partners found for this commander

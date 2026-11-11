@@ -11,7 +11,7 @@ export default function PageHeader({ eyebrow, title }) {
     <div style={{ marginBottom: 32 }}>
       {eyebrow && (
         <div style={{
-          fontFamily: "'Noto Sans', sans-serif",
+          fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
           fontSize: 10,
           fontWeight: 500,
           letterSpacing: "0.18em",
@@ -23,7 +23,7 @@ export default function PageHeader({ eyebrow, title }) {
         </div>
       )}
       <div style={{
-        fontFamily: "'Noto Sans', sans-serif",
+        fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
         fontSize: 28,
         fontWeight: 300,
         letterSpacing: "0.02em",

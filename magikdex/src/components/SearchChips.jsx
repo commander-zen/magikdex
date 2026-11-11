@@ -27,7 +27,7 @@ export default function SearchChips({ selected, onToggle }) {
               border: `1px solid ${active ? accentColor : borderColor}`,
               background: active ? accentColor : "transparent",
               color: active ? theme.base : dimColor,
-              fontFamily: "'Noto Sans', sans-serif",
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
               fontSize: 13,
               cursor: "pointer",
               WebkitTapHighlightColor: "transparent",

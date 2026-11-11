@@ -1,115 +1,47 @@
-import { useEffect, useRef, useState } from "react";
-import { useTheme } from "../theme/ThemeContext";
+import { ArrowDown, ArrowLeftRight, ArrowUp } from "lucide-react";
+import { Button } from "@/components/ui/button";
+import { Sheet, SheetContent, SheetDescription, SheetHeader, SheetTitle } from "@/components/ui/sheet";
 
 // "What is magikdex?" — opened by tapping the wordmark on any root screen.
 // Short on purpose: what it is, the three gestures, and what it isn't.
-// Closes on Got it, a scrim tap, Escape, or dragging the sheet down.
+// A Radix dialog (2026-11-11): focus is trapped and returns to the wordmark;
+// it closes on Got it, the close button, a scrim tap or Escape.
+const GESTURES = [
+  [ArrowLeftRight, "Swipe to browse"],
+  [ArrowUp, "Swipe up to keep a card"],
+  [ArrowDown, "Swipe down to see your pile"],
+];
+
 export default function AboutSheet({ open, onClose }) {
-  const { theme } = useTheme();
-  const [dragY, setDragY] = useState(0);
-  const startY = useRef(null);
-
-  useEffect(() => {
-    if (!open) return;
-    const onKey = e => { if (e.key === "Escape") onClose(); };
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [open, onClose]);
-
-  if (!open) return null;
-
-  function onPointerDown(e) { startY.current = e.clientY; }
-  function onPointerMove(e) {
-    if (startY.current === null) return;
-    setDragY(Math.max(0, e.clientY - startY.current));
-  }
-  function onPointerUp() {
-    if (startY.current === null) return;
-    startY.current = null;
-    if (dragY > 80) onClose();
-    setDragY(0);
-  }
-
-  const body = { fontFamily: "'Noto Sans', sans-serif", fontSize: 15, lineHeight: 1.55, color: theme.white };
-  const gesture = (glyph, text) => (
-    <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-      <span style={{
-        width: 32, height: 32, flexShrink: 0,
-        display: "flex", alignItems: "center", justifyContent: "center",
-        background: theme.base, color: theme.accent,
-        fontFamily: "'Noto Sans', sans-serif", fontSize: 18,
-      }}>{glyph}</span>
-      <span style={body}>{text}</span>
-    </div>
-  );
-
   return (
-    <div
-      onClick={onClose}
-      role="dialog"
-      aria-modal="true"
-      aria-label="What is magikdex?"
-      className="fade-in"
-      style={{
-        position: "fixed", inset: 0, zIndex: 400,
-        background: "rgba(0,0,0,0.6)",
-        display: "flex", alignItems: "flex-end", justifyContent: "center",
-      }}
-    >
-      <div
-        onClick={e => e.stopPropagation()}
-        onPointerDown={onPointerDown}
-        onPointerMove={onPointerMove}
-        onPointerUp={onPointerUp}
-        onPointerCancel={onPointerUp}
-        className="sheet-up"
-        style={{
-          width: "100%", maxWidth: 480,
-          background: theme.surface,
-          borderTop: `1px solid ${theme.muted}`,
-          padding: "10px 20px calc(env(safe-area-inset-bottom) + 20px)",
-          display: "flex", flexDirection: "column", gap: 16,
-          transform: dragY ? `translateY(${dragY}px)` : undefined,
-          transition: dragY ? "none" : "transform 200ms ease-out",
-          touchAction: "none",
-        }}
-      >
-        <div aria-hidden="true" style={{ width: 40, height: 4, background: theme.muted, margin: "0 auto 4px" }} />
-
-        <div style={{ fontFamily: "'Zilla Slab', serif", fontSize: 24, color: theme.white, lineHeight: 1.2 }}>
-          mag&#x0131;kdex is a swipe brewer
+    <Sheet open={open} onOpenChange={o => { if (!o) onClose(); }}>
+      <SheetContent className="font-sans text-foreground">
+        <SheetHeader className="border-b-0 pb-0">
+          <SheetTitle className="font-[Zilla_Slab,serif] text-2xl font-normal">mag&#x0131;kdex is a swipe brewer</SheetTitle>
+          <SheetDescription className="mt-2 text-base text-foreground">
+            Build Commander decks the way you flip through a binder at 1am: one card at a time, keep what sparks something.
+          </SheetDescription>
+        </SheetHeader>
+        <div className="flex flex-col gap-4 overflow-y-auto px-4 pb-5 pt-4">
+          <ul className="flex list-none flex-col gap-2.5">
+            {GESTURES.map(([Glyph, text]) => (
+              <li key={text} className="flex items-center gap-3 text-base">
+                <span className="grid size-9 shrink-0 place-items-center rounded-md bg-accent text-accent-foreground">
+                  <Glyph aria-hidden className="size-5" />
+                </span>
+                {text}
+              </li>
+            ))}
+          </ul>
+          <p className="text-base">
+            Search any card with Scryfall syntax, or open your dex: one brew per legend, named however you like.
+          </p>
+          <p className="text-sm text-muted-foreground">
+            It isn&apos;t a Moxfield or Scryfall replacement. Finish, share, and print decks there.
+          </p>
+          <Button size="lg" variant="secondary" className="press w-full" onClick={onClose}>Got it</Button>
         </div>
-        <div style={{ ...body, color: "#c3c8ce" }}>
-          Build Commander decks the way you flip through a binder at 1am: one card at a time, keep what sparks something.
-        </div>
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-          {gesture("←→", "Swipe to browse")}
-          {gesture("↑", "Swipe up to keep a card")}
-          {gesture("↓", "Swipe down to see your pile")}
-        </div>
-
-        <div style={{ ...body, color: "#c3c8ce" }}>
-          Search any card with Scryfall syntax, or open your dex: one brew per legend, named however you like.
-        </div>
-        <div style={{ ...body, fontSize: 13, color: theme.dim }}>
-          It isn&apos;t a Moxfield or Scryfall replacement. Finish, share, and print decks there.
-        </div>
-
-        <button
-          onClick={onClose}
-          className="press"
-          style={{
-            minHeight: 48,
-            background: theme.muted, color: theme.white, border: "none",
-            fontFamily: "'Noto Sans', sans-serif", fontSize: 16,
-            cursor: "pointer",
-            WebkitTapHighlightColor: "transparent",
-          }}
-        >
-          Got it
-        </button>
-      </div>
-    </div>
+      </SheetContent>
+    </Sheet>
   );
 }

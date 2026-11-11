@@ -15,7 +15,7 @@ export const CARD_CONTROL_STYLE = {
   border: "1px solid rgba(255,255,255,0.2)",
   borderRadius: 20,
   padding: "6px 14px",
-  fontFamily: "'Noto Sans Mono', monospace",
+  fontFamily: "'JetBrains Mono', monospace",
   fontSize: 12, letterSpacing: "0.1em",
   color: "rgba(255,255,255,0.55)",
   cursor: "pointer",

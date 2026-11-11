@@ -1,13 +1,14 @@
 import { useTheme } from "../theme/ThemeContext";
+import Icon from "./Icon.jsx";
 
 const TIERS = ["S", "A", "B"];
 
 // Steel-storm tier badges (item 3): S rides the electric accent, A a dimmer
 // steel, B a near-muted grey.
 const TIER_COLORS = {
-  S: "#38bdf8",
-  A: "#5f9bbf",
-  B: "#2a3138",
+  S: "#2bc4ae",
+  A: "#5fb3a6",
+  B: "#567371",
 };
 
 export default function ToolChips({ tools }) {
@@ -47,7 +48,7 @@ export default function ToolChips({ tools }) {
     >
       <div style={{ flex: 1, minWidth: 0 }}>
         <div style={{
-          fontFamily: "'Noto Sans', sans-serif",
+          fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
           fontSize: 15,
           fontWeight: 400,
           color: nameColor,
@@ -57,7 +58,7 @@ export default function ToolChips({ tools }) {
           {tool.name}
         </div>
         <div style={{
-          fontFamily: "'Noto Sans', sans-serif",
+          fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
           fontSize: 12,
           fontWeight: 300,
           color: descColor,
@@ -67,17 +68,7 @@ export default function ToolChips({ tools }) {
         </div>
       </div>
 
-      <span
-        className="material-symbols-rounded"
-        style={{
-          flexShrink: 0,
-          fontSize: 16,
-          fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
-          color: tierColor,
-        }}
-      >
-        arrow_forward
-      </span>
+      <Icon name="arrow_forward" style={{ flexShrink: 0, fontSize: 16, fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24", color: tierColor, }} />
     </a>
   );
 
@@ -102,7 +93,7 @@ export default function ToolChips({ tools }) {
             borderBottom: `1px solid ${divider}`,
           }}>
             <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11,
               fontWeight: 500,
               color: TIER_COLORS[tier],
@@ -111,7 +102,7 @@ export default function ToolChips({ tools }) {
               {tier}
             </span>
             <span style={{
-              fontFamily: "'Noto Sans', sans-serif",
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
               fontSize: 10,
               fontWeight: 500,
               letterSpacing: "0.14em",

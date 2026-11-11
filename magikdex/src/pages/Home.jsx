@@ -7,6 +7,7 @@ import ColorPips from "../components/ColorPips";
 import Wordmark from "../components/Wordmark";
 import { supabase } from "../lib/supabase.js";
 import { deckDisplayName, renameDeck, resolveLegendDeck } from "../lib/legendDeck.js";
+import Icon from "../components/Icon.jsx";
 
 // The last-active legend's id — most recently brewed/opened. Persisted to
 // localStorage now; a `legends.last_active_at` column can back this later.
@@ -147,7 +148,7 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
               WebkitTapHighlightColor: "transparent",
             }}
           >
-            <span className="material-symbols-rounded" style={{ fontSize: 24 }}>chevron_left</span>
+            <Icon name="chevron_left" style={{ fontSize: 24 }} />
           </button>
           <Wordmark onClick={onAbout} />
         </div>
@@ -172,7 +173,7 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
                 background: theme.accent,
               }} />
               <span style={{
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 10, letterSpacing: "0.08em",
                 color: dimColor, whiteSpace: "nowrap",
               }}>
@@ -191,16 +192,7 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
             WebkitTapHighlightColor: "transparent",
           }}
         >
-          <span
-            className="material-symbols-rounded"
-            style={{
-              fontSize: 20,
-              color: glyphColor,
-              fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24",
-            }}
-          >
-            settings
-          </span>
+          <Icon name="settings" style={{ fontSize: 20, color: glyphColor, fontVariationSettings: "'FILL' 0, 'wght' 300, 'GRAD' 0, 'opsz' 24", }} />
         </button>
         </div>
       </div>
@@ -229,14 +221,14 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
               display: "flex", flexDirection: "column", gap: 6,
             }}>
               <div style={{
-                fontFamily: "'Noto Sans', sans-serif",
+                fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                 fontSize: 16,
                 color: titleColor,
               }}>
                 Start your first brew
               </div>
               <div style={{
-                fontFamily: "'Noto Sans', sans-serif",
+                fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                 fontSize: 13,
                 color: dimColor,
               }}>
@@ -269,12 +261,12 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
                 }}
               >
                 <span style={{
-                  fontFamily: "'Noto Sans', sans-serif", fontSize: 16,
+                  fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 16,
                   overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                 }}>
                   {activeName}
                 </span>
-                <span className="material-symbols-rounded" style={{ fontSize: 18, color: dimColor, flexShrink: 0 }}>edit</span>
+                <Icon name="edit" style={{ fontSize: 18, color: dimColor, flexShrink: 0 }} />
               </button>
               <button
                 onClick={() => launchBrew(activeLegend, null, { startView: "review" })}
@@ -283,7 +275,7 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
                   minHeight: 44, padding: "0 18px", flexShrink: 0,
                   background: theme.accent, color: theme.base,
                   border: "none",
-                  fontFamily: "'Noto Sans', sans-serif", fontSize: 15, fontWeight: 600,
+                  fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 15, fontWeight: 600,
                   cursor: "pointer",
                   WebkitTapHighlightColor: "transparent",
                 }}
@@ -304,7 +296,7 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
                   flex: 1, minWidth: 0, height: 44, padding: "0 12px",
                   background: theme.surface, color: titleColor,
                   border: `1px solid ${theme.accent}`, outline: "none",
-                  fontFamily: "'Noto Sans', sans-serif", fontSize: 16,
+                  fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 16,
                 }}
               />
               <button
@@ -314,7 +306,7 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
                 style={{
                   minHeight: 44, padding: "0 12px",
                   background: "transparent", color: dimColor, border: "none",
-                  fontFamily: "'Noto Sans', sans-serif", fontSize: 15, cursor: "pointer",
+                  fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 15, cursor: "pointer",
                 }}
               >
                 Cancel
@@ -325,7 +317,7 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
                 style={{
                   minHeight: 44, padding: "0 16px",
                   background: theme.accent, color: theme.base, border: "none",
-                  fontFamily: "'Noto Sans', sans-serif", fontSize: 15, fontWeight: 600,
+                  fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 15, fontWeight: 600,
                   cursor: "pointer",
                 }}
               >
@@ -334,7 +326,7 @@ export default function Home({ onLaunchBrew, onBack, onAbout, reloadSignal }) {
             </form>
           )}
           {renameDraft !== null && (
-            <div style={{ fontFamily: "'Noto Sans', sans-serif", fontSize: 12, color: renameError ? theme.red : dimColor, marginTop: 4 }}>
+            <div style={{ fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 12, color: renameError ? theme.red : dimColor, marginTop: 4 }}>
               {renameError ?? "Leave it empty to use the legend's name."}
             </div>
           )}

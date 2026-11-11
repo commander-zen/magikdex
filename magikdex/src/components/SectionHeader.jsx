@@ -8,7 +8,7 @@ export default function SectionHeader({ label }) {
 
   return (
     <div style={{
-      fontFamily: "'Noto Sans', sans-serif",
+      fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
       fontSize: 11,
       fontWeight: 700,
       letterSpacing: "0.14em",

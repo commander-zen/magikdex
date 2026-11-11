@@ -86,7 +86,7 @@ function FilterSectionLabel({ children }) {
   return (
     <div style={{
       fontSize: 11, fontWeight: 600,
-      fontFamily: "'Noto Sans', sans-serif",
+      fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
       letterSpacing: "0.1em",
       textTransform: "uppercase",
       color: "var(--muted)",
@@ -105,7 +105,7 @@ function RemovableChip({ label, onRemove }) {
       background: "rgba(91,143,255,0.12)",
       border: "1px solid rgba(91,143,255,0.25)",
       color: "var(--primary)", fontSize: 13,
-      fontFamily: "'Noto Sans Mono', monospace",
+      fontFamily: "'JetBrains Mono', monospace",
     }}>
       {label}
       <button type="button" onClick={onRemove} style={{
@@ -140,7 +140,7 @@ function AddInputRow({ value, onChange, onAdd, placeholder, mono = false }) {
         autoComplete="off"
         style={{
           ...inputStyle, flex: 1,
-          fontFamily: mono ? "'Noto Sans Mono', monospace" : "'Noto Sans', sans-serif",
+          fontFamily: mono ? "'JetBrains Mono', monospace" : "'Atkinson Hyperlegible Next Variable', sans-serif",
         }}
       />
       <button type="button" onClick={onAdd} style={{
@@ -371,7 +371,7 @@ export default function SearchForm({ onSearch, onQueryChange, loading, error }) 
               borderRadius: 10,
               padding: "1px 6px",
               fontSize: 11, fontWeight: 600,
-              fontFamily: "'Noto Sans', sans-serif",
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
               lineHeight: 1.4,
             }}>
               {activeFilterCount}
@@ -464,7 +464,7 @@ export default function SearchForm({ onSearch, onQueryChange, loading, error }) 
             <FilterSectionLabel>Mana Cost</FilterSectionLabel>
             <input value={manaCost} onChange={e => setManaCost(e.target.value)}
               placeholder="{2}{G}{W}" autoComplete="off"
-              style={{ ...inputStyle, fontFamily: "'Noto Sans Mono', monospace" }} />
+              style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }} />
           </div>
 
           {/* CMC */}
@@ -571,7 +571,7 @@ export default function SearchForm({ onSearch, onQueryChange, loading, error }) 
             <FilterSectionLabel>Set</FilterSectionLabel>
             <input value={setCode} onChange={e => setSetCode(e.target.value)}
               placeholder="e.g. dsk, otj, mkm" autoComplete="off"
-              style={{ ...inputStyle, fontFamily: "'Noto Sans Mono', monospace" }} />
+              style={{ ...inputStyle, fontFamily: "'JetBrains Mono', monospace" }} />
           </div>
 
           {/* ARTIST */}

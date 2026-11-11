@@ -7,6 +7,7 @@ import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { partnerVariant } from "../../lib/partners.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
 import { bracketCardLink } from "../../lib/bracketCardLink.js";
+import Icon from "../../components/Icon.jsx";
 
 // One row of the export menu; the copy buttons and the Bracket Card site link share it.
 const EXPORT_ITEM_STYLE = {
@@ -14,8 +15,8 @@ const EXPORT_ITEM_STYLE = {
   display: "flex", alignItems: "center", gap: 12,
   background: "transparent",
   border: "1px solid var(--bevel-dark)", borderRadius: 0,
-  color: "var(--text, #e8eaed)",
-  fontFamily: "'Noto Sans Mono', monospace", fontSize: 13,
+  color: "var(--text, #e9f3f1)",
+  fontFamily: "'JetBrains Mono', monospace", fontSize: 13,
   cursor: "pointer", WebkitTapHighlightColor: "transparent",
 };
 
@@ -641,7 +642,7 @@ export default function ReviewScreen({
     background: "transparent",
     border: "none",
     color: "var(--primary)",
-    fontFamily: "'Noto Sans Mono', monospace",
+    fontFamily: "'JetBrains Mono', monospace",
     fontSize: 15, lineHeight: 1,
     borderRadius: 0, cursor: "pointer",
     WebkitTapHighlightColor: "transparent",
@@ -713,9 +714,7 @@ export default function ReviewScreen({
                 }}
               >
                 WREC
-                <span className="material-symbols-rounded" style={{ fontSize: 18, color: "var(--muted)" }}>
-                  {wrecOpen ? "expand_less" : "expand_more"}
-                </span>
+                <Icon name={wrecOpen ? "expand_less" : "expand_more"} style={{ fontSize: 18, color: "var(--muted)" }} />
                 {wrecFilter && (
                   <span style={{
                     fontSize: 11, letterSpacing: "0.14em",
@@ -739,7 +738,7 @@ export default function ReviewScreen({
                   WebkitTapHighlightColor: "transparent",
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 18 }}>help</span>
+                <Icon name="help" style={{ fontSize: 18 }} />
               </button>
             </span>
           ) : (
@@ -792,7 +791,7 @@ export default function ReviewScreen({
                   <span style={{
                     // UAT batch 2, item 9 — group headers are a real H2 rank
                     // under the section header, not near-invisible 10px mono.
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 13, letterSpacing: "0.12em",
                     color: "var(--text2)",
                     minWidth: 0, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -816,14 +815,14 @@ export default function ReviewScreen({
                         display: "flex", alignItems: "center", gap: 4,
                         background: "transparent", border: "none", padding: "0 4px",
                         color: "var(--primary)",
-                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 11, letterSpacing: "0.06em",
                         opacity: searchBusy ? 0.5 : 1,
                         cursor: searchBusy ? "default" : "pointer",
                         WebkitTapHighlightColor: "transparent",
                       }}
                     >
-                      <span className="material-symbols-rounded" style={{ fontSize: 16 }}>add</span>
+                      <Icon name="add" style={{ fontSize: 16 }} />
                       lands
                     </button>
                   )}
@@ -840,13 +839,13 @@ export default function ReviewScreen({
                         display: "flex", alignItems: "center", gap: 4,
                         background: "transparent", border: "none", padding: "0 4px",
                         color: "var(--primary)",
-                        fontFamily: "'Noto Sans Mono', monospace",
+                        fontFamily: "'JetBrains Mono', monospace",
                         fontSize: 11, letterSpacing: "0.06em",
                         cursor: "pointer",
                         WebkitTapHighlightColor: "transparent",
                       }}
                     >
-                      <span className="material-symbols-rounded" style={{ fontSize: 16 }}>add</span>
+                      <Icon name="add" style={{ fontSize: 16 }} />
                       basics
                     </button>
                   )}
@@ -871,7 +870,7 @@ export default function ReviewScreen({
                       paddingRight: 16,
                       background: "var(--danger)",
                     }}>
-                      <span className="material-symbols-rounded" style={{ fontSize: 20, color: "#fff" }}>delete</span>
+                      <Icon name="delete" style={{ fontSize: 20, color: "var(--bg)" }} />
                     </div>
                   )}
                 <div
@@ -946,7 +945,7 @@ export default function ReviewScreen({
                         })}
                         {tags.length > 2 && (
                           <span style={{
-                            fontFamily: "'Noto Sans Mono', monospace",
+                            fontFamily: "'JetBrains Mono', monospace",
                             fontSize: 11, color: "var(--muted)",
                           }}>+{tags.length - 2}</span>
                         )}
@@ -967,7 +966,7 @@ export default function ReviewScreen({
                         >−</button>
                         <span style={{
                           minWidth: 16, textAlign: "center",
-                          fontFamily: "'Noto Sans Mono', monospace",
+                          fontFamily: "'JetBrains Mono', monospace",
                           fontSize: 13, color: "var(--text)",
                         }}>{quantity}</span>
                         <button
@@ -991,7 +990,7 @@ export default function ReviewScreen({
                             display: "flex", alignItems: "center", justifyContent: "center",
                             background: "transparent", border: "none", padding: 0,
                             color: "var(--muted)",
-                            fontFamily: "'Noto Sans', sans-serif", fontSize: 16, lineHeight: 1,
+                            fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 16, lineHeight: 1,
                             cursor: "pointer", WebkitTapHighlightColor: "transparent",
                           }}
                         >×</button>
@@ -1029,23 +1028,21 @@ export default function ReviewScreen({
         display: "flex", alignItems: "center", gap: 5,
         background: "transparent", border: "none",
         color: "var(--text)",
-        fontFamily: "'Noto Sans Mono', monospace",
+        fontFamily: "'JetBrains Mono', monospace",
         fontSize: 11, letterSpacing: "0.04em",
         borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
       }}
     >
-      <span className="material-symbols-rounded" style={{ fontSize: 16, color: "var(--muted)" }}>tune</span>
+      <Icon name="tune" style={{ fontSize: 16, color: "var(--muted)" }} />
       {groupLabel} · {sortLabel}
-      <span className="material-symbols-rounded" style={{ fontSize: 16, color: "var(--muted)" }}>
-        {controlsOpen ? "expand_less" : "expand_more"}
-      </span>
+      <Icon name={controlsOpen ? "expand_less" : "expand_more"} style={{ fontSize: 16, color: "var(--muted)" }} />
     </button>
   );
   // One axis row (label + segmented options) — reused for GROUP BY and SORT BY.
   const axisRow = (axisLabel, options, value, setValue) => (
     <div style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: 6 }}>
       <span style={{
-        fontFamily: "'Noto Sans Mono', monospace",
+        fontFamily: "'JetBrains Mono', monospace",
         fontSize: 10, letterSpacing: "0.1em", color: "var(--muted)",
         width: 52, flexShrink: 0,
       }}>{axisLabel}</span>
@@ -1061,7 +1058,7 @@ export default function ReviewScreen({
               background: "transparent",
               border: `1px solid ${active ? "var(--primary)" : "var(--bevel-dark)"}`,
               color: active ? "var(--primary)" : "var(--muted)",
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11, letterSpacing: "0.06em",
               borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
             }}
@@ -1086,7 +1083,7 @@ export default function ReviewScreen({
       minHeight: "100dvh",
       background: "var(--bg)",
       color: "var(--text)",
-      fontFamily: "'Noto Sans', sans-serif",
+      fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -1178,7 +1175,7 @@ export default function ReviewScreen({
                     commander header (was missing from the list view). Commander
                     + mainboard, matching the Box's deck-total convention. */}
                 <span style={{
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 11, letterSpacing: "0.08em",
                   color: "var(--muted)",
                 }}>
@@ -1198,14 +1195,12 @@ export default function ReviewScreen({
                   display: "flex", alignItems: "center", gap: 2,
                   background: "transparent", border: "none", padding: "0 4px",
                   color: "var(--primary)",
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 11, letterSpacing: "0.06em",
                   cursor: "pointer", WebkitTapHighlightColor: "transparent",
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 16 }}>
-                  {partner ? "swap_horiz" : "add"}
-                </span>
+                <Icon name={partner ? "swap_horiz" : "add"} style={{ fontSize: 16 }} />
                 partner
               </button>
             )}
@@ -1222,9 +1217,7 @@ export default function ReviewScreen({
                 cursor: "pointer", WebkitTapHighlightColor: "transparent",
               }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 20 }}>
-                {copied ? "check" : "ios_share"}
-              </span>
+              <Icon name={copied ? "check" : "ios_share"} style={{ fontSize: 20 }} />
             </button>
           </div>
           )}
@@ -1271,7 +1264,7 @@ export default function ReviewScreen({
                   flex: 1, minWidth: 0, boxSizing: "border-box", minHeight: 44,
                   background: "transparent",
                   color: "var(--text)",
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 16,
                   border: "none",
                   padding: "0 12px", borderRadius: 0, outline: "none",
@@ -1289,12 +1282,12 @@ export default function ReviewScreen({
                     border: "none",
                     borderLeft: "1px solid var(--bevel-dark)",
                     color: "var(--primary)",
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 12, letterSpacing: "0.06em",
                     cursor: "pointer", WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 18 }}>style</span>
+                  <Icon name="style" style={{ fontSize: 18 }} />
                   quick brew
                 </button>
               ) : (
@@ -1314,13 +1307,13 @@ export default function ReviewScreen({
                     WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 20 }}>search</span>
+                  <Icon name="search" style={{ fontSize: 20 }} />
                 </button>
               )}
             </div>
             {searchMsg && (
               <div style={{
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12, color: "var(--muted)", lineHeight: 1.5,
               }}>
                 {searchMsg}
@@ -1361,7 +1354,7 @@ export default function ReviewScreen({
               </div>
             )}
             <div style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 12, lineHeight: 1.5,
               color: "var(--muted)",
             }}>
@@ -1376,7 +1369,7 @@ export default function ReviewScreen({
                 background: "transparent",
                 border: "1px solid var(--primary)",
                 color: "var(--primary)",
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 13, letterSpacing: "0.1em",
                 borderRadius: 0,
                 cursor: "pointer",
@@ -1412,14 +1405,14 @@ export default function ReviewScreen({
                 background: "transparent",
                 border: "1px solid var(--primary)",
                 color: "var(--primary)",
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12, letterSpacing: "0.08em",
                 cursor: addingMore ? "default" : "pointer",
                 opacity: addingMore ? 0.6 : 1,
                 WebkitTapHighlightColor: "transparent",
               }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 16 }}>add</span>
+              <Icon name="add" style={{ fontSize: 16 }} />
               {addingMore ? "dealing…" : `add more ${LABEL_BY_TAG[wrecFilter] ?? wrecFilter}`}
             </button>
             {addMoreError && (
@@ -1445,19 +1438,19 @@ export default function ReviewScreen({
                   display: "flex", alignItems: "center", gap: 6,
                   background: "transparent", border: "none", padding: 0,
                   color: "var(--muted)",
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 12, letterSpacing: "0.08em",
                   cursor: "pointer",
                   WebkitTapHighlightColor: "transparent",
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 16 }}>delete</span>
+                <Icon name="delete" style={{ fontSize: 16 }} />
                 delete legend
               </button>
             ) : (
               <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "8px 0" }}>
                 <div style={{
-                  fontFamily: "'Noto Sans', sans-serif",
+                  fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                   fontSize: 13, lineHeight: 1.5,
                   color: "var(--text2)",
                 }}>
@@ -1475,7 +1468,7 @@ export default function ReviewScreen({
                       border: "1px solid var(--muted)",
                       borderRadius: 0,
                       color: "var(--text)",
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 12, letterSpacing: "0.08em",
                       cursor: "pointer",
                       WebkitTapHighlightColor: "transparent",
@@ -1492,7 +1485,7 @@ export default function ReviewScreen({
                       border: "1px solid var(--danger)",
                       borderRadius: 0,
                       color: "var(--danger)",
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 12, letterSpacing: "0.08em",
                       cursor: deleting ? "default" : "pointer",
                       opacity: deleting ? 0.6 : 1,
@@ -1597,14 +1590,14 @@ export default function ReviewScreen({
                 display: "flex", alignItems: "center", gap: 6,
                 background: "transparent", border: "none",
                 color: "var(--muted)",
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12, letterSpacing: "0.08em",
                 padding: "0 10px",
                 cursor: "pointer",
                 WebkitTapHighlightColor: "transparent",
               }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 18 }}>arrow_back</span>
+              <Icon name="arrow_back" style={{ fontSize: 18 }} />
               back
             </button>
             {/* Bottom-right REVIEW — enters the flip pass. Device UAT: it
@@ -1627,7 +1620,7 @@ export default function ReviewScreen({
                   display: "flex", alignItems: "center",
                   background: "transparent", border: "none",
                   color: "var(--primary)",
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 12, letterSpacing: "0.08em",
                   padding: "0 10px",
                   cursor: "pointer",
@@ -1714,7 +1707,7 @@ export default function ReviewScreen({
             </div>
           ) : (
             <div style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 12,
               color: commanderFull === undefined ? "var(--danger)" : "var(--muted)",
             }}>
@@ -1767,11 +1760,11 @@ export default function ReviewScreen({
                   color: "var(--muted)", cursor: "pointer", WebkitTapHighlightColor: "transparent",
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 22 }}>close</span>
+                <Icon name="close" style={{ fontSize: 22 }} />
               </button>
             </div>
             <p style={{
-              fontFamily: "'Noto Sans', sans-serif", fontSize: 13, lineHeight: 1.55,
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 13, lineHeight: 1.55,
               color: "var(--text2)", margin: "0 0 14px",
             }}>
               WREC (the Wachel Reeks Effectiveness Coefficient, named in honor of the
@@ -1791,18 +1784,18 @@ export default function ReviewScreen({
               <div key={role} style={{ display: "flex", gap: 10, padding: "7px 0", borderTop: "1px solid var(--bevel-dark)" }}>
                 <span style={{
                   flexShrink: 0, minWidth: 24, textAlign: "right",
-                  fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
+                  fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
                   color: "var(--primary)",
                 }}>{target}</span>
                 <span style={{ minWidth: 0 }}>
                   <span style={{
                     display: "block",
-                    fontFamily: "'Noto Sans Mono', monospace", fontSize: 12,
+                    fontFamily: "'JetBrains Mono', monospace", fontSize: 12,
                     letterSpacing: "0.06em", color: "var(--text)",
                   }}>{role}</span>
                   <span style={{
                     display: "block",
-                    fontFamily: "'Noto Sans', sans-serif", fontSize: 12, lineHeight: 1.45,
+                    fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 12, lineHeight: 1.45,
                     color: "var(--text2)",
                   }}>{desc}</span>
                 </span>
@@ -1816,11 +1809,11 @@ export default function ReviewScreen({
                 marginTop: 16,
                 minHeight: 44, display: "flex", alignItems: "center", justifyContent: "center", gap: 8,
                 border: "1px solid var(--primary)", color: "var(--primary)",
-                fontFamily: "'Noto Sans Mono', monospace", fontSize: 12, letterSpacing: "0.08em",
+                fontFamily: "'JetBrains Mono', monospace", fontSize: 12, letterSpacing: "0.08em",
                 textDecoration: "none", WebkitTapHighlightColor: "transparent",
               }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 18 }}>play_circle</span>
+              <Icon name="play_circle" style={{ fontSize: 18 }} />
               watch the command zone guide
             </a>
           </div>
@@ -1837,7 +1830,7 @@ export default function ReviewScreen({
           zIndex: 300,
           background: "rgba(0,0,0,0.8)",
           color: "rgba(255,255,255,0.85)",
-          fontFamily: "'Noto Sans Mono', monospace",
+          fontFamily: "'JetBrains Mono', monospace",
           fontSize: 12,
           letterSpacing: "0.06em",
           padding: "8px 14px",
@@ -1868,7 +1861,7 @@ export default function ReviewScreen({
             onClick={e => e.stopPropagation()}
             style={{
               width: "100%", maxWidth: 430,
-              background: "var(--surface, #12151a)",
+              background: "var(--surface, #0c1414)",
               borderTop: "1px solid var(--bevel-dark)",
               padding: "10px 14px calc(env(safe-area-inset-bottom) + 18px)",
               display: "flex", flexDirection: "column", gap: 8,
@@ -1883,9 +1876,7 @@ export default function ReviewScreen({
                 onClick={() => { setExportMenu(false); run(); }}
                 style={EXPORT_ITEM_STYLE}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 20, color: "var(--muted)" }}>
-                  {icon}
-                </span>
+                <Icon name={icon} style={{ fontSize: 20, color: "var(--muted)" }} />
                 {label}
               </button>
             ))}
@@ -1904,9 +1895,7 @@ export default function ReviewScreen({
               }}
               style={{ ...EXPORT_ITEM_STYLE, textDecoration: "none", boxSizing: "border-box", opacity: bracketCardHref ? 1 : 0.5 }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 20, color: "var(--muted)" }}>
-                open_in_new
-              </span>
+              <Icon name="open_in_new" style={{ fontSize: 20, color: "var(--muted)" }} />
               <span>
                 bracket card + proxies
                 <span style={{ display: "block", fontSize: 11, color: "var(--muted)" }}>opens in your browser</span>
@@ -1916,7 +1905,7 @@ export default function ReviewScreen({
               onClick={() => setExportMenu(false)}
               style={{
                 minHeight: 44, background: "transparent", border: "none",
-                color: "var(--muted)", fontFamily: "'Noto Sans Mono', monospace",
+                color: "var(--muted)", fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12, cursor: "pointer",
               }}
             >

@@ -13,7 +13,7 @@ export default function TeaserCard({ accent, name, desc }) {
       border: `1px solid ${accent}40`,
     }}>
       <div style={{
-        fontFamily: "'Noto Sans', sans-serif",
+        fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
         fontSize: 15,
         fontWeight: 600,
         color: accent,
@@ -22,7 +22,7 @@ export default function TeaserCard({ accent, name, desc }) {
         {name}
       </div>
       <div style={{
-        fontFamily: "'Noto Sans', sans-serif",
+        fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
         fontSize: 13,
         color: descColor,
         lineHeight: 1.55,
@@ -36,7 +36,7 @@ export default function TeaserCard({ accent, name, desc }) {
         borderRadius: 0,
         background: `${accent}15`,
         border: `1px solid ${accent}40`,
-        fontFamily: "'Noto Sans', sans-serif",
+        fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
         fontSize: 10,
         fontWeight: 700,
         letterSpacing: "0.12em",

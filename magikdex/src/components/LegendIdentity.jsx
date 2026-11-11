@@ -4,6 +4,7 @@ import { getCardData, getCardImage } from "../lib/scryfall.js";
 // The same 3D flip the brew screens use — see the history at the top of that
 // file for why this is not an image swap.
 import FlipCard from "../brew-components/FlipCard.jsx";
+import Icon from "./Icon.jsx";
 
 // The detail pane of the storage-box Home: the selected legend's card art.
 //
@@ -137,12 +138,12 @@ export default function LegendIdentity({ legend }) {
                   position: "absolute", right: 6, bottom: 6, zIndex: 5,
                   width: 36, height: 36, padding: 0, borderRadius: "50%",
                   display: "flex", alignItems: "center", justifyContent: "center",
-                  background: "rgba(8,9,12,0.72)", border: `1px solid ${theme.muted}`,
+                  background: "rgba(6,10,10,0.72)", border: `1px solid ${theme.muted}`,
                   color: theme.white, cursor: "pointer",
                   WebkitTapHighlightColor: "transparent",
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 20 }}>autorenew</span>
+                <Icon name="autorenew" style={{ fontSize: 20 }} />
               </button>
             )}
           </div>

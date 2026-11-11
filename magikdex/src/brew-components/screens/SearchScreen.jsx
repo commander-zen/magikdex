@@ -152,7 +152,7 @@ export default function SearchScreen({ onSearch, loading, error, initialQuery, n
       minHeight: "100dvh",
       background: "var(--bg)",
       color: "var(--text)",
-      fontFamily: "'Noto Sans', sans-serif",
+      fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
       display: "flex",
       flexDirection: "column",
       alignItems: "center",
@@ -193,8 +193,8 @@ export default function SearchScreen({ onSearch, loading, error, initialQuery, n
             color: "var(--color-text-secondary)",
           }}>
             Narrows the current stack of {stackCount} — relevance order is kept.{" "}
-            <span style={{ fontFamily: "'Noto Sans Mono', monospace" }}>-t:eldrazi</span>,{" "}
-            <span style={{ fontFamily: "'Noto Sans Mono', monospace" }}>cmc&lt;=4</span>, or a word.
+            <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>-t:eldrazi</span>,{" "}
+            <span style={{ fontFamily: "'JetBrains Mono', monospace" }}>cmc&lt;=4</span>, or a word.
           </div>
         )}
 

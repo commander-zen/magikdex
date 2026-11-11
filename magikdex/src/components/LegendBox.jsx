@@ -6,6 +6,7 @@ import { deckDisplayName, deckTotal, deleteLegend, fetchLegendDeck, resolveLegen
 import { platformOf } from "../lib/moxfieldImport.js";
 import AddLegendSheet from "./AddLegendSheet";
 import ColorPips from "./ColorPips";
+import Icon from "./Icon.jsx";
 
 const DECK_GATE = 100;
 
@@ -435,9 +436,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
         WebkitTapHighlightColor: "transparent",
       }}
     >
-      <span className="material-symbols-rounded" style={{ fontSize: 20 }}>
-        {dir === "left" ? "chevron_left" : "chevron_right"}
-      </span>
+      <Icon name={dir === "left" ? "chevron_left" : "chevron_right"} style={{ fontSize: 20 }} />
     </button>
   );
 
@@ -456,7 +455,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
       }}>
         {chevron("left", atFirst, () => setBox(b => Math.max(0, b - 1)))}
         <span style={{
-          fontFamily: "'Noto Sans Mono', monospace",
+          fontFamily: "'JetBrains Mono', monospace",
           fontSize: 12,
           letterSpacing: "0.22em",
           color: dimColor,
@@ -476,7 +475,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
               display: "flex", alignItems: "center", justifyContent: "center",
               background: "transparent", border: "none", padding: "0 6px",
               color: ringColor,
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11,
               letterSpacing: "0.08em",
               cursor: "pointer",
@@ -496,7 +495,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
           margin: "0 10px",
           padding: "6px 8px",
           border: `1px solid ${theme.red}`,
-          fontFamily: "'Noto Sans Mono', monospace",
+          fontFamily: "'JetBrains Mono', monospace",
           fontSize: 10,
           lineHeight: 1.4,
           color: theme.red,
@@ -584,7 +583,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
                 }}>
                   <ColorPips identity={legend.color_identity} />
                   <span style={{
-                    fontFamily: "'Noto Sans', sans-serif",
+                    fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                     fontSize: 13, lineHeight: 1.25,
                     color: textColor,
                     display: "-webkit-box",
@@ -600,7 +599,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
                   <div style={{
                     position: "absolute",
                     top: 6, right: 8,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 10,
                     color: dimColor,
                   }}>
@@ -651,11 +650,9 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
                   opacity: arranging ? 0.3 : 1,
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 22, color: dimColor }}>
-                  add
-                </span>
+                <Icon name="add" style={{ fontSize: 22, color: dimColor }} />
                 <span style={{
-                  fontFamily: "'Noto Sans', sans-serif",
+                  fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                   fontSize: 12,
                   color: dimColor,
                 }}>
@@ -691,7 +688,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
           zIndex: 300,
           background: "rgba(0,0,0,0.8)",
           color: "rgba(255,255,255,0.85)",
-          fontFamily: "'Noto Sans Mono', monospace",
+          fontFamily: "'JetBrains Mono', monospace",
           fontSize: 12,
           letterSpacing: "0.08em",
           padding: "8px 14px",
@@ -748,13 +745,13 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
                     background: "transparent",
                     border: `1px solid ${dimColor}`,
                     color: textColor,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 12, letterSpacing: "0.08em",
                     cursor: "pointer",
                     WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 16 }}>edit</span>
+                  <Icon name="edit" style={{ fontSize: 16 }} />
                   rename
                 </button>
                 <button
@@ -765,13 +762,13 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
                     background: "transparent",
                     border: `1px solid ${dimColor}`,
                     color: textColor,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 12, letterSpacing: "0.08em",
                     cursor: "pointer",
                     WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 16 }}>open_with</span>
+                  <Icon name="open_with" style={{ fontSize: 16 }} />
                   move
                 </button>
                 <button
@@ -782,20 +779,20 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
                     background: "transparent",
                     border: `1px solid ${dimColor}`,
                     color: textColor,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 12, letterSpacing: "0.08em",
                     cursor: "pointer",
                     WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 16 }}>delete</span>
+                  <Icon name="delete" style={{ fontSize: 16 }} />
                   delete
                 </button>
               </div>
             ) : (
               <>
                 <div style={{
-                  fontFamily: "'Noto Sans', sans-serif",
+                  fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                   fontSize: 13, lineHeight: 1.5,
                   color: dimColor,
                 }}>
@@ -811,7 +808,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
                       background: "transparent",
                       border: `1px solid ${dimColor}`,
                       color: textColor,
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 12, letterSpacing: "0.08em",
                       cursor: "pointer",
                       WebkitTapHighlightColor: "transparent",
@@ -827,7 +824,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
                       background: "transparent",
                       border: `1px solid ${theme.red}`,
                       color: theme.red,
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 12, letterSpacing: "0.08em",
                       cursor: deleting ? "default" : "pointer",
                       opacity: deleting ? 0.6 : 1,

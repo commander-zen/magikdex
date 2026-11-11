@@ -7,6 +7,7 @@ import { WREC_CHIPS, WrecIcon, WREC_CHIP_COLORS, LABEL_BY_TAG } from "../../comp
 import FlipCard from "../FlipCard.jsx";
 import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
+import Icon from "../../components/Icon.jsx";
 
 // "Basic" + "Land" (not the literal "Basic Land") so snow basics — type line
 // "Basic Snow Land — Wastes" — count too.
@@ -178,11 +179,11 @@ export default function SwipeScreen({
     if (!document.getElementById("gc-style")) {
       const style = document.createElement("style");
       style.id = "gc-style";
-      // Steel-storm breathing glow — single hue, the app's accent (#38bdf8).
+      // Steel-storm breathing glow — single hue, the app's accent (#2bc4ae).
       style.textContent = `
         @keyframes gc-glow {
-          0%, 100% { box-shadow: 0 0 16px 3px rgba(56,189,248,0.5), 0 0 36px 10px rgba(56,189,248,0.16); }
-          50%      { box-shadow: 0 0 22px 6px rgba(56,189,248,0.78), 0 0 48px 14px rgba(56,189,248,0.22); }
+          0%, 100% { box-shadow: 0 0 16px 3px rgba(43,196,174,0.5), 0 0 36px 10px rgba(43,196,174,0.16); }
+          50%      { box-shadow: 0 0 22px 6px rgba(43,196,174,0.78), 0 0 48px 14px rgba(43,196,174,0.22); }
         }
       `;
       document.head.appendChild(style);
@@ -551,7 +552,7 @@ export default function SwipeScreen({
     <div style={{
       position: "fixed", inset: 0,
       background: "var(--color-bg)",
-      fontFamily: "'Noto Sans', sans-serif",
+      fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
       overflow: "hidden",
     }}>
 
@@ -673,10 +674,10 @@ export default function SwipeScreen({
                         pointerEvents: "none",
                       }}>
                         <span style={{
-                          fontFamily: "'Noto Sans Mono', monospace",
+                          fontFamily: "'JetBrains Mono', monospace",
                           fontSize: 10,
                           letterSpacing: "0.1em",
-                          color: "#38bdf8",
+                          color: "#2bc4ae",
                         }}>
                           GAME CHANGER
                         </span>
@@ -766,7 +767,7 @@ export default function SwipeScreen({
                   flex: 1, minWidth: 0, boxSizing: "border-box", minHeight: 44,
                   background: "transparent",
                   color: "rgba(255,255,255,0.9)",
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 16,
                   border: "none", padding: "0 10px", outline: "none",
                 }}
@@ -779,13 +780,13 @@ export default function SwipeScreen({
                   flexShrink: 0, width: 44, minHeight: 44,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   background: "transparent", border: "none",
-                  borderLeft: "1px solid rgba(56,189,248,0.4)",
+                  borderLeft: "1px solid rgba(43,196,174,0.4)",
                   color: queryDraft.trim() ? "var(--primary)" : "var(--muted)",
                   cursor: queryDraft.trim() ? "pointer" : "default",
                   WebkitTapHighlightColor: "transparent",
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 20 }}>{queryBusy ? "hourglass_empty" : "search"}</span>
+                <Icon name={queryBusy ? "hourglass_empty" : "search"} style={{ fontSize: 20 }} />
               </button>
               <button
                 onClick={closeSearch}
@@ -794,12 +795,12 @@ export default function SwipeScreen({
                   flexShrink: 0, width: 44, minHeight: 44,
                   display: "flex", alignItems: "center", justifyContent: "center",
                   background: "transparent", border: "none",
-                  borderLeft: "1px solid rgba(56,189,248,0.4)",
+                  borderLeft: "1px solid rgba(43,196,174,0.4)",
                   color: "var(--muted)",
                   cursor: "pointer", WebkitTapHighlightColor: "transparent",
                 }}
               >
-                <span className="material-symbols-rounded" style={{ fontSize: 20 }}>close</span>
+                <Icon name="close" style={{ fontSize: 20 }} />
               </button>
             </div>
           ) : (
@@ -825,7 +826,7 @@ export default function SwipeScreen({
                     cursor: "pointer", WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 22 }}>chevron_left</span>
+                  <Icon name="chevron_left" style={{ fontSize: 22 }} />
                 </button>
               )}
               {browse ? (
@@ -850,9 +851,9 @@ export default function SwipeScreen({
                   </span>
                   {subline && (
                     <span style={{
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 10, letterSpacing: "0.1em",
-                      color: "rgba(255,255,255,0.3)",
+                      color: "var(--muted-foreground)",
                       textTransform: "uppercase",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                       maxWidth: "100%",
@@ -898,9 +899,9 @@ export default function SwipeScreen({
                   {subline && (
                     <span style={{
                       display: "block",
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 10, letterSpacing: "0.1em",
-                      color: "rgba(255,255,255,0.3)",
+                      color: "var(--muted-foreground)",
                       textTransform: "uppercase",
                       overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
                     }}>
@@ -918,8 +919,8 @@ export default function SwipeScreen({
                     minHeight: 44, minWidth: 44, flexShrink: 0,
                     display: "flex", alignItems: "center", justifyContent: "center",
                     background: "transparent", border: "none",
-                    color: "rgba(255,255,255,0.4)",
-                    fontFamily: "'Noto Sans', sans-serif",
+                    color: "var(--muted-foreground)",
+                    fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                     fontSize: 11, letterSpacing: 2, cursor: "pointer",
                     padding: "2px 6px",
                   }}
@@ -939,7 +940,7 @@ export default function SwipeScreen({
                     cursor: "pointer", WebkitTapHighlightColor: "transparent",
                   }}
                 >
-                  <span className="material-symbols-rounded" style={{ fontSize: 20 }}>search</span>
+                  <Icon name="search" style={{ fontSize: 20 }} />
                 </button>
               )}
             </>
@@ -963,16 +964,14 @@ export default function SwipeScreen({
                     background: "transparent",
                     border: `1px solid ${active ? "var(--primary)" : "rgba(255,255,255,0.18)"}`,
                     color: active ? "var(--primary)" : "rgba(255,255,255,0.55)",
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 11, letterSpacing: "0.08em",
                     cursor: "pointer", WebkitTapHighlightColor: "transparent",
                   }}
                 >
                   {opt.label}
                   {active && (
-                    <span className="material-symbols-rounded" style={{ fontSize: 14 }}>
-                      {swipeDir === "asc" ? "arrow_upward" : "arrow_downward"}
-                    </span>
+                    <Icon name={swipeDir === "asc" ? "arrow_upward" : "arrow_downward"} style={{ fontSize: 14 }} />
                   )}
                 </button>
               );
@@ -985,7 +984,7 @@ export default function SwipeScreen({
           <div style={{
             background: "rgba(0,0,0,0.55)",
             padding: "3px 8px",
-            fontFamily: "'Noto Sans Mono', monospace",
+            fontFamily: "'JetBrains Mono', monospace",
             fontSize: 11, lineHeight: 1.4,
             color: "rgba(255,255,255,0.7)",
           }}>
@@ -1011,7 +1010,7 @@ export default function SwipeScreen({
           paddingLeft: 10,
         }}>
           <span style={{
-            fontFamily: "'Noto Sans Mono', monospace",
+            fontFamily: "'JetBrains Mono', monospace",
             fontSize: 10, letterSpacing: "0.08em",
             color: "var(--primary)",
             overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap",
@@ -1026,7 +1025,7 @@ export default function SwipeScreen({
               display: "flex", alignItems: "center", justifyContent: "center",
               background: "transparent", border: "none", padding: 0,
               color: "var(--primary)",
-              fontFamily: "'Noto Sans', sans-serif", fontSize: 16, lineHeight: 1,
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 16, lineHeight: 1,
               cursor: "pointer", WebkitTapHighlightColor: "transparent",
             }}
           >×</button>
@@ -1048,7 +1047,7 @@ export default function SwipeScreen({
           left: 0, right: 0, zIndex: 3,
           minHeight: 44,
           display: "flex", alignItems: "center", justifyContent: "center",
-          fontFamily: "'Noto Sans Mono', monospace",
+          fontFamily: "'JetBrains Mono', monospace",
           fontSize: 13,
           letterSpacing: "0.04em",
           color: "var(--secondary)",
@@ -1080,7 +1079,7 @@ export default function SwipeScreen({
           gap: 16, padding: "0 32px", textAlign: "center",
         }}>
           <div style={{
-            fontFamily: "'Noto Sans Mono', monospace",
+            fontFamily: "'JetBrains Mono', monospace",
             fontSize: 13, letterSpacing: "0.06em", lineHeight: 1.5,
             color: "var(--color-text-secondary)",
           }}>nothing in this stack matches</div>
@@ -1093,7 +1092,7 @@ export default function SwipeScreen({
               border: "1px solid var(--primary)",
               background: "transparent",
               color: "var(--primary)",
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 13, letterSpacing: "0.1em",
               borderRadius: 0,
               cursor: escapeBusy ? "default" : "pointer",
@@ -1103,7 +1102,7 @@ export default function SwipeScreen({
           >{escapeBusy ? "searching…" : "search all cards →"}</button>
           {escapeMsg && (
             <div style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 12, lineHeight: 1.5,
               color: "var(--color-text-secondary)",
             }}>{escapeMsg}</div>
@@ -1134,7 +1133,7 @@ export default function SwipeScreen({
               border: "1px solid var(--primary)",
               background: "transparent",
               color: "var(--primary)",
-              fontFamily: "'Noto Sans', sans-serif",
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
               fontSize: 16, letterSpacing: 3, cursor: "pointer",
             }}
           >{browse ? "VIEW LIST" : "VIEW DECK"}</button>
@@ -1144,8 +1143,8 @@ export default function SwipeScreen({
               padding: "12px 28px", borderRadius: 0,
               border: "1px solid rgba(255,255,255,0.12)",
               background: "transparent",
-              color: "rgba(255,255,255,0.45)",
-              fontFamily: "'Noto Sans', sans-serif",
+              color: "var(--muted-foreground)",
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
               fontSize: 16, letterSpacing: 3, cursor: "pointer",
             }}
           >{browse ? "NEW SEARCH" : "SEARCH MORE"}</button>
@@ -1165,7 +1164,7 @@ export default function SwipeScreen({
             fontFamily: "var(--font-system)",
             fontSize: 26, letterSpacing: 3, color: "var(--color-text-primary)",
           }}>THAT'S THE DECK</div>
-          <div style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 12, color: "var(--color-text-secondary)" }}>
+          <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: "var(--color-text-secondary)" }}>
             you've flipped through every card
           </div>
           <button
@@ -1176,7 +1175,7 @@ export default function SwipeScreen({
               border: "1px solid var(--primary)",
               background: "transparent",
               color: "var(--primary)",
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 13, letterSpacing: "0.1em",
               borderRadius: 0, cursor: "pointer", WebkitTapHighlightColor: "transparent",
             }}
@@ -1217,7 +1216,7 @@ export default function SwipeScreen({
                   background: active ? (c?.bg ?? "transparent") : "rgba(0,0,0,0.45)",
                   opacity: active ? 1 : 0.6,
                   color: active ? (c?.stroke ?? "var(--primary)") : "rgba(255,255,255,0.55)",
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 8, letterSpacing: "0.06em",
                   cursor: "pointer", WebkitTapHighlightColor: "transparent",
                 }}
@@ -1298,7 +1297,7 @@ export default function SwipeScreen({
             </div>
           ) : (
             <div style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 12, letterSpacing: "0.1em",
               color: "rgba(255,255,255,0.5)",
             }}>

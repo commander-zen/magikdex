@@ -8,8 +8,8 @@
 
 const BOX = {
   position: "fixed", inset: 0, zIndex: 2147483647,
-  background: "#08090c", color: "#e8eaed",
-  font: "12px/1.6 ui-monospace, 'Noto Sans Mono', monospace",
+  background: "#060a0a", color: "#e9f3f1",
+  font: "12px/1.6 ui-monospace, 'JetBrains Mono', monospace",
   padding: "24px 16px calc(env(safe-area-inset-bottom) + 24px)",
   overflow: "auto", WebkitOverflowScrolling: "touch",
 };
@@ -20,18 +20,18 @@ function render(target, title, detail) {
 
   const h = document.createElement("div");
   h.textContent = title;
-  Object.assign(h.style, { color: "#e0555f", letterSpacing: "0.14em", marginBottom: 14 });
+  Object.assign(h.style, { color: "#ff8f85", letterSpacing: "0.14em", marginBottom: 14 });
 
   const pre = document.createElement("pre");
   pre.textContent = detail;
   Object.assign(pre.style, {
     whiteSpace: "pre-wrap", wordBreak: "break-word",
-    margin: 0, font: "inherit", color: "#e8eaed",
+    margin: 0, font: "inherit", color: "#e9f3f1",
   });
 
   const hint = document.createElement("div");
   hint.textContent = "screenshot this";
-  Object.assign(hint.style, { marginTop: 18, color: "#5a6672" });
+  Object.assign(hint.style, { marginTop: 18, color: "#a2b8b5" });
 
   wrap.append(h, pre, hint);
   target.appendChild(wrap);

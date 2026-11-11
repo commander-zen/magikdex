@@ -118,7 +118,7 @@ export default function App() {
     document.body.style.margin = "0";
     document.body.style.padding = "0";
     document.body.style.background = theme.base;
-    document.body.style.fontFamily = "'Noto Sans', sans-serif";
+    document.body.style.fontFamily = "'Atkinson Hyperlegible Next Variable', sans-serif";
   }, [theme.base]);
 
   // Bare themed frame while the (local, fast) session check runs — mounting

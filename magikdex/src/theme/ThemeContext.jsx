@@ -1,23 +1,12 @@
-import { createContext, useContext, useEffect } from "react";
+import { createContext, useContext } from "react";
 import { tokens } from "./tokens";
-
-const FONTS_HREF =
-  "https://fonts.googleapis.com/css2?family=Zilla+Slab:wght@400;700&family=Noto+Sans:wght@400;500&family=Noto+Sans+Mono:wght@400&display=swap";
 
 const ThemeContext = createContext(null);
 
 // Dark-only (UAT batch 2, item 2): the light palette and the toggle were
-// removed. The provider now just injects the fonts and hands down the one
-// palette — `mode` and `toggleTheme` are gone.
+// removed. The provider just hands down the one palette (fonts load from
+// index.html and src/styles.css) — `mode` and `toggleTheme` are gone.
 export function ThemeProvider({ children }) {
-  useEffect(() => {
-    if (document.querySelector(`link[href="${FONTS_HREF}"]`)) return;
-    const link = document.createElement("link");
-    link.rel = "stylesheet";
-    link.href = FONTS_HREF;
-    document.head.appendChild(link);
-  }, []);
-
   return (
     <ThemeContext.Provider value={{ theme: tokens }}>
       {children}

@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
 import { getBrewDefaults, setBrewDefaults } from "../lib/brewDefaults.js";
 import { supabase } from "../lib/supabase.js";
+import Icon from "./Icon.jsx";
 
 // Starting-state choices for a fresh swipe seed (per-session controls override).
 const SORT_CHOICES = [
@@ -178,7 +179,7 @@ export default function SettingsSheet({ open, onClose }) {
     WebkitTapHighlightColor: "transparent",
   };
   const labelStyle = {
-    fontFamily: "'Noto Sans', sans-serif",
+    fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
     fontSize: 14,
     color: textColor,
   };
@@ -224,7 +225,7 @@ export default function SettingsSheet({ open, onClose }) {
             padding: "20px 20px 12px",
           }}>
             <span style={{
-              fontFamily: "'Noto Sans', sans-serif",
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
               fontSize: 10,
               fontWeight: 500,
               letterSpacing: "0.18em",
@@ -245,7 +246,7 @@ export default function SettingsSheet({ open, onClose }) {
                 WebkitTapHighlightColor: "transparent",
               }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 22 }}>close</span>
+              <Icon name="close" style={{ fontSize: 22 }} />
             </button>
           </div>
 
@@ -257,7 +258,7 @@ export default function SettingsSheet({ open, onClose }) {
 
           {/* ── Brew defaults — starting state of every fresh swipe seed ── */}
           <div style={{
-            fontFamily: "'Noto Sans', sans-serif",
+            fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
             fontSize: 10,
             fontWeight: 500,
             letterSpacing: "0.18em",
@@ -285,7 +286,7 @@ export default function SettingsSheet({ open, onClose }) {
                       borderLeft: idx > 0 ? `1px solid ${borderColor}` : "none",
                       background: active ? accent : "transparent",
                       color: active ? theme.base : dimColor,
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 10,
                       letterSpacing: "0.06em",
                       cursor: "pointer",
@@ -306,7 +307,7 @@ export default function SettingsSheet({ open, onClose }) {
           >
             <span style={labelStyle}>exclude lands</span>
             <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 12,
               letterSpacing: "0.08em",
               color: defaults.excludeLands ? accent : dimColor,
@@ -317,7 +318,7 @@ export default function SettingsSheet({ open, onClose }) {
 
           {/* ── Account ──────────────────────────────────────────────────── */}
           <div style={{
-            fontFamily: "'Noto Sans', sans-serif",
+            fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
             fontSize: 10,
             fontWeight: 500,
             letterSpacing: "0.18em",
@@ -334,7 +335,7 @@ export default function SettingsSheet({ open, onClose }) {
           <div onClick={copyUserId} style={{ ...rowStyle, cursor: userId ? "pointer" : "default" }}>
             <span style={labelStyle}>account id</span>
             <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11,
               maxWidth: "60%",
               textAlign: "right",
@@ -353,7 +354,7 @@ export default function SettingsSheet({ open, onClose }) {
             <div style={{ ...rowStyle, cursor: "default" }}>
               <span style={labelStyle}>backed up to</span>
               <span style={{
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 11,
                 color: accent,
               }}>
@@ -363,7 +364,7 @@ export default function SettingsSheet({ open, onClose }) {
           ) : pendingFlow ? (
             <div style={{ ...rowStyle, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 10 }}>
               <span style={{
-                fontFamily: "'Noto Sans', sans-serif",
+                fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                 fontSize: 12,
                 lineHeight: 1.5,
                 color: dimColor,
@@ -385,7 +386,7 @@ export default function SettingsSheet({ open, onClose }) {
                   minHeight: 44,
                   background: "transparent",
                   color: textColor,
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 20,
                   letterSpacing: "0.4em",
                   textAlign: "center",
@@ -404,7 +405,7 @@ export default function SettingsSheet({ open, onClose }) {
                     background: "transparent",
                     border: `1px solid ${accent}`,
                     color: accent,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 11, letterSpacing: "0.06em",
                     cursor: "pointer",
                     opacity: emailBusy || code.trim().length < 6 ? 0.5 : 1,
@@ -421,7 +422,7 @@ export default function SettingsSheet({ open, onClose }) {
                     background: "transparent",
                     border: `1px solid ${borderColor}`,
                     color: dimColor,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 11, letterSpacing: "0.06em",
                     cursor: "pointer",
                     opacity: emailBusy ? 0.5 : 1,
@@ -433,7 +434,7 @@ export default function SettingsSheet({ open, onClose }) {
               </div>
               {emailMsg && (
                 <span style={{
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 11,
                   lineHeight: 1.5,
                   color: dimColor,
@@ -445,7 +446,7 @@ export default function SettingsSheet({ open, onClose }) {
           ) : (
             <div style={{ ...rowStyle, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 10 }}>
               <span style={{
-                fontFamily: "'Noto Sans', sans-serif",
+                fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                 fontSize: 12,
                 lineHeight: 1.5,
                 color: dimColor,
@@ -467,7 +468,7 @@ export default function SettingsSheet({ open, onClose }) {
                   minHeight: 44,
                   background: "transparent",
                   color: textColor,
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 13,
                   border: `1px solid ${borderColor}`,
                   padding: "0 12px",
@@ -484,7 +485,7 @@ export default function SettingsSheet({ open, onClose }) {
                     background: "transparent",
                     border: `1px solid ${accent}`,
                     color: accent,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 11, letterSpacing: "0.06em",
                     cursor: "pointer",
                     opacity: emailBusy || !email.trim() || !userId ? 0.5 : 1,
@@ -501,7 +502,7 @@ export default function SettingsSheet({ open, onClose }) {
                     background: "transparent",
                     border: `1px solid ${borderColor}`,
                     color: dimColor,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 11, letterSpacing: "0.06em",
                     cursor: "pointer",
                     opacity: emailBusy || !email.trim() ? 0.5 : 1,
@@ -513,7 +514,7 @@ export default function SettingsSheet({ open, onClose }) {
               </div>
               {emailMsg && (
                 <span style={{
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 11,
                   lineHeight: 1.5,
                   color: dimColor,
@@ -533,7 +534,7 @@ export default function SettingsSheet({ open, onClose }) {
           >
             <span style={labelStyle}>commander zen</span>
             <span style={{
-              fontFamily: "'Noto Sans', sans-serif",
+              fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
               fontSize: 13,
               color: dimColor,
               letterSpacing: "0.01em",
@@ -548,7 +549,7 @@ export default function SettingsSheet({ open, onClose }) {
               stack relevant rather than random. Crediting them is the point;
               the links are how someone finds them. */}
           <div style={{
-            fontFamily: "'Noto Sans', sans-serif",
+            fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
             fontSize: 10,
             fontWeight: 500,
             letterSpacing: "0.18em",
@@ -573,7 +574,7 @@ export default function SettingsSheet({ open, onClose }) {
             >
               <span style={labelStyle}>{name}</span>
               <span style={{
-                fontFamily: "'Noto Sans', sans-serif",
+                fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                 fontSize: 13,
                 color: dimColor,
               }}>
@@ -588,7 +589,7 @@ export default function SettingsSheet({ open, onClose }) {
               the policy specifies; do not paraphrase it. */}
           <div style={{
             marginTop: 20,
-            fontFamily: "'Noto Sans', sans-serif",
+            fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
             fontSize: 11,
             lineHeight: 1.6,
             color: dimColor,
@@ -608,7 +609,7 @@ export default function SettingsSheet({ open, onClose }) {
 
           <div style={{
             marginTop: 16,
-            fontFamily: "'Noto Sans Mono', monospace",
+            fontFamily: "'JetBrains Mono', monospace",
             fontSize: 11,
             color: dimColor,
             opacity: 0.6,

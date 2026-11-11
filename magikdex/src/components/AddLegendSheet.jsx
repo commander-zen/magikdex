@@ -3,6 +3,7 @@ import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
 import { searchCommanders, getCardImage } from "../lib/scryfall.js";
 import { prepareImport, prepareImportFromUrl, isDeckUrl, canonicalDeckUrl } from "../lib/moxfieldImport.js";
+import Icon from "./Icon.jsx";
 
 export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
   const { theme } = useTheme();
@@ -183,7 +184,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
             padding: "4px 8px 0 20px",
           }}>
             <span style={{
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 10,
               letterSpacing: "0.18em",
               textTransform: "uppercase",
@@ -202,7 +203,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                 WebkitTapHighlightColor: "transparent",
               }}
             >
-              <span className="material-symbols-rounded" style={{ fontSize: 22 }}>close</span>
+              <Icon name="close" style={{ fontSize: 22 }} />
             </button>
           </div>
 
@@ -214,7 +215,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                 onClick={() => setTab(key)}
                 style={{
                   background: "transparent", border: "none", padding: "0 0 8px",
-                  fontFamily: "'Noto Sans Mono', monospace",
+                  fontFamily: "'JetBrains Mono', monospace",
                   fontSize: 11, letterSpacing: "0.1em", textTransform: "uppercase",
                   color: tab === key ? textColor : dimColor,
                   borderBottom: tab === key ? `2px solid ${textColor}` : "2px solid transparent",
@@ -246,7 +247,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                 width: "100%", boxSizing: "border-box",
                 background: "transparent",
                 color: textColor,
-                fontFamily: "'Noto Sans', sans-serif",
+                fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                 fontSize: 16,
                 fontWeight: 300,
                 border: "none",
@@ -263,7 +264,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
           {tab === "search" && toast && (
             <div style={{
               margin: "0 20px 8px",
-              fontFamily: "'Noto Sans Mono', monospace",
+              fontFamily: "'JetBrains Mono', monospace",
               fontSize: 11,
               letterSpacing: "0.06em",
               lineHeight: 1.4,
@@ -319,7 +320,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                       {card.name}
                     </div>
                     <div style={{
-                      fontFamily: "'Noto Sans Mono', monospace",
+                      fontFamily: "'JetBrains Mono', monospace",
                       fontSize: 11,
                       color: dimColor,
                       marginTop: 2,
@@ -360,7 +361,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                 width: "100%", boxSizing: "border-box", resize: "vertical",
                 background: "transparent",
                 color: textColor,
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 13,
                 border: `1px solid ${borderColor}`,
                 padding: 10,
@@ -375,7 +376,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                 background: "transparent",
                 border: `1px solid ${borderColor}`,
                 color: textColor,
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
                 cursor: pasteText.trim() && !parsing ? "pointer" : "default",
                 opacity: pasteText.trim() && !parsing ? 1 : 0.5,
@@ -387,25 +388,25 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
 
             {preview && (
               <div style={{ display: "flex", flexDirection: "column", gap: 10 }}>
-                <div style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 12, color: dimColor }}>
+                <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: dimColor }}>
                   {preview.resolvedLines.length} card{preview.resolvedLines.length !== 1 ? "s" : ""} resolved
                   {" · "}{preview.unresolved.length} unresolved
                 </div>
 
                 {preview.unresolved.length > 0 && (
-                  <div style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 11, color: dimColor, lineHeight: 1.5 }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: dimColor, lineHeight: 1.5 }}>
                     unresolved: {preview.unresolved.map(l => l.raw).join(", ")}
                   </div>
                 )}
 
                 {/* Commander — auto-detected, pick from candidates, or type one. */}
                 {preview.commander ? (
-                  <div style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 12, color: textColor }}>
+                  <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: textColor }}>
                     commander: {preview.commander.name}
                   </div>
                 ) : preview.candidates.length > 0 ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-                    <div style={{ fontFamily: "'Noto Sans Mono', monospace", fontSize: 11, color: dimColor }}>
+                    <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: dimColor }}>
                       pick the commander:
                     </div>
                     {preview.candidates.map(c => (
@@ -438,7 +439,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                       width: "100%", boxSizing: "border-box",
                       background: "transparent",
                       color: textColor,
-                      fontFamily: "'Noto Sans', sans-serif",
+                      fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
                       fontSize: 16, // 16 or iOS zooms the sheet on focus
                       border: "none",
                       borderBottom: `1px solid ${borderColor}`,
@@ -456,7 +457,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                     background: canImport ? textColor : "transparent",
                     color: canImport ? theme.base : dimColor,
                     border: `1px solid ${borderColor}`,
-                    fontFamily: "'Noto Sans Mono', monospace",
+                    fontFamily: "'JetBrains Mono', monospace",
                     fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
                     cursor: canImport ? "pointer" : "default",
                     WebkitTapHighlightColor: "transparent",
@@ -469,7 +470,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
 
             {importResult && (
               <div style={{
-                fontFamily: "'Noto Sans Mono', monospace",
+                fontFamily: "'JetBrains Mono', monospace",
                 fontSize: 12,
                 color: importResult.error ? theme.red : dimColor,
                 lineHeight: 1.5,

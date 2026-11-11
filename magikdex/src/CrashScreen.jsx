@@ -18,8 +18,8 @@ import { Component } from "react";
 
 const BOX = {
   position: "fixed", inset: 0, zIndex: 2147483647,
-  background: "#08090c", color: "#e8eaed",
-  font: "12px/1.6 ui-monospace, 'Noto Sans Mono', monospace",
+  background: "#060a0a", color: "#e9f3f1",
+  font: "12px/1.6 ui-monospace, 'JetBrains Mono', monospace",
   padding: "24px 16px calc(env(safe-area-inset-bottom) + 24px)",
   overflow: "auto", WebkitOverflowScrolling: "touch",
 };
@@ -53,13 +53,13 @@ export class ErrorBoundary extends Component {
     // React is alive — it is the tree below that failed.
     return (
       <div style={BOX}>
-        <div style={{ color: "#e0555f", letterSpacing: "0.14em", marginBottom: 14 }}>
+        <div style={{ color: "#ff8f85", letterSpacing: "0.14em", marginBottom: 14 }}>
           MAGIKDEX CRASHED
         </div>
         <pre style={{ whiteSpace: "pre-wrap", wordBreak: "break-word", margin: 0, font: "inherit" }}>
           {detail}
         </pre>
-        <div style={{ marginTop: 18, color: "#5a6672" }}>screenshot this</div>
+        <div style={{ marginTop: 18, color: "#a2b8b5" }}>screenshot this</div>
       </div>
     );
   }
