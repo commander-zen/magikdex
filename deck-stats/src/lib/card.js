@@ -29,11 +29,16 @@ const BORDER = 10;
 const IW = W - BORDER * 2;        // inner box — every position below is inside it
 const IH = H - BORDER * 2;
 
-const PAPER = "#F5F1E6";
-const INK = "#161311";
-const YELLOW = "#F5C400";
-const GRAY = "#6B6459";
-const TRACK = "#E1DACB";
+// BLACK ON WHITE (Ben, 2026-11-11: "ezpz to print"). The card was cream paper
+// with yellow accents, which a printer lays down as ink over the whole face.
+// Now the paper is the page's own white (no ink at all), black is pure K so a
+// mono printer uses one cartridge, and the only solid fills are small: the
+// spine, the SCRYCHECK chip, the bars and the QR. The site's teal stays on
+// screen; it never goes on the card.
+const PAPER = "#FFFFFF";
+const INK = "#000000";
+const GRAY = "#595959";    // secondary text: 7:1 on white, prints as a clean mid-gray
+const TRACK = "#D9D9D9";   // bar tracks and the column rule
 
 // One TTF per weight. JetBrains Mono ships as a variable font, which jsPDF
 // cannot use, so these are static instances cut from the same file magikdex
@@ -216,7 +221,7 @@ export function layoutCard(stats) {
   const start = P.length;
 
   // The spine: the only part visible with the card slotted upright.
-  rect(0, 0, IW, 16, YELLOW);
+  rect(0, 0, IW, 16, INK);
   // The card names itself, in the same voice as PLAY PROFILE. (It said
   // "deckStats" until Ben renamed the site after the card, 2026-11-10.)
   text("BRACKET CARD", 46, 44, "mono700", 22, GRAY, 0.14);
@@ -230,8 +235,8 @@ export function layoutCard(stats) {
     const size = 40, ls = 0.02, padX = 20, padY = 16;
     const h = FONTS.mono800.cap * size + padY * 2;
     const w = measure(tag, "mono800", size, ls) + padX * 2;
-    rect(46, 352, w, h, INK);                    // a 3-unit ink border, as a fill
-    rect(49, 355, w - 6, h - 6, YELLOW);
+    rect(46, 352, w, h, INK);                    // a 4-unit ink border, as a fill
+    rect(50, 356, w - 8, h - 8, PAPER);          // an outlined box, not a filled one
     text(tag, 46 + padX, 352 + padY, "mono800", size, INK, ls);
   }
 
@@ -255,7 +260,7 @@ export function layoutCard(stats) {
   text("graded by", 46, chipTop - 12 - FONTS.mono700.cap * 22, "mono700", 22, INK, 0.06);
   const chipW = measure("SCRYCHECK", "display", chipSize, 0.04) + chipPadX * 2;
   rect(46, chipTop, chipW, chipH, INK);
-  text("SCRYCHECK", 46 + chipPadX, chipTop + chipPadY, "display", chipSize, YELLOW, 0.04);
+  text("SCRYCHECK", 46 + chipPadX, chipTop + chipPadY, "display", chipSize, PAPER, 0.04);
   text("scrycheck.com", 46 + chipW + 16, chipTop + (chipH - FONTS.mono700.cap * 24) / 2, "mono700", 24, INK, 0.02);
 
   rect(612, 44, 2, IH - 88, TRACK);
