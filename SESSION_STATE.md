@@ -1,5 +1,16 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-11 (cont. 2) — ✅ **Pre-launch pass** (branch `claude/elegant-ride-mpyg7q`, NOT on main)
+
+- ✅ **Bracket Card link previews:** Open Graph + Twitter tags on all three pages and `public/og.png` (1200×630). ⚠️ The URLs are absolute (`deck-stats-mauve.vercel.app`); update them when the domain changes.
+- ✅ **magikdex:** meta description + Open Graph tags; `public/privacy.html` (linked from Settings; Ben to read and correct); **"delete my data"** in Settings (two taps; deletes the account's decks and legends, clears local keys, signs out, reloads). It does NOT delete the Supabase auth user row: that needs a service-key function.
+- ✅ **`/api/deck` rate limit** (HARDENING H3): 12 per IP per 10 min, in memory, plus a 300-char URL cap.
+- ✅ Scryfall User-Agent strings say magikdex.vercel.app (the browser still strips the header; the node scripts send it).
+- ✅ HARDENING re-checked: H1 closed (migration 024), H2 gone (brewPrompt deleted), L2 gone (no console.log left).
+- ✅ Verified with stubs: both apps build; axe clean on 10 screens; delete-my-data sends the two DELETEs and the logout; the limiter returns 429 on the 13th call.
+- **Open, Ben's to do:** ScryCheck/Adam sign-off and quota; domain; real print test; real-phone test of both apps; Vercel build check; App Store items (privacy URL in App Store Connect, native rebuild).
+- **Open, code:** leaving a browse still drops kept cards without a prompt; magikdex pass 2 (dex, Settings, swipe, review still inline-styled).
+
 ## 2026-11-11 (cont.) — ✅ **magikdex on the Bracket Card theme (pass 1); Bracket Card prints black on white** (branch `claude/elegant-ride-mpyg7q`, NOT on main)
 
 - ✅ **Bracket Card print is black on white** (`deck-stats/src/lib/card.js`): white paper, pure black, outlined power/bracket box, neutral greys. No cream, no yellow; the teal never goes on the card.

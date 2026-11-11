@@ -1,0 +1,57 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="dark">
+  <title>Privacy · magikdex</title>
+  <meta name="description" content="What magikdex stores, and how to delete it.">
+  <style>
+    body { margin: 0; background: #060a0a; color: #e9f3f1; font: 17px/1.6 system-ui, -apple-system, "Segoe UI", sans-serif; }
+    main { max-width: 640px; margin: 0 auto; padding: 32px 16px 64px; }
+    h1 { font-size: 30px; line-height: 1.15; margin: 0 0 8px; }
+    h2 { font-size: 20px; margin: 32px 0 8px; }
+    p, li { color: #e9f3f1; } .dim { color: #a2b8b5; }
+    a { color: #7fe3d3; text-underline-offset: 3px; }
+    a:focus-visible { outline: 2px solid #2bc4ae; outline-offset: 2px; }
+    ul { padding-left: 22px; }
+  </style>
+</head>
+<body>
+<main>
+  <p><a href="/">&larr; magikdex</a></p>
+  <h1>Privacy</h1>
+  <p class="dim">Last updated 11 November 2026.</p>
+
+  <h2>What magikdex stores</h2>
+  <ul>
+    <li><strong>An anonymous account.</strong> The first time you open magikdex it creates an account with a random id and no name, so your brews have somewhere to live.</li>
+    <li><strong>Your dex.</strong> The legends you add, the cards in each brew, and the names and tags you give them.</li>
+    <li><strong>An email address, only if you add one.</strong> It is used to send you a sign-in code so you can get your dex back on another device. It is used for nothing else.</li>
+    <li><strong>Settings on your device.</strong> Things like your default sort and the last brew you opened are kept in your browser's storage.</li>
+  </ul>
+  <p>Accounts and decks are stored with Supabase, the database service magikdex runs on.</p>
+
+  <h2>What magikdex does not do</h2>
+  <ul>
+    <li>No ads, no analytics and no tracking.</li>
+    <li>Your data is not sold or shared with anyone.</li>
+  </ul>
+
+  <h2>Other services your device talks to</h2>
+  <ul>
+    <li><strong>Scryfall</strong> serves card data and card images directly to your device.</li>
+    <li><strong>Moxfield and Archidekt:</strong> if you import a deck by link, magikdex's server fetches that public deck for you.</li>
+    <li><strong>Bracket Card:</strong> if you send a brew there, the list travels in the link itself and is not uploaded by magikdex.</li>
+  </ul>
+
+  <h2>Deleting your data</h2>
+  <p>Open Settings and choose <strong>delete my data</strong>. That permanently removes every brew and legend in your dex and signs you out.</p>
+
+  <h2>Contact</h2>
+  <p>Questions: <a href="https://bsky.app/profile/commanderzen.bsky.social" rel="noopener">@commanderzen.bsky.social</a> on Bluesky.</p>
+
+  <p class="dim">magikdex is unofficial Fan Content permitted under the Fan Content Policy. Not approved/endorsed by Wizards. Portions of the materials used are property of Wizards of the Coast. ©Wizards of the Coast LLC.</p>
+</main>
+</body>
+</html>

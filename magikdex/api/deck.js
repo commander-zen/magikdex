@@ -90,6 +90,23 @@ async function fetchArchidekt(id) {
   return { deck: { name: d.name ?? "", commanders, cards } };
 }
 
+// A per-IP speed bump (HARDENING.md H3). Heavy use gets this server's address
+// flagged by Moxfield's bot filter, which breaks imports for everyone. In
+// memory, so it is per warm instance: it slows a script, it is not a lock.
+const IP_LIMIT = 12;
+const IP_WINDOW_MS = 10 * 60_000;
+const MAX_URL_CHARS = 300;
+const hits = new Map();
+function throttled(ip) {
+  const now = Date.now();
+  const times = (hits.get(ip) ?? []).filter(t => now - t < IP_WINDOW_MS);
+  if (times.length >= IP_LIMIT) return true;
+  times.push(now);
+  hits.set(ip, times);
+  if (hits.size > 5000) for (const [k, v] of hits) if (!v.some(t => now - t < IP_WINDOW_MS)) hits.delete(k);
+  return false;
+}
+
 // ESM (not the usual CommonJS module.exports): this package.json declares
 // "type": "module", so Vercel's Node runtime loads api/*.js as ES modules —
 // a module.exports here would throw at invocation.
@@ -99,7 +116,15 @@ export default async (req, res) => {
   if (req.method === "OPTIONS") { res.status(204).end(); return; }
   if (req.method !== "GET") { res.status(405).json({ error: "GET only" }); return; }
 
-  const parsed = parseDeckUrl(String(req.query.url ?? ""));
+  const raw = String(req.query.url ?? "");
+  if (raw.length > MAX_URL_CHARS) { res.status(400).json({ error: "Not a Moxfield or Archidekt deck URL." }); return; }
+  const ip = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() || "unknown";
+  if (throttled(ip)) {
+    res.setHeader("Retry-After", "600");
+    res.status(429).json({ error: "Too many imports from this connection. Try again in a few minutes, or paste the deck text." });
+    return;
+  }
+  const parsed = parseDeckUrl(raw);
   if (!parsed) {
     res.status(400).json({ error: "Not a Moxfield or Archidekt deck URL." });
     return;

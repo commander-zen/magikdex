@@ -1,6 +1,6 @@
 import { supabase } from "./supabase.js";
 
-const UA = "DeckStack/1.0 (deck-stack.vercel.app)";
+const UA = "magikdex/1.0 (magikdex.vercel.app)";
 
 // ── Sleep helper ──────────────────────────────────────────────────────────────
 function sleep(ms) {

@@ -39,6 +39,24 @@ export default function SettingsSheet({ open, onClose }) {
   // ('email_change' for a new email attach, 'email' for signing back in).
   const [pendingFlow, setPendingFlow] = useState(null); // 'backup' | 'signin' | null
   const [code, setCode] = useState("");
+  // Delete my data: a two-tap confirm, then the result or the error.
+  const [wipe, setWipe] = useState("idle"); // idle | confirm | busy | error
+
+  // Removes every deck and legend this account owns (their cards and tags go
+  // with them), signs out, and reloads into a fresh empty account. Required by
+  // App Store guideline 5.1.1(v); also simply the decent thing to offer.
+  async function deleteMyData() {
+    if (!userId) return;
+    setWipe("busy");
+    const decks = await supabase.from("decks").delete().eq("user_id", userId);
+    const legends = decks.error ? decks : await supabase.from("legends").delete().eq("user_id", userId);
+    if (legends.error) { setWipe("error"); return; }
+    try {
+      for (const k of Object.keys(localStorage)) if (/^magi[ck]dex/.test(k)) localStorage.removeItem(k);
+    } catch { /* storage blocked: nothing to clear */ }
+    await supabase.auth.signOut();
+    window.location.reload();
+  }
 
   useEffect(() => {
     if (!open) return;
@@ -524,6 +542,63 @@ export default function SettingsSheet({ open, onClose }) {
               )}
             </div>
           )}
+
+          {/* Delete my data — destructive, so it takes two taps and says
+              exactly what goes. */}
+          <div style={{ ...rowStyle, cursor: "default", flexDirection: "column", alignItems: "stretch", gap: 10 }}>
+            {wipe === "idle" ? (
+              <button
+                onClick={() => setWipe("confirm")}
+                disabled={!userId}
+                style={{
+                  minHeight: 44, background: "transparent", border: `1px solid ${borderColor}`,
+                  color: theme.red, fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                  letterSpacing: "0.06em", cursor: "pointer", WebkitTapHighlightColor: "transparent",
+                }}
+              >
+                delete my data
+              </button>
+            ) : (
+              <>
+                <span role="alert" style={{ fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 13, lineHeight: 1.5, color: textColor }}>
+                  {wipe === "error"
+                    ? "That didn't work. Check your connection and try again."
+                    : "This permanently deletes every brew and legend in your dex. It can't be undone."}
+                </span>
+                <div style={{ display: "flex", gap: 10 }}>
+                  <button
+                    onClick={deleteMyData}
+                    disabled={wipe === "busy"}
+                    style={{
+                      minHeight: 44, flex: 1, background: theme.red, border: "none", color: theme.base,
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 11, fontWeight: 700,
+                      letterSpacing: "0.06em", cursor: "pointer", opacity: wipe === "busy" ? 0.6 : 1,
+                    }}
+                  >
+                    {wipe === "busy" ? "deleting…" : "delete everything"}
+                  </button>
+                  <button
+                    onClick={() => setWipe("idle")}
+                    disabled={wipe === "busy"}
+                    style={{
+                      minHeight: 44, flex: 1, background: "transparent", border: `1px solid ${borderColor}`,
+                      color: textColor, fontFamily: "'JetBrains Mono', monospace", fontSize: 11,
+                      letterSpacing: "0.06em", cursor: "pointer",
+                    }}
+                  >
+                    keep my dex
+                  </button>
+                </div>
+              </>
+            )}
+          </div>
+
+          <a href="/privacy.html" target="_blank" rel="noopener" style={{ ...rowStyle, textDecoration: "none" }}>
+            <span style={labelStyle}>privacy</span>
+            <span style={{ fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif", fontSize: 13, color: dimColor }}>
+              what magikdex stores
+            </span>
+          </a>
 
           {/* Colophon */}
           <a

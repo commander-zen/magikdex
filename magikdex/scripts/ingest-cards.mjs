@@ -29,7 +29,7 @@ import { createInterface } from "node:readline";
 import { readFileSync } from "node:fs";
 import { createClient } from "@supabase/supabase-js";
 
-const UA = "magikdex/1.0 (bulk ingest; deck-stack.vercel.app)";
+const UA = "magikdex/1.0 (bulk ingest; magikdex.vercel.app)";
 const BULK_MANIFEST = "https://api.scryfall.com/bulk-data";
 const BATCH_SIZE = 500;
 
