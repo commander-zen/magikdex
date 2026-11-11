@@ -16,7 +16,7 @@
 // any browser's URL limit either way.
 // Still the old deck-stats address: the site was renamed Bracket Card on
 // 2026-11-10, but its Vercel domain changes only when Ben renames it there.
-export const BRACKET_CARD_URL = "https://deck-stats-mauve.vercel.app/";
+export const BRACKET_CARD_URL = "https://bracketcard.vercel.app/";
 
 const toBase64Url = bytes => {
   let bin = "";
