@@ -3,83 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060a0a">
+  <meta name="color-scheme" content="dark">
   <title>Play test · Bracket Card</title>
-  <meta name="description" content="Print a Commander deck as play test cards: every card at real size, nine to a page, its Bracket Card in the first slot.">
-  <link rel="stylesheet" href="style.css">
+  <meta name="description" content="Print a Commander deck as play test cards: every card at real size, nine to a page, its Bracket Card in the first slot and its tokens at the end.">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <header class="top">
-    <a class="mark" href="./">Bracket Card</a>
-    <nav class="tabs" aria-label="Pages">
-      <a href="./">Card</a>
-      <a href="sheet.html">Sheet of 9</a>
-      <a href="playtest.html" aria-current="page">Play test</a>
-    </nav>
-  </header>
-
-  <main>
-    <section class="intro">
-      <h1>Play test cards</h1>
-      <p>Print a deck to try it at the table: every card at real size, nine to a page, with its Bracket Card in the first slot.</p>
-    </section>
-
-    <section class="block">
-      <h2>1. Your deck</h2>
-      <div id="deck-chosen" hidden>
-        <p class="chosen" id="deck-name"></p>
-        <button id="change-deck" class="text-btn" type="button">Use a different deck</button>
-      </div>
-      <!-- Built by common.js deckForm(). -->
-      <form id="deck-form" aria-label="Your deck" hidden></form>
-      <button id="keep-deck" class="text-btn" type="button" hidden>Keep the current deck</button>
-    </section>
-
-    <div id="after-deck" hidden>
-      <section class="block">
-        <h2>2. Its Bracket Card</h2>
-        <div id="preview" class="card-preview"></div>
-        <div id="style"></div>
-      </section>
-
-      <section class="block">
-        <h2>3. Choose cards</h2>
-        <div id="proxy-paste" hidden>
-          <label for="proxy-list">Full deck list</label>
-          <textarea id="proxy-list" rows="8" autocomplete="off" autocapitalize="off" spellcheck="false"
-                    placeholder="1 Sol Ring (C21) 263&#10;1 Arcane Signet&#10;…"></textarea>
-          <p class="hint">On Moxfield: Export &rarr; Copy for MTGA keeps the printings you chose.</p>
-          <button id="proxy-use" class="primary" type="button">Use this list</button>
-        </div>
-        <p id="proxy-status" class="hint" aria-live="polite"></p>
-        <p id="proxy-error" class="error" role="alert" hidden></p>
-        <div id="proxy-tools" class="chips"></div>
-        <div id="proxy-rows"></div>
-        <div id="token-block" hidden>
-          <h3>Tokens this deck makes</h3>
-          <p class="hint">One of each prints after your cards. Set any to 0 to leave it out.</p>
-          <div id="token-rows"></div>
-        </div>
-      </section>
-
-      <section id="print" class="block" hidden>
-        <h2>4. Print</h2>
-        <div id="pages"></div>
-        <div class="field">
-          <span class="label" id="paper-label">Paper</span>
-          <div id="papers" class="chips" role="group" aria-labelledby="paper-label"></div>
-          <p class="hint">Print at 100% / actual size, not &ldquo;fit to page&rdquo;. Hold a real card to any of them to check.</p>
-        </div>
-        <div class="actions">
-          <button id="download" class="primary" type="button">Download PDF</button>
-        </div>
-      </section>
-    </div>
-  </main>
-
-  <footer>
-    <p>Bracket Card grades by <a href="https://scrycheck.com/" target="_blank" rel="noopener">ScryCheck</a>. Card images by <a href="https://scryfall.com/" target="_blank" rel="noopener">Scryfall</a>. Play test cards are for playtesting, not for sale.</p>
-    <p>Bracket Card is unofficial Fan Content, not approved or endorsed by Wizards of the Coast.</p>
-  </footer>
-  <script type="module" src="playtest.js"></script>
+  <div id="root"></div>
+  <noscript>Bracket Card needs JavaScript to grade and print decks.</noscript>
+  <script type="module" src="/src/entries/playtest.jsx"></script>
 </body>
 </html>

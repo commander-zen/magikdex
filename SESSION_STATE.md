@@ -1,5 +1,18 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-11 — ✅ **Bracket Card rebuilt on shadcn/ui + Radix + Tailwind + Lucide, teal-on-black theme** (branch `claude/elegant-ride-mpyg7q`, NOT on main)
+
+Ben: the site shouldn't look vibe coded; use shadcn/ui, Radix, Tailwind and Lucide with an original locally-tokened theme, WCAG 2.2 AA, dark only, teal + black, legible on a phone. Both apps are to share the theme; Bracket Card went first.
+
+- ✅ **`deck-stats/` is now a Vite + React 19 + Tailwind 4 app** with three HTML entries (`/`, `/sheet.html`, `/playtest.html`), so old URLs and the magikdex `#bc=` handoff still work. `vercel.json` sets framework vite, output `dist`. `api/analyze.js` is untouched.
+- ✅ **Tokens** in `src/styles.css` (`:root` + `@theme inline`): black-teal surfaces, teal `#2bc4ae` primary, Atkinson Hyperlegible Next for UI text. Contrast ratios are recorded in the file's header; input/switch edges use `--control` (4:1), `--border` is dividers only.
+- ✅ **Components** in `src/components/ui/` (shadcn-style, hand-written because the sandbox can't reach the shadcn registry): button, input, textarea, label, tabs, toggle, toggle-group, switch, badge, alert, card, separator, accordion, sheet, skeleton.
+- ✅ **Logic unchanged**, moved to `src/lib/` (`card.js`, `proxies.js`, `tags.js`, new `deck.js` from the old `common.js`). jsPDF and qrcode are npm packages now, not CDN imports. Fonts live in `public/fonts`. localStorage keys are the same.
+- ✅ **UX changes:** numbered steps, In/Out is a Switch, printings open in a bottom sheet (focus returns to the art), sheet decks are an accordion with a trash button, skip link, full Fan Content notice in the footer, header sticky on desktop only.
+- ✅ **Verified** (built site, 390 px, stubbed ScryCheck + Scryfall): axe-core WCAG 2.2 AA + best-practice scan clean on card (empty and result), sheet, play test and the printing sheet; no sideways scroll; handoff link fills the form; card PDF 1 page; play test PDF 3 pages with 24 scans; counts survive a reload.
+- **Not verified:** the Vercel build (first deploy with a build step; check the branch preview before merging), a real phone, real ScryCheck/Scryfall.
+- ⏳ **Next:** magikdex onto the same tokens (≈10k lines of inline-styled JSX; do it screen by screen).
+
 ## 2026-11-10 (cont. 7) — ✅ **magikdex: Landing page, wordmark explainer, pips + deck names replace sprites** (`1c7005c`)
 
 Ben: the app "still feels clunky", the chibi sprites are "crazy confusing", and he wants a landing page and an explainer behind the name.

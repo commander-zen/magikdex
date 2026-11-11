@@ -1,0 +1,116 @@
+@import "tailwindcss";
+@import "@fontsource-variable/atkinson-hyperlegible-next";
+
+/* ── Bracket Card design tokens ──────────────────────────────────────────────
+   One theme, dark only (Ben: teal and black; "dark mode is always my default
+   but it has to be legible"). Every pair below was checked for WCAG 2.2 AA:
+
+     foreground       on background/card/raised   17.6 / 16.5 / 15.2 : 1
+     muted-foreground on background/card/raised    9.5 /  8.9 /  8.3 : 1
+     primary          on background/card            9.1 /  8.5 : 1
+     primary-fg       on primary                    8.7 : 1
+     accent-fg        on accent                    10.4 : 1
+     destructive      on card                       8.5 : 1
+     warning          on card                      11.3 : 1
+     control (input borders, switch track) on card  4.0 : 1   (1.4.11 needs 3)
+
+   `border` is a divider only, never the sole edge of a control.
+   magikdex can import this file's :root block to share the theme. */
+:root {
+  color-scheme: dark;
+
+  --background: #060a0a;
+  --foreground: #e9f3f1;
+  --card: #0c1414;
+  --card-foreground: #e9f3f1;
+  --raised: #121d1d;
+  --popover: #0c1414;
+  --popover-foreground: #e9f3f1;
+
+  --primary: #2bc4ae;
+  --primary-hover: #4fd3bf;
+  --primary-foreground: #021412;
+  --secondary: #121d1d;
+  --secondary-foreground: #e9f3f1;
+  --muted: #121d1d;
+  --muted-foreground: #a2b8b5;
+  --accent: #0d2725;
+  --accent-foreground: #7fe3d3;
+
+  --destructive: #ff8f85;
+  --warning: #f2c35b;
+
+  --border: #223232;
+  --control: #5c7a78;
+  --input: #5c7a78;
+  --ring: #2bc4ae;
+
+  --radius: 0.625rem;
+
+  --font-sans: "Atkinson Hyperlegible Next Variable", ui-sans-serif, system-ui, sans-serif;
+  --font-mono: "JetBrains Mono", ui-monospace, "SFMono-Regular", monospace;
+  --font-display: "Archivo Black", var(--font-sans);
+}
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --color-card: var(--card);
+  --color-card-foreground: var(--card-foreground);
+  --color-raised: var(--raised);
+  --color-popover: var(--popover);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-primary: var(--primary);
+  --color-primary-hover: var(--primary-hover);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-secondary: var(--secondary);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-muted: var(--muted);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-accent: var(--accent);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-destructive: var(--destructive);
+  --color-warning: var(--warning);
+  --color-border: var(--border);
+  --color-control: var(--control);
+  --color-input: var(--input);
+  --color-ring: var(--ring);
+
+  --radius-sm: calc(var(--radius) - 4px);
+  --radius-md: calc(var(--radius) - 2px);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) + 4px);
+
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --font-display: var(--font-display);
+}
+
+/* The card's own faces, served from /fonts (the PDF embeds the same files). */
+@font-face { font-family: "Archivo Black"; src: url("/fonts/ArchivoBlack-Regular.ttf") format("truetype"); font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("/fonts/JetBrainsMono-Medium.ttf") format("truetype"); font-weight: 500; font-display: swap; }
+@font-face { font-family: "JetBrains Mono"; src: url("/fonts/JetBrainsMono-Bold.ttf") format("truetype"); font-weight: 700; font-display: swap; }
+
+@layer base {
+  * { @apply border-border; }
+  html { -webkit-text-size-adjust: 100%; }
+  body {
+    @apply bg-background text-foreground font-sans antialiased;
+    font-size: 16px;
+    line-height: 1.55;
+    -webkit-tap-highlight-color: transparent;
+  }
+  /* One focus style everywhere (WCAG 2.4.7 / 2.4.13): a 2px teal ring with a
+     gap, visible on every surface in the theme. */
+  :focus-visible { outline: 2px solid var(--ring); outline-offset: 2px; }
+  ::selection { background: var(--primary); color: var(--primary-foreground); }
+  @media (prefers-reduced-motion: reduce) {
+    *, *::before, *::after { animation-duration: 0.01ms !important; transition-duration: 0.01ms !important; scroll-behavior: auto !important; }
+  }
+}
+
+/* The printed card and the sheet: an SVG built by card.js. */
+.print-preview svg { display: block; width: 100%; height: auto; border-radius: 4px; }
+
+@keyframes fade-in { from { opacity: 0; } to { opacity: 1; } }
+@keyframes sheet-up { from { transform: translateY(24px); opacity: 0; } to { transform: none; opacity: 1; } }

@@ -3,69 +3,15 @@
 <head>
   <meta charset="utf-8">
   <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+  <meta name="theme-color" content="#060a0a">
+  <meta name="color-scheme" content="dark">
   <title>Bracket Card</title>
   <meta name="description" content="Your Commander deck's power level and bracket on a Magic-card-sized card for the pregame talk. Graded by ScryCheck.">
-  <link rel="stylesheet" href="style.css">
+  <link rel="icon" href="/favicon.svg" type="image/svg+xml">
 </head>
 <body>
-  <header class="top">
-    <a class="mark" href="./">Bracket Card</a>
-    <nav class="tabs" aria-label="Pages">
-      <a href="./" aria-current="page">Card</a>
-      <a href="sheet.html">Sheet of 9</a>
-      <a href="playtest.html">Play test</a>
-    </nav>
-  </header>
-
-  <main>
-    <section class="intro">
-      <h1>Your deck&rsquo;s power level, on a card.</h1>
-      <p>Add a deck, get a Magic-card-sized Bracket Card. Print it, sleeve it, hand it over before you shuffle.</p>
-      <!-- Loud on purpose (Ben, 2026-11-10): every number on the card is
-           ScryCheck's, and the page says so before it asks for anything. -->
-      <div class="credit">
-        <a class="sc" href="https://scrycheck.com/" target="_blank" rel="noopener">graded by <b>SCRYCHECK</b></a>
-        <span>The best EDH tool you don&rsquo;t know about (yet).</span>
-      </div>
-    </section>
-
-    <!-- Built by common.js deckForm(). -->
-    <form id="deck-form" class="block" aria-label="Your deck"></form>
-
-    <section id="result" class="block" hidden>
-      <h2>Your Bracket Card</h2>
-      <div id="preview" class="card-preview"></div>
-      <p id="undated" class="warn" hidden>Undated: make this deck&rsquo;s card again to date its grade.</p>
-
-      <!-- Game style and play style are part of the card, not an extra. -->
-      <div id="style"></div>
-
-      <div class="field">
-        <span class="label" id="paper-label">Paper</span>
-        <div id="papers" class="chips" role="group" aria-labelledby="paper-label"></div>
-        <p class="hint">Print at 100% / actual size, not &ldquo;fit to page&rdquo;. Measure the 50&nbsp;mm bar to check, cut on the marks, then sleeve.</p>
-      </div>
-      <div class="actions">
-        <button id="download" class="primary" type="button">Download PDF</button>
-      </div>
-
-      <div class="next">
-        <h2>More with this deck</h2>
-        <button id="to-sheet" class="go" type="button">
-          <span><span class="go-t">Add it to a sheet of 9</span><span class="go-d">Print several decks&rsquo; cards on one page</span></span>
-        </button>
-        <p id="sheet-note" class="error" hidden>Your sheet is full (9). <a href="sheet.html">Remove a deck there</a> first.</p>
-        <a class="go" href="playtest.html">
-          <span><span class="go-t">Print play test cards</span><span class="go-d">Every card in this deck, at real size</span></span>
-        </a>
-      </div>
-    </section>
-  </main>
-
-  <footer>
-    <p>Grades by <a href="https://scrycheck.com/" target="_blank" rel="noopener">ScryCheck</a>. Card images by <a href="https://scryfall.com/" target="_blank" rel="noopener">Scryfall</a>. Play test cards are for playtesting.</p>
-    <p>Bracket Card is unofficial Fan Content, not approved or endorsed by Wizards of the Coast.</p>
-  </footer>
-  <script type="module" src="app.js"></script>
+  <div id="root"></div>
+  <noscript>Bracket Card needs JavaScript to grade and print decks.</noscript>
+  <script type="module" src="/src/entries/card.jsx"></script>
 </body>
 </html>

@@ -1,5 +1,5 @@
-import { jsPDF } from "https://cdn.jsdelivr.net/npm/jspdf@3.0.3/+esm";
-import QRCode from "https://cdn.jsdelivr.net/npm/qrcode@1.5.4/+esm";
+import { jsPDF } from "jspdf";
+import QRCode from "qrcode";
 
 // THE BRACKET CARD — the MSCHF-inspired landscape card lifted out of
 // magikdex (LegendIdCard.jsx), now drawn ONCE as a list of primitives and
@@ -70,7 +70,7 @@ function toBase64(buf) {
 export async function loadFonts() {
   if (fontData) return;
   const entries = await Promise.all(Object.values(FONTS).map(async f => {
-    const res = await fetch(`fonts/${f.file}`);
+    const res = await fetch(`${import.meta.env.BASE_URL}fonts/${f.file}`);
     if (!res.ok) throw new Error(`font ${f.file} failed to load`);
     const buf = await res.arrayBuffer();
     // The preview uses the SAME files, so screen and paper share glyphs.
