@@ -1,5 +1,20 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-14 — ✅ **ScryCheck API review before public launch** (no repo code changed)
+
+Adam (ScryCheck) asked if the API is still in use ahead of an "official" release. Reviewed `deck-stats/api/analyze.js` and the magikdex references.
+
+- ✅ **Only Bracket Card calls ScryCheck.** magikdex has no calls (matches the 11-10 split). Its `SCRYCHECK_API_KEY` env var in Vercel is unused: delete it.
+- ✅ **Key is not in the repo** (searched the tree for its value: no hits). It is in the pasted email thread, so keep that out of anything shared.
+
+### ⚠️ Known Issues — new
+- **Bracket Card's "global" 9/min cap is per serverless instance**, not per key. Several warm instances can each allow 9, so a launch spike can pass ScryCheck's 10/min limit and get 429s. The cache is per instance too. Fix needs a shared store; not built.
+- **The key is a private beta key with a 10/min limit shared by every visitor.** A public launch needs Adam's OK and likely a higher quota.
+- **Pasted-list analysis (Bracket Card's main path for non-link decks) was never confirmed by Adam as supported in the official version.** Ben's 08-11 ask went unanswered.
+- Ben's draft reply to Adam still has an `image.png` placeholder.
+
+Priority (**2026-11-14**): **SEND ADAM THE REPLY, then wait for his answer on quota and pasted lists before sharing Bracket Card widely.** magikdex can launch now.
+
 ## 2026-11-11 (cont. 3) — ✅ **Bracket Card business cards for commander night** (no repo code changed)
 
 Ben had a 5-deck Sheet of 9 PDF and wanted the 4 empty slots filled with a business card for the site.
