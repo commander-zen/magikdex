@@ -1,5 +1,26 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-17 — ✅ **Rule 0 custom commanders + Scryfall card sync** (`6093e0a`, not pushed)
+
+Ben wanted to brew a leaked card (Muad'Dib, Prophet Foretold) and table-agreed "rule 0" commanders without adding them to the card repo.
+
+- ✅ **Add legend → RULE 0 tab.** Type in name, mana cost, type line, rules text, colour identity (auto-filled from the cost, tap to override) and an optional art link. Saved only on the user's own `legends` row; the shared `cards` table is untouched. The deck still draws `legal:commander` cards inside the custom card's colours.
+- ✅ **Migration 038 (`legends.custom`) applied to production.** Additive, defaults false.
+- ✅ **Custom legends are never looked up by name.** Identity heals (LegendBox, paste-import, Brew save), the tag-synergy `brew_stack` and the commander overlays (Box detail, swipe, review) all skip the fuzzy Scryfall lookup that would swap a leak for the nearest real card. They render a text card (`CustomCardFace`) instead.
+- ✅ **Scoped down on Ben's call:** no "pick any real card as commander" mode. Live lookups write back to the `cards` cache, so it would pull non-legal cards into the repo. No any-two-legends partner either.
+- ✅ **Verified in the browser at phone width:** saved the Muad'Dib leak, colours came out U/R/G, the Box and swipe overlays drew the text card, the stack query was `legal:commander ci<=urg`, and no Muad'Dib row appeared in `cards`. Test legend + deck deleted afterwards.
+- ✅ **Card repo synced with Scryfall** (`npm run ingest:cards`): 35,814 upserted, table 35,984 → 36,043 rows.
+
+### ⚠️ Known Issues — new
+- **229 orphan rows in `cards`** that Scryfall's `oracle_cards` no longer ships: 216 Alchemy `A-` rebalances, plus dungeons, counters and substitute cards. None are commander-legal, none are in any deck. Not deleted (needs Ben's OK). The ingest only upserts and never prunes, so these will keep piling up.
+- **Pride-month "any two legends partner" isn't supported.** Dropped with the any-card mode. A custom commander whose rules text says "Partner" does get the normal partner door.
+- **Custom art is a pasted link only.** No photo upload. Leak images are often on hosts that hotlink-block, so the card may just show colour pips.
+- **Bracket Card export sends a custom commander's name** to a site that can't resolve it (ScryCheck won't know the card). Not handled.
+- **Dev-only 409 on first brew open:** Brew session init inserts the deck twice under StrictMode. The one-deck-per-legend constraint rejects the second, so there's no data harm, just console noise.
+- Local `node_modules` was missing `@tailwindcss/vite`. `npm install` fixed it with no lockfile change.
+
+Priority (**2026-11-17**): **Push `6093e0a` so rule 0 ships, then decide on pruning the 229 orphan `cards` rows.** Still open from 11-14: Adam's reply on ScryCheck quota and pasted lists.
+
 ## 2026-11-14 — ✅ **ScryCheck API review before public launch** (no repo code changed)
 
 Adam (ScryCheck) asked if the API is still in use ahead of an "official" release. Reviewed `deck-stats/api/analyze.js` and the magikdex references.
