@@ -8,6 +8,7 @@ import { partnerVariant } from "../../lib/partners.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
 import { bracketCardLink } from "../../lib/bracketCardLink.js";
 import Icon from "../../components/Icon.jsx";
+import CustomCardFace from "../../components/CustomCardFace.jsx";
 
 // One row of the export menu; the copy buttons and the Bracket Card site link share it.
 const EXPORT_ITEM_STYLE = {
@@ -473,11 +474,12 @@ export default function ReviewScreen({
     if (!live || !onSetPartner || !commander?.name) return;
     let cancelled = false;
     (async () => {
-      const card = await getCardData(commander.name);
+      // A rule 0 commander arrives as its own card — never look it up by name.
+      const card = commander.card ?? await getCardData(commander.name);
       if (!cancelled) setCommanderCard(card ?? null);
     })();
     return () => { cancelled = true; };
-  }, [live, onSetPartner, commander?.name]);
+  }, [live, onSetPartner, commander?.name, commander?.card]);
 
   // Only commanders that actually have a partner mechanic get the affordance —
   // offering it on a normal legend would promise something illegal.
@@ -488,7 +490,7 @@ export default function ReviewScreen({
     setCommanderFlipped(false); // always open on the front face…
     setCommanderRotated(false); // …and as printed
     if (commanderFull || !commander?.name) return;
-    const card = await getCardData(commander.name);
+    const card = commander.card ?? await getCardData(commander.name);
     setCommanderFull(card ?? undefined);
   }
 
@@ -1659,7 +1661,11 @@ export default function ReviewScreen({
             cursor: "pointer",
           }}
         >
-          {commanderFull ? (
+          {commanderFull?.custom ? (
+            <div style={{ width: "min(88vw, 400px)", aspectRatio: "63 / 88" }}>
+              <CustomCardFace card={commanderFull} />
+            </div>
+          ) : commanderFull ? (
             // Wrapped so the flip control sits ON the card; the wrapper hugs the
             // image (inline-flex) rather than filling the overlay.
             <div style={{ position: "relative", display: "inline-flex" }}>

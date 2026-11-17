@@ -5,6 +5,8 @@ import { getCardData, getCardImage } from "../lib/scryfall.js";
 // file for why this is not an image swap.
 import FlipCard from "../brew-components/FlipCard.jsx";
 import Icon from "./Icon.jsx";
+import CustomCardFace from "./CustomCardFace.jsx";
+import { isCustomLegend, legendToCard } from "../lib/rule0.js";
 
 // The detail pane of the storage-box Home: the selected legend's card art.
 //
@@ -17,6 +19,7 @@ export default function LegendIdentity({ legend }) {
   const { theme } = useTheme();
   const [oracleCard, setOracleCard] = useState(null);
   const [flipped, setFlipped] = useState(false);
+  const custom = isCustomLegend(legend);
 
   const plateBg = theme.surface;
 
@@ -31,11 +34,13 @@ export default function LegendIdentity({ legend }) {
     setOracleCard(null);
     // A new legend opens on its front, not inheriting "flipped" from the last.
     setFlipped(false);
+    // A rule 0 legend is drawn from its own row — never looked up by name.
+    if (custom) return;
     getCardData(legend.name)
       .then(card => { if (!cancelled && card) setOracleCard(card); })
       .catch(() => {});
     return () => { cancelled = true; };
-  }, [legend.name]);
+  }, [legend.name, custom]);
 
   // ── Double-faced legends ────────────────────────────────────────────────────
   // getCardImage returns card_faces[0] — the FRONT — which is right for every
@@ -97,7 +102,15 @@ export default function LegendIdentity({ legend }) {
             AND max-height is resolvable whichever axis binds — tall narrow
             phone, short wide one, or a future pane resize. object-fit
             contain is belt-and-braces for a non-standard source. */}
-        {frontImage ? (
+        {custom ? (
+          // Same both-axes sizing as the scanned card below.
+          <div style={{
+            height: "min(100cqh, calc(100cqw * 680 / 488))",
+            aspectRatio: "488 / 680",
+          }}>
+            <CustomCardFace card={legendToCard(legend)} />
+          </div>
+        ) : frontImage ? (
           // ⚠️ THE BOX HAS TO BE SIZED HERE, and naively is WRONG.
           // FlipCard's faces are both absolute, so they contribute nothing to
           // layout — an unsized parent collapses to zero. But the note above

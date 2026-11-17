@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useTheme } from "../theme/ThemeContext";
 import ToolChips from "../components/ToolChips";
 import PageHeader from "../components/PageHeader";
@@ -13,6 +13,7 @@ import { fetchLegendDeck, deleteLegend, upsertLegend, fetchDeckPartner, combined
 import { supabase } from "../lib/supabase.js";
 import { pendingStep, snoozeStep, exportPromptDue, markExportPrompted, clearBackupPrompts } from "../lib/backupState.js";
 import Icon from "../components/Icon.jsx";
+import { isCustomLegend, legendToCard } from "../lib/rule0.js";
 
 // deck_card ids the user has curated (or that auto-tagging has already been
 // offered to). The deck-list "heal" only re-suggests to ZERO-tag rows, so
@@ -385,6 +386,13 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
   // identity was backfilled during this session's init, which would silently
   // blank the identity the moment a partner was removed.
   const primaryIdentityRef = useRef([]);
+  // A rule 0 commander's card, built from its own legends row (null for real
+  // cards, which the screens resolve by name). Memoized: ReviewScreen keys an
+  // effect on it, so a fresh object each render would loop.
+  const customCommanderCard = useMemo(
+    () => (isCustomLegend(session?.legend) ? legendToCard(session.legend) : null),
+    [session?.legend],
+  );
 
   // WREC tags per deck card, keyed `${section}:${card_name}` →
   // { id: deck_card_id, tags: string[], quantity }. Loaded when review opens;
@@ -544,7 +552,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
       if (!cancelled && initialDeckSizeRef.current === null) initialDeckSizeRef.current = 0;
 
       let colorIdentity = session.legend.color_identity;
-      if (!colorIdentity) {
+      if (!colorIdentity && !isCustomLegend(session.legend)) {
         const card = await fetchCardIdentity(session.legend.name);
         colorIdentity = card?.color_identity ?? [];
         if (card) {
@@ -627,7 +635,11 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
   // the legend has no tag profile yet or the RPC fails. Typed queries never
   // come here — they stay on live search.
   async function fetchDefaultStack(colorIdentity, order, dir, excludeLands) {
-    if (session?.legend?.name) {
+    // A rule 0 commander has no Tagger profile, and fetchBrewStack resolves
+    // the legend by NAME (fuzzy) — it would build the stack for whichever
+    // real card is nearest. Custom legends go straight to the generic seed:
+    // legal cards in the commander's colours.
+    if (session?.legend?.name && !isCustomLegend(session.legend)) {
       const stack = await fetchBrewStack({
         legendName: session.legend.name,
         colorIdentity,
@@ -1363,7 +1375,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
       // list — attempt to heal its identity now so the Box tile arrives
       // with art/oracle data already attached. Best-effort: failures here
       // shouldn't block the save.
-      if (!legend.image_uri || !legend.type_line) {
+      if (!isCustomLegend(legend) && (!legend.image_uri || !legend.type_line)) {
         try {
           const card = await fetchCardIdentity(commanderName);
           if (card) {
@@ -1625,7 +1637,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
             // stack behind it to go back to), and the deck list otherwise.
             onSearchMore={() => setBrewView(browse ? "search" : "review")}
             commanderCard={session
-              ? { name: session.legend.name, art: session.legend.image_uri }
+              ? { name: session.legend.name, art: session.legend.image_uri, card: customCommanderCard }
               : sessionLabel ? { name: sessionLabel } : null}
             initialIndex={swipeIndex}
             onIndexChange={setSwipeIndex}
@@ -1661,7 +1673,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
               setBrewView("review");
             }}
             commanderCard={session
-              ? { name: session.legend.name, art: session.legend.image_uri }
+              ? { name: session.legend.name, art: session.legend.image_uri, card: customCommanderCard }
               : sessionLabel ? { name: sessionLabel } : null}
             initialIndex={handIndex}
             onIndexChange={setHandIndex}
@@ -1685,7 +1697,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
             live={!!session}
             browse={browse}
             onRemove={handleRemoveCard}
-            commander={session ? { name: session.legend.name, art: session.legend.image_uri } : null}
+            commander={session ? { name: session.legend.name, art: session.legend.image_uri, card: customCommanderCard } : null}
             cardTags={cardTags}
             onToggleTag={handleToggleTag}
             onHome={session ? goHome : undefined}

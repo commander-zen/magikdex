@@ -4,6 +4,7 @@ import { supabase } from "../lib/supabase";
 import { fetchCardIdentity, getCardImage } from "../lib/scryfall.js";
 import { deckDisplayName, deckTotal, deleteLegend, fetchLegendDeck, resolveLegendDeck, upsertLegend } from "../lib/legendDeck.js";
 import { platformOf } from "../lib/moxfieldImport.js";
+import { isCustomLegend } from "../lib/rule0.js";
 import AddLegendSheet from "./AddLegendSheet";
 import ColorPips from "./ColorPips";
 import Icon from "./Icon.jsx";
@@ -105,7 +106,9 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
       // `decks(...)` embed is ambiguous (PostgREST PGRST201) — it fails for
       // every user, which is what emptied the Box. We want the deck this legend
       // COMMANDS, never the decks it's a partner in.
-      .select("id, name, scryfall_id, image_uri, type_line, color_identity, decks!decks_legend_id_fkey(id, status, build_name, deck_cards(quantity, section))")
+      // custom/oracle_text/mana_cost (038): a rule 0 legend has no Scryfall
+      // card, so its own row is the only place its text lives.
+      .select("id, name, scryfall_id, image_uri, type_line, oracle_text, mana_cost, color_identity, custom, decks!decks_legend_id_fkey(id, status, build_name, deck_cards(quantity, section))")
       .order("name");
     // A failed read used to leave `legends` at [] silently, which renders as
     // BOX EMPTY — identical to a genuinely empty box. That made a broken query
@@ -264,6 +267,19 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
     await loadLegends();
   }
 
+  // Rule 0 custom commander (a leak or homebrew). Throws back to the sheet so
+  // it can show the error inline. A name clash is refused rather than upserted:
+  // legends are unique per user by name, so an upsert would silently turn the
+  // user's real legend into a custom one (or the reverse).
+  async function handleCreateCustom(fields) {
+    const clash = legends.find(l => l.name.toLowerCase() === fields.name.toLowerCase());
+    if (clash) throw new Error(`"${clash.name}" is already in the dex`);
+    await upsertLegend({ ...fields, custom: true, scryfall_id: null });
+    setAddOpen(false);
+    setLoading(true);
+    await loadLegends();
+  }
+
   // Paste-import: upsert the legend → resolve its ONE deck (never insert a
   // second row for a legend that already has one — mirrors the guard
   // Brew.jsx's session-init uses via the same lib/legendDeck.js resolver) →
@@ -274,7 +290,9 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
   async function handleImportDeck(commanderName, lines, sourceUrl = null) {
     const legend = await upsertLegend({ name: commanderName });
 
-    if (!legend.image_uri || !legend.type_line) {
+    // Never heal a rule 0 legend by name (lib/rule0.js) — a pasted list whose
+    // commander is the user's custom card keeps the card they typed.
+    if (!isCustomLegend(legend) && (!legend.image_uri || !legend.type_line)) {
       try {
         const card = await fetchCardIdentity(commanderName);
         if (card) {
@@ -381,7 +399,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
   // doesn't repeat on future loads.
   useEffect(() => {
     const missing = legends.filter(l =>
-      !attemptedRef.current.has(l.id) && (!l.image_uri || !l.type_line)
+      !attemptedRef.current.has(l.id) && !isCustomLegend(l) && (!l.image_uri || !l.type_line)
     );
     if (missing.length === 0) return;
     let cancelled = false;
@@ -850,6 +868,7 @@ export default function LegendBox({ onSelectLegend, onLegendsLoaded, onRenameLeg
         onClose={() => setAddOpen(false)}
         onSelect={handleAddLegend}
         onImport={handleImportDeck}
+        onCreateCustom={handleCreateCustom}
       />
     </>
   );

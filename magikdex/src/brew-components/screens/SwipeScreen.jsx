@@ -8,6 +8,7 @@ import FlipCard from "../FlipCard.jsx";
 import { CARD_CONTROL_STYLE } from "../cardControls.js";
 import { faceRotation } from "../../lib/cardOrientation.js";
 import Icon from "../../components/Icon.jsx";
+import CustomCardFace from "../../components/CustomCardFace.jsx";
 
 // "Basic" + "Land" (not the literal "Basic Land") so snow basics — type line
 // "Basic Snow Land — Wastes" — count too.
@@ -513,7 +514,8 @@ export default function SwipeScreen({
     setCommanderFlipped(false); // always open on the front face…
     setCommanderRotated(false); // …and as printed
     if (commanderFull == null) {
-      const full = await getCardData(commanderName);
+      // A rule 0 commander arrives as its own card — never look it up by name.
+      const full = commanderCard?.card ?? await getCardData(commanderName);
       setCommanderFull(full ?? undefined);
     }
   }
@@ -1247,7 +1249,11 @@ export default function SwipeScreen({
             cursor: "pointer",
           }}
         >
-          {commanderFull ? (
+          {commanderFull?.custom ? (
+            <div style={{ width: "min(88vw, 400px)", aspectRatio: "63 / 88" }}>
+              <CustomCardFace card={commanderFull} />
+            </div>
+          ) : commanderFull ? (
             // Wrapped so the flip control can sit ON the card. The wrapper is
             // sized to the image (inline-flex) rather than the overlay, or the
             // button would float out in the dark beside it.

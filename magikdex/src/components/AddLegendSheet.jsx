@@ -3,9 +3,13 @@ import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
 import { searchCommanders, getCardImage } from "../lib/scryfall.js";
 import { prepareImport, prepareImportFromUrl, isDeckUrl, canonicalDeckUrl } from "../lib/moxfieldImport.js";
+import { WUBRG, deriveColorIdentity, cleanImageUrl } from "../lib/rule0.js";
 import Icon from "./Icon.jsx";
+import ColorPips from "./ColorPips.jsx";
 
-export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
+const EMPTY_CUSTOM = { name: "", mana_cost: "", type_line: "Legendary Creature", oracle_text: "", image_uri: "" };
+
+export default function AddLegendSheet({ open, onClose, onSelect, onImport, onCreateCustom }) {
   const { theme } = useTheme();
   const [query, setQuery]     = useState("");
   const [results, setResults] = useState([]);
@@ -16,7 +20,16 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
   const closeTimerRef = useRef(null);
 
   // ── Paste-import (Moxfield bulk-edit text → deck, WREC tags restored) ──────
-  const [tab, setTab] = useState("search"); // "search" | "paste"
+  // "rule0" types in a commander Scryfall doesn't have (a leak, a homebrew,
+  // a table-agreed one). Deliberately NO "pick any real card" mode: live
+  // lookups write back to the shared cards cache, and Ben wants that table to
+  // stay a Scryfall mirror (2026-11-17).
+  const [tab, setTab] = useState("search"); // "search" | "paste" | "rule0"
+  const [custom, setCustom] = useState(EMPTY_CUSTOM);
+  // null = follow the mana cost / rules text; an array = the user picked.
+  const [customColors, setCustomColors] = useState(null);
+  const [savingCustom, setSavingCustom] = useState(false);
+  const [customError, setCustomError] = useState(null);
   const [pasteText, setPasteText]     = useState("");
   const [preview, setPreview]         = useState(null);   // prepareImport() result
   const [parsing, setParsing]         = useState(false);
@@ -104,6 +117,9 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
       setQuery("");
       setResults([]);
       setTab("search");
+      setCustom(EMPTY_CUSTOM);
+      setCustomColors(null);
+      setCustomError(null);
       setPasteText("");
       setPreview(null);
       setPickedKey(null);
@@ -141,6 +157,62 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
     abortRef.current?.abort();
     onSelect(card);
   }
+
+  // ── Rule 0 custom commander ────────────────────────────────────────────────
+  const derivedColors = deriveColorIdentity(custom.mana_cost, custom.oracle_text);
+  const colors = customColors ?? derivedColors;
+  const imageUrl = cleanImageUrl(custom.image_uri);
+  const imageInvalid = Boolean(custom.image_uri.trim()) && !imageUrl;
+  const canSaveCustom = Boolean(custom.name.trim()) && !imageInvalid && !savingCustom;
+
+  function toggleColor(c) {
+    const next = colors.includes(c) ? colors.filter(x => x !== c) : [...colors, c];
+    setCustomColors(WUBRG.filter(x => next.includes(x)));
+  }
+
+  async function handleSaveCustom() {
+    if (!canSaveCustom) return;
+    setSavingCustom(true);
+    setCustomError(null);
+    try {
+      await onCreateCustom({
+        name: custom.name.trim(),
+        mana_cost: custom.mana_cost.trim() || null,
+        type_line: custom.type_line.trim() || "Legendary Creature",
+        oracle_text: custom.oracle_text.trim() || null,
+        color_identity: colors,
+        image_uri: imageUrl,
+      });
+    } catch (err) {
+      setCustomError(err?.message ?? "couldn't save");
+    } finally {
+      setSavingCustom(false);
+    }
+  }
+
+  const fieldStyle = {
+    width: "100%", boxSizing: "border-box",
+    background: "transparent",
+    color: textColor,
+    fontFamily: "'Atkinson Hyperlegible Next Variable', sans-serif",
+    fontSize: 16, // 16 or iOS zooms the sheet on focus
+    border: "none",
+    borderBottom: `1px solid ${borderColor}`,
+    borderRadius: 0,
+    padding: "8px 0",
+    outline: "none",
+  };
+  const labelStyle = {
+    fontFamily: "'JetBrains Mono', monospace",
+    fontSize: 10, letterSpacing: "0.14em", textTransform: "uppercase",
+    color: dimColor,
+  };
+  const r0Label = (text, el) => (
+    <label style={{ display: "flex", flexDirection: "column", gap: 2 }}>
+      <span style={labelStyle}>{text}</span>
+      {el}
+    </label>
+  );
 
   // iOS pans the visual viewport when the keyboard opens for an input near
   // the bottom of the screen, shoving the sheet's header up under the status
@@ -209,7 +281,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
 
           {/* Tabs — search Scryfall, or paste a Moxfield bulk-edit decklist. */}
           <div style={{ display: "flex", gap: 16, padding: "8px 20px 0" }}>
-            {[["search", "search"], ["paste", "paste deck"]].map(([key, label]) => (
+            {[["search", "search"], ["paste", "paste deck"], ["rule0", "rule 0"]].map(([key, label]) => (
               <button
                 key={key}
                 onClick={() => setTab(key)}
@@ -332,6 +404,127 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport }) {
                 </button>
               );
             })}
+          </div>
+          )}
+
+          {tab === "rule0" && (
+          <div style={{
+            flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch",
+            padding: "8px 20px 20px",
+            display: "flex", flexDirection: "column", gap: 12,
+          }}>
+            <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: dimColor, lineHeight: 1.5 }}>
+              a commander that isn&apos;t out yet, or one your table agreed to. the deck still draws from legal cards in its colours.
+            </div>
+            {r0Label("name *", (
+              <input
+                value={custom.name}
+                onChange={e => setCustom(c => ({ ...c, name: e.target.value }))}
+                onFocus={pinViewportOnFocus}
+                placeholder="card name"
+                autoComplete="off" autoCorrect="off" spellCheck={false}
+                style={fieldStyle}
+              />
+            ))}
+            {r0Label("mana cost", (
+              <input
+                value={custom.mana_cost}
+                onChange={e => setCustom(c => ({ ...c, mana_cost: e.target.value }))}
+                onFocus={pinViewportOnFocus}
+                placeholder="{1}{G}{U}{R}"
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                style={{ ...fieldStyle, fontFamily: "'JetBrains Mono', monospace" }}
+              />
+            ))}
+            {r0Label("type line", (
+              <input
+                value={custom.type_line}
+                onChange={e => setCustom(c => ({ ...c, type_line: e.target.value }))}
+                onFocus={pinViewportOnFocus}
+                autoComplete="off" autoCorrect="off" spellCheck={false}
+                style={fieldStyle}
+              />
+            ))}
+            {r0Label("rules text", (
+              <textarea
+                value={custom.oracle_text}
+                onChange={e => setCustom(c => ({ ...c, oracle_text: e.target.value }))}
+                onFocus={pinViewportOnFocus}
+                rows={4}
+                autoComplete="off" spellCheck={false}
+                style={{ ...fieldStyle, border: `1px solid ${borderColor}`, padding: 8, resize: "vertical" }}
+              />
+            ))}
+
+            {/* Colour identity drives every stack and search in the deck, so it
+                has to be right. Pre-filled from the mana cost + rules text; the
+                first tap takes over from the auto-fill. */}
+            <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
+              <span style={labelStyle}>
+                colour identity{customColors ? "" : " (from the cost + text)"}
+              </span>
+              <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+                {WUBRG.map(c => (
+                  <button
+                    key={c}
+                    onClick={() => toggleColor(c)}
+                    aria-pressed={colors.includes(c)}
+                    aria-label={`colour ${c}`}
+                    style={{
+                      width: 44, height: 44,
+                      background: colors.includes(c) ? borderColor : "transparent",
+                      border: `1px solid ${colors.includes(c) ? textColor : borderColor}`,
+                      color: textColor,
+                      fontFamily: "'JetBrains Mono', monospace", fontSize: 13,
+                      cursor: "pointer",
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    {c}
+                  </button>
+                ))}
+                <ColorPips identity={colors} size={10} gap={3} />
+              </div>
+            </div>
+
+            {r0Label("art link (optional)", (
+              <input
+                value={custom.image_uri}
+                onChange={e => setCustom(c => ({ ...c, image_uri: e.target.value }))}
+                onFocus={pinViewportOnFocus}
+                placeholder="https://…"
+                inputMode="url"
+                autoComplete="off" autoCorrect="off" autoCapitalize="off" spellCheck={false}
+                style={fieldStyle}
+              />
+            ))}
+            {imageInvalid && (
+              <span style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 11, color: theme.red, marginTop: -8 }}>
+                needs to be an http(s) link
+              </span>
+            )}
+
+            <button
+              onClick={handleSaveCustom}
+              disabled={!canSaveCustom}
+              style={{
+                minHeight: 44,
+                background: canSaveCustom ? textColor : "transparent",
+                color: canSaveCustom ? theme.base : dimColor,
+                border: `1px solid ${borderColor}`,
+                fontFamily: "'JetBrains Mono', monospace",
+                fontSize: 12, letterSpacing: "0.1em", textTransform: "uppercase",
+                cursor: canSaveCustom ? "pointer" : "default",
+                WebkitTapHighlightColor: "transparent",
+              }}
+            >
+              {savingCustom ? "adding…" : "add to dex"}
+            </button>
+            {customError && (
+              <div style={{ fontFamily: "'JetBrains Mono', monospace", fontSize: 12, color: theme.red }}>
+                {customError}
+              </div>
+            )}
           </div>
           )}
 
