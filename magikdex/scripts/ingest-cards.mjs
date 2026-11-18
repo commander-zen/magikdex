@@ -32,6 +32,9 @@ import { createClient } from "@supabase/supabase-js";
 const UA = "magikdex/1.0 (bulk ingest; magikdex.vercel.app)";
 const BULK_MANIFEST = "https://api.scryfall.com/bulk-data";
 const BATCH_SIZE = 500;
+// The oracle bulk yields ~36k deckable cards; well below that means the
+// stream was cut short, and pruning against it would delete real cards.
+const MIN_ROWS_FOR_PRUNE = 30000;
 
 // ── Env ─────────────────────────────────────────────────────────────────────
 function loadEnv() {
@@ -109,6 +112,8 @@ function isNonDeckable(c) {
 
 // ── Run ──────────────────────────────────────────────────────────────────────
 async function main() {
+  // Rows not re-stamped after this moment are gone from Scryfall (see Prune).
+  const runStart = new Date().toISOString();
   console.log("Fetching Scryfall bulk-data manifest…");
   const manifestRes = await fetch(BULK_MANIFEST, {
     headers: { "User-Agent": UA, Accept: "application/json" },
@@ -165,13 +170,32 @@ async function main() {
   }
   await flush();
 
+  // ── Prune ────────────────────────────────────────────────────────────────
+  // Upsert alone never removes anything, so cards Scryfall drops from the
+  // oracle bulk (Alchemy "A-" rebalances, dungeons, substitute cards…) lingered
+  // forever — 229 of them by 2026-11-17. Every row this run touched got a
+  // fresh updated_at, so anything older than runStart is no longer in the bulk.
+  // Guarded: only after a complete stream, and only if the run wrote a sane
+  // number of rows — a truncated download must never wipe the table.
+  let pruned = 0;
+  if (written >= MIN_ROWS_FOR_PRUNE) {
+    const { count: delCount, error } = await supabase
+      .from("cards")
+      .delete({ count: "exact" })
+      .lt("updated_at", runStart);
+    if (error) throw new Error(`Prune failed: ${error.message}`);
+    pruned = delCount ?? 0;
+  } else {
+    console.warn(`Skipping prune: only ${written} rows written (< ${MIN_ROWS_FOR_PRUNE}).`);
+  }
+
   // Final count from the table itself.
   const { count } = await supabase
     .from("cards")
     .select("*", { count: "exact", head: true });
 
   console.log("──────────────────────────────────────────────");
-  console.log(`processed: ${processed}  |  upserted: ${written}  |  skipped: ${skipped}`);
+  console.log(`processed: ${processed}  |  upserted: ${written}  |  skipped: ${skipped}  |  pruned: ${pruned}`);
   console.log(`batches written: ${batchesWritten}`);
   console.log(`cards table now holds: ${count ?? "?"} rows`);
 }
