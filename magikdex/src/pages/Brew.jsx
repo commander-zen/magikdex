@@ -6,7 +6,7 @@ import { BREW_TOOLS } from "../data/tools";
 import SearchScreen from "../brew-components/screens/SearchScreen.jsx";
 import SwipeScreen from "../brew-components/screens/SwipeScreen.jsx";
 import ReviewScreen from "../brew-components/screens/ReviewScreen.jsx";
-import { fetchFirstPageForSwipe, fetchCardIdentity, getCardImage, fetchBrewStack, fetchTagStack, getCardDataBatch } from "../lib/scryfall.js";
+import { fetchFirstPageForSwipe, fetchContinuationPage, fetchCardIdentity, getCardImage, fetchBrewStack, fetchTagStack, getCardDataBatch } from "../lib/scryfall.js";
 import { getBrewDefaults } from "../lib/brewDefaults.js";
 import { tagCard, untagCard, fetchDeckCardsWithTags, autoWrecTags, applyAutoTags, WREC_TO_OTAGS } from "../lib/deckTags.js";
 import { fetchLegendDeck, deleteLegend, upsertLegend, fetchDeckPartner, combinedColorIdentity } from "../lib/legendDeck.js";
@@ -122,9 +122,17 @@ function expandRows(rows, section) {
 // Every Scryfall query issued during a session — auto-seed or in-session
 // search — is constrained to the legend's color identity server-side of
 // whatever the user typed, so illegal cards can never surface.
+//
+// A typed query with a top-level OR is wrapped in parentheses first. Scryfall
+// binds AND tighter than OR, so "t:creature or t:planeswalker legal:commander
+// ci<=ub" meant "creatures of ANY color, or legal U/B planeswalkers" — the
+// legality and color filter only reached the last OR branch. Without an OR the
+// query is passed through byte-for-byte (AND is AND either way).
 function withColorIdentity(q, colorIdentity) {
   const ci = colorIdentity?.length ? colorIdentity.join("").toLowerCase() : "c";
-  return `${q} legal:commander ci<=${ci}`.trim();
+  const typed = (q ?? "").trim();
+  const grouped = /(^|\s)or(\s|$)/i.test(typed) ? `(${typed})` : typed;
+  return `${grouped} legal:commander ci<=${ci}`.trim();
 }
 
 // The decklist search bar (Change 1) is a STACK GENERATOR over all of Scryfall,
@@ -406,6 +414,15 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
   // and sort re-derive the swipe queue from this, so clearing a filter restores
   // the whole stack rather than a progressively-shrunk remainder.
   const baseStackRef = useRef([]);
+  // ── More pages of a Scryfall search ──────────────────────────────────────
+  // Scryfall answers a search 175 cards at a time. Only the first page used to
+  // be fetched, so a search with 2,000 legal matches showed at most 175 (fewer
+  // once the deck's own cards were dropped) — Ben, 2026-11-21. The next page's
+  // URL is kept with the base stack it belongs to; any new stack (another
+  // search, a seed, a resume, a reset) replaces baseStackRef, so a page that
+  // arrives late for an old search is dropped instead of appended.
+  const nextPageRef = useRef(null);      // { url, base } | null
+  const loadingMoreRef = useRef(false);
 
   // ── Backup nudge (Ben 2026-07-03): zero barrier to START brewing, but once
   // someone is deep enough to have built something worth keeping, prompt an
@@ -765,7 +782,9 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
       } else if (isDefaultSeedQuery(rawQuery)) {
         cards = await fetchDefaultStack(colorIdentity, order, dir, rawQuery === "-t:land");
       } else {
-        ({ cards } = await fetchFirstPageForSwipe(withColorIdentity(rawQuery, colorIdentity), { order, dir }));
+        let nextPage;
+        ({ cards, nextPage } = await fetchFirstPageForSwipe(withColorIdentity(rawQuery, colorIdentity), { order, dir }));
+        if (nextPage) nextPageRef.current = { url: nextPage, base: cards };
       }
       // Re-apply the saved in-stack narrow on top of the rebuilt base stack.
       baseStackRef.current = cards;
@@ -806,6 +825,37 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
       view: brewView,
     });
   }, [session, query, stackNarrow, swipeOrder, swipeDir, swipeIndex, swipeCards.length, brewView]);
+
+  // Fetch Scryfall's next page when the swipe gets within ~30 cards of the
+  // end (SwipeScreen calls onNearEnd), so the stack keeps going instead of
+  // stopping at 175. Cards are appended in the order Scryfall sent them
+  // (already sorted server-side); the current card and everything before it
+  // never move. A page whose cards are all in the deck already adds nothing,
+  // so keep going (a few pages at most per call) until something new arrives.
+  async function loadMoreCards() {
+    if (loadingMoreRef.current || !nextPageRef.current) return;
+    loadingMoreRef.current = true;
+    try {
+      for (let tries = 0; tries < 5 && nextPageRef.current; tries++) {
+        const pending = nextPageRef.current;
+        const { cards, nextPage } = await fetchContinuationPage(pending.url);
+        if (baseStackRef.current !== pending.base) return; // a newer stack replaced this one
+        const base = [...pending.base, ...cards];
+        baseStackRef.current = base;
+        nextPageRef.current = nextPage ? { url: nextPage, base } : null;
+        const add = buildSwipeCards(cards, stackNarrow, swipeOrder, swipeDir);
+        if (add.length) {
+          setSwipeCards(prev => {
+            const have = new Set(prev.map(c => c.id));
+            return [...prev, ...add.filter(c => !have.has(c.id))];
+          });
+          return;
+        }
+      }
+    } finally {
+      loadingMoreRef.current = false;
+    }
+  }
 
   // Warm the upcoming card ART off-swipe (Ben's load-time complaint): the
   // queue DATA already seeds silently in the background when the deck list
@@ -1201,11 +1251,13 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
       // legend's color identity server-side — the user's input is never
       // trusted alone, matching the auto-seed path above.
       const finalQuery = session ? withColorIdentity(q, legendColorIdentity) : q;
-      const { cards } = await fetchFirstPageForSwipe(finalQuery, { order, dir });
+      const { cards, nextPage } = await fetchFirstPageForSwipe(finalQuery, { order, dir });
       // Decided cards (this session or earlier) never re-queue, no matter how
       // the queue was re-seeded — skipped/browsed cards are unaffected.
       const filtered = cards.filter(c => !decidedNamesRef.current.has(c.name));
       if (!filtered.length) throw new Error("No cards found for that query.");
+      baseStackRef.current = cards;
+      nextPageRef.current = nextPage ? { url: nextPage, base: cards } : null;
       setQuery(q);
       setSessionLabel(label !== undefined ? label : sessionLabel);
       setSwipeCards(filtered);
@@ -1252,7 +1304,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
     setError(null);
     try {
       const finalQuery = browse ? input : withColorIdentity(input, legendColorIdentity);
-      const { cards } = await fetchFirstPageForSwipe(finalQuery, { order, dir });
+      const { cards, nextPage } = await fetchFirstPageForSwipe(finalQuery, { order, dir });
       // Build BEFORE touching baseStackRef: a search that comes back dry used to
       // overwrite the base stack with the empty result and then bail, so the
       // stack every later rebuild reads from (sort change, narrow, clear-filter)
@@ -1270,6 +1322,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
         return { ok: false, kind: "empty", message };
       }
       baseStackRef.current = cards;
+      nextPageRef.current = nextPage ? { url: nextPage, base: cards } : null;
       setStackNarrow("");
       setQuery(input);
       setSwipeOrder(order);
@@ -1309,27 +1362,6 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // The in-swipe search box for a legend session NARROWS the current relevance/
-  // wrec stack client-side instead of running a generic Scryfall search — the
-  // EDHREC ordering is preserved and only cards the stack already holds are ever
-  // shown (Ben's "keep relevance" call). Empty terms clear the filter and
-  // restore the full stack. Returns the runSearch-shaped result so SearchScreen's
-  // error/empty handling is unchanged.
-  function applyStackNarrow(terms) {
-    const trimmed = (terms ?? "").trim();
-    // Even a ZERO-MATCH filter lands on the swipe screen (Change 3): SwipeScreen
-    // shows the "nothing in this stack matches" escape state with a "search all
-    // cards" hatch, so the dead end becomes a bigger stack without ever leaving
-    // the swipe. Clearing the filter (empty terms) rebuilds the full stack.
-    const next = buildSwipeCards(baseStackRef.current, trimmed, swipeOrder, swipeDir);
-    setError(null);
-    setStackNarrow(trimmed);
-    setSwipeCards(next);
-    setSwipeIndex(0);
-    setBrewView("swipe");
-    return { ok: true };
-  }
-
   // Clear the in-swipe filter from the SwipeScreen chip's ✕ — rebuild the full
   // (un-narrowed) stack in place, staying on the swipe. Never destructive.
   function clearStackNarrow() {
@@ -1345,6 +1377,13 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
     // possibly narrowed) — re-derive it from the base so sorting never triggers
     // a generic search that would drop the ranking or the active narrow.
     // Undecided position resets to the top, matching the re-fetch paths.
+    // A typed Scryfall search is re-asked in the new order, same as browse:
+    // its later pages arrive in Scryfall's order, so re-sorting only the pages
+    // loaded so far would interleave wrongly once the next page lands.
+    if (session && query && !isDefaultSeedQuery(query) && !wrecQueryCategory(query)) {
+      runGlobalSearch(query, order, dir);
+      return;
+    }
     if (session) {
       setSwipeCards(buildSwipeCards(baseStackRef.current, stackNarrow, order, dir));
       setSwipeIndex(0);
@@ -1613,14 +1652,22 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
 
         {brewView === "search" && (
           <SearchScreen
-            onSearch={session ? applyStackNarrow : browse ? runBrowseSearch : runSearch}
+            // A legend session's search goes to Scryfall too (Ben, 2026-11-21:
+            // "hitting Scryfall … only filtering by the color identity of the
+            // commander and … commander legal"), via runGlobalSearch, which adds
+            // exactly those two filters. It used to narrow the dealt relevance
+            // stack client-side, which couldn't read most Scryfall syntax (is:,
+            // parentheses) and never reached cards outside the top 400.
+            onSearch={session || browse ? runBrowseSearch : runSearch}
             loading={loading}
             error={error}
             // Legend sessions narrow the current stack — prefill the box with the
             // active filter (not `query`, which is the stack identity), and drop
             // into narrow mode (no otag chips: they can't be evaluated locally).
-            initialQuery={session ? stackNarrow : (query || initialQuery)}
-            narrowStack={!!session}
+            initialQuery={session
+              ? (isDefaultSeedQuery(query) || wrecQueryCategory(query) ? "" : query)
+              : (query || initialQuery)}
+            narrowStack={false}
             stackCount={totalStackCount}
           />
         )}
@@ -1641,6 +1688,7 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
               : sessionLabel ? { name: sessionLabel } : null}
             initialIndex={swipeIndex}
             onIndexChange={setSwipeIndex}
+            onNearEnd={loadMoreCards}
             swipeOrder={swipeOrder}
             swipeDir={swipeDir}
             onSortChange={handleSortChange}

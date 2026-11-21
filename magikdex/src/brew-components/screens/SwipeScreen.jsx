@@ -42,7 +42,7 @@ export default function SwipeScreen({
   cards, pile, onPileChange,
   decklist = [], onDecklistChange,
   onGoToPile, onSearchMore, commanderCard,
-  initialIndex, onIndexChange,
+  initialIndex, onIndexChange, onNearEnd,
   swipeOrder = "name", swipeDir = "desc", onSortChange,
   onCardCommit, reconnecting,
   onDoubleTag,
@@ -220,6 +220,12 @@ export default function SwipeScreen({
   // unseen (Ben, 2026-11-21). Every place Brew replaces `cards` sets the index
   // it wants in the same update (0 for a new search, the saved spot on
   // resume), so follow that instead of keeping the old position.
+  // Ask for more cards while ~30 are still left, so a long Scryfall search
+  // keeps flowing (Brew fetches the next page; a no-op when there is none).
+  useEffect(() => {
+    if (!handMode && effectiveCards.length - idx <= 30) onNearEnd?.();
+  }, [idx, effectiveCards.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const prevCardsRef = useRef(cards);
   useEffect(() => {
     if (prevCardsRef.current === cards) return;
