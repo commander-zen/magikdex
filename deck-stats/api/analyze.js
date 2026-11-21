@@ -10,9 +10,11 @@
 //
 // ⚠️ THE ONE DIFFERENCE, AND IT MATTERS: magikdex requires a Supabase session
 // before it will spend a call. Bracket Card has no accounts, so the controls are
-// a per-IP throttle, a global cap at ScryCheck's own limit, and a cache. That
-// is a speed bump, not a lock — anyone who rotates IPs can still burn the
-// private-beta quota. If ScryCheck usage ever looks wrong, tighten this first.
+// a per-IP throttle, a global cap under ScryCheck's per-minute limit, a pause
+// when ScryCheck says the key is out of requests, and a cache. That is a speed
+// bump, not a lock — anyone who rotates IPs can still burn the daily quota
+// (500 fresh checks per UTC day by default, per ScryCheck's v1 docs). If
+// ScryCheck usage ever looks wrong, tighten this first.
 
 const SCRYCHECK_ENDPOINT = "https://scrycheck.com/api/v1/analyze";
 
@@ -30,13 +32,21 @@ function isSupportedDeckUrl(raw) {
   }
 }
 
+// ScryCheck v1 error codes → what this function answers. Codes and their HTTP
+// statuses are from ScryCheck's v1 API docs. UNAUTHORIZED is handled apart
+// (it means OUR key is wrong, not the visitor's deck), and so are the two
+// limit codes (they pause every request on this instance, see below).
 const ERROR_MAP = {
   INVALID_REQUEST:         [400, "ScryCheck couldn't read that deck. Check the link or list."],
   UNSUPPORTED_SOURCE:      [400, "ScryCheck reads Moxfield and Archidekt links only."],
-  SOURCE_UNAVAILABLE:      [404, "Couldn't read that deck. Is it public?"],
-  TEMPORARILY_UNAVAILABLE: [429, "ScryCheck is busy. Try again in a moment."],
+  DECK_NOT_FOUND:          [404, "Couldn't find that deck. Is it public?"],
+  NOT_ANALYZED:            [404, "ScryCheck hasn't graded that deck yet. Try again."],
+  SOURCE_UNAVAILABLE:      [502, "Moxfield or Archidekt didn't answer. Try again in a few minutes."],
   ANALYSIS_FAILED:         [502, "ScryCheck couldn't analyze that deck."],
+  TEMPORARILY_UNAVAILABLE: [503, "ScryCheck is down for a moment. Try again in a few minutes."],
 };
+
+const NOT_CONFIGURED = "Deck analysis isn't configured on this deploy yet.";
 
 // Turn the request body into exactly what gets sent to ScryCheck, or an error
 // message. Only whitelisted fields are forwarded.
@@ -66,14 +76,58 @@ function buildPayload(body) {
 // All in-process: a warm instance remembers, a recycled one forgets. The cache
 // is what makes re-tapping "analyze" on the same deck free — Adam asked that a
 // deck only be checked when it actually changes.
-const IP_LIMIT = 8;
+// 12 so one person can fill a whole Sheet (9 decks) and fix a couple of typos
+// without hitting the wall.
+const IP_LIMIT = 12;
 const IP_WINDOW_MS = 10 * 60_000;
-// ScryCheck's limit for the whole key is 10 requests per minute. Stay under it
-// here so a burst fails with our message instead of theirs.
-const GLOBAL_LIMIT = 9;
+// ScryCheck v1's default limit for the whole key is 60 requests per minute.
+// Stay under it here so a burst fails with our message instead of theirs.
+const GLOBAL_LIMIT = 50;
 const GLOBAL_WINDOW_MS = 60_000;
 const hits = new Map();
 let globalHits = [];
+
+// When ScryCheck says the key is out of requests (RATE_LIMITED per minute,
+// QUOTA_EXCEEDED per day, or X-Quota-Remaining: 0 on a good answer), every
+// request on this instance waits until ScryCheck says it may go again, so we
+// stop spending calls that can only fail. ScryCheck's terms forbid working
+// around its limits; this is the opposite.
+let pausedUntil = 0;
+let pauseReason = null;
+
+function pause(ms, reason) {
+  if (!(ms > 0)) return;
+  const until = Date.now() + Math.min(ms, 25 * 60 * 60_000);
+  if (until > pausedUntil) { pausedUntil = until; pauseReason = reason; }
+}
+
+function retryAfterMs(apiRes) {
+  const secs = Number(apiRes.headers.get("retry-after"));
+  return Number.isFinite(secs) && secs > 0 ? secs * 1000 : 0;
+}
+
+// X-Quota-Reset is an ISO time (the next 00:00 UTC).
+function quotaResetMs(apiRes) {
+  const at = Date.parse(apiRes.headers.get("x-quota-reset") ?? "");
+  return Number.isFinite(at) ? at - Date.now() : 0;
+}
+
+function waitWords(ms) {
+  const mins = Math.ceil(ms / 60_000);
+  if (mins <= 1) return "in a minute";
+  if (mins < 90) return `in about ${mins} minutes`;
+  return `in about ${Math.round(mins / 60)} hours`;
+}
+
+function sendPaused(res) {
+  const ms = pausedUntil - Date.now();
+  res.setHeader("Retry-After", String(Math.ceil(ms / 1000)));
+  res.status(429).json({
+    error: pauseReason === "quota"
+      ? `Bracket Card has graded all the decks it can today. Try again ${waitWords(ms)}.`
+      : `Lots of decks being checked right now. Try again ${waitWords(ms)}.`,
+  });
+}
 
 function overRateLimit(ip) {
   const now = Date.now();
@@ -199,7 +253,7 @@ module.exports = async (req, res) => {
   const API_KEY = process.env.SCRYCHECK_API_KEY;
   if (!API_KEY) {
     console.error("analyze: missing SCRYCHECK_API_KEY");
-    res.status(500).json({ error: "Deck analysis isn't configured on this deploy yet." });
+    res.status(500).json({ error: NOT_CONFIGURED });
     return;
   }
 
@@ -209,6 +263,8 @@ module.exports = async (req, res) => {
   const cacheKey = JSON.stringify(payload);
   const hit = cached(cacheKey);
   if (hit) { res.status(200).json(hit); return; }
+
+  if (Date.now() < pausedUntil) { sendPaused(res); return; }
 
   const ip = String(req.headers["x-forwarded-for"] ?? "").split(",")[0].trim() || "unknown";
   const limited = overRateLimit(ip);
@@ -232,22 +288,42 @@ module.exports = async (req, res) => {
       body: JSON.stringify(payload),
     });
 
-    // A bare 404 from ScryCheck means the key is wrong, never "deck not found".
-    if (apiRes.status === 404) {
-      console.error("analyze: 404 from ScryCheck, check SCRYCHECK_API_KEY");
-      res.status(500).json({ error: "Deck analysis isn't configured on this deploy yet." });
+    let json = null;
+    try { json = await apiRes.json(); } catch { /* handled below */ }
+    const code = json?.error?.code;
+
+    // A key problem, never the visitor's fault. Per ScryCheck's v1 docs a bad
+    // sc_live_ key is 401 UNAUTHORIZED, and a missing or non-ScryCheck key is
+    // a plain 404 {"error":"Not found"} with no code. A 404 WITH a code
+    // (DECK_NOT_FOUND, NOT_ANALYZED) is about the deck, so it falls through.
+    if (apiRes.status === 401 || code === "UNAUTHORIZED" || (apiRes.status === 404 && !code)) {
+      console.error(`analyze: ${apiRes.status} from ScryCheck, check SCRYCHECK_API_KEY`);
+      res.status(500).json({ error: NOT_CONFIGURED });
       return;
     }
 
-    let json;
-    try { json = await apiRes.json(); }
-    catch { res.status(502).json({ error: "Unexpected response from ScryCheck." }); return; }
+    if (code === "RATE_LIMITED" || code === "QUOTA_EXCEEDED") {
+      const quota = code === "QUOTA_EXCEEDED";
+      pause(retryAfterMs(apiRes) || (quota ? quotaResetMs(apiRes) : 60_000) || 60_000, quota ? "quota" : "rate");
+      console.warn(`analyze: ${code} from ScryCheck`, json?.error?.requestId ?? "");
+      sendPaused(res);
+      return;
+    }
 
-    if (!json || json.success === false) {
-      const [status, message] = ERROR_MAP[json?.error?.code] ?? [502, "Analysis failed. Try again."];
+    if (!json) { res.status(502).json({ error: "Unexpected response from ScryCheck." }); return; }
+
+    if (json.success === false) {
+      const [status, message] = ERROR_MAP[code] ?? [502, "Analysis failed. Try again."];
+      if (status >= 500) console.error(`analyze: ${code ?? apiRes.status} from ScryCheck`, json?.error?.requestId ?? "");
+      const wait = retryAfterMs(apiRes);
+      if (wait) res.setHeader("Retry-After", String(Math.ceil(wait / 1000)));
       res.status(status).json({ error: message });
       return;
     }
+
+    // Last fresh check of the day: stop here rather than spend the next
+    // request on a sure QUOTA_EXCEEDED.
+    if (apiRes.headers.get("x-quota-remaining") === "0") pause(quotaResetMs(apiRes), "quota");
 
     const stats = normalize(json.data ?? {}, payload);
     stats.themes = await themesFor(stats.commanders);

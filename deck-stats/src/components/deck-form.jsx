@@ -116,7 +116,13 @@ export function DeckForm({ submitLabel, check = () => null, onCard, prefill, ari
         </Alert>
       )}
 
-      <Button type="submit" size="lg" className="mt-5 w-full" disabled={busy}>
+      {/* ScryCheck's v1 docs: every analysis, pasted lists included, becomes a
+          public page on scrycheck.com. Say so before anyone taps. */}
+      <p id={`${uid}-public`} className="mt-5 text-sm text-muted-foreground">
+        Grading is done by ScryCheck, which saves every deck it grades, pasted lists included, as a public page on scrycheck.com.
+      </p>
+
+      <Button type="submit" size="lg" className="mt-3 w-full" disabled={busy} aria-describedby={`${uid}-public`}>
         {busy ? <><Loader2 aria-hidden className="animate-spin" />Grading…</> : submitLabel}
       </Button>
 
