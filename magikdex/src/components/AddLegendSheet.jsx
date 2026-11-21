@@ -13,6 +13,10 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport, onCr
   const { theme } = useTheme();
   const [query, setQuery]     = useState("");
   const [results, setResults] = useState([]);
+  // New results start at the top of the list, not wherever the old ones were
+  // scrolled to (same fix as the swipe carousel, Ben 2026-11-21).
+  const resultsRef = useRef(null);
+  useEffect(() => { if (resultsRef.current) resultsRef.current.scrollTop = 0; }, [results]);
   const [toast, setToast]     = useState(null);
   const abortRef = useRef(null);
   const inputRef = useRef(null);
@@ -347,7 +351,7 @@ export default function AddLegendSheet({ open, onClose, onSelect, onImport, onCr
           )}
 
           {tab === "search" && (
-          <div style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "0 20px 20px" }}>
+          <div ref={resultsRef} style={{ flex: 1, overflowY: "auto", WebkitOverflowScrolling: "touch", padding: "0 20px 20px" }}>
             {results.map(card => {
               // Same-named printings (six different Hawkeyes) are otherwise
               // indistinguishable rows — the art thumb plus the set name is

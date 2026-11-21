@@ -42,7 +42,7 @@ export default function SwipeScreen({
   cards, pile, onPileChange,
   decklist = [], onDecklistChange,
   onGoToPile, onSearchMore, commanderCard,
-  initialIndex, onIndexChange,
+  initialIndex, onIndexChange, onNearEnd,
   swipeOrder = "name", swipeDir = "desc", onSortChange,
   onCardCommit, reconnecting,
   onDoubleTag,
@@ -212,6 +212,26 @@ export default function SwipeScreen({
     if (!didMountRef.current) { didMountRef.current = true; return; }
     onIndexChange?.(idx);
   }, [idx]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  // A NEW STACK STARTS AT ITS TOP. `idx` is local and `initialIndex` is only
+  // read on mount, so editing the search from inside the swipe (or narrowing,
+  // clearing the filter, re-sorting) swapped the cards underneath while the
+  // carousel stayed 10 deep — the first 10 of the NEW results were skipped
+  // unseen (Ben, 2026-11-21). Every place Brew replaces `cards` sets the index
+  // it wants in the same update (0 for a new search, the saved spot on
+  // resume), so follow that instead of keeping the old position.
+  // Ask for more cards while ~30 are still left, so a long Scryfall search
+  // keeps flowing (Brew fetches the next page; a no-op when there is none).
+  useEffect(() => {
+    if (!handMode && effectiveCards.length - idx <= 30) onNearEnd?.();
+  }, [idx, effectiveCards.length]); // eslint-disable-line react-hooks/exhaustive-deps
+
+  const prevCardsRef = useRef(cards);
+  useEffect(() => {
+    if (prevCardsRef.current === cards) return;
+    prevCardsRef.current = cards;
+    setIdx(Math.max(0, initialIndex ?? 0));
+  }, [cards]); // eslint-disable-line react-hooks/exhaustive-deps
 
   useEffect(() => {
     const handler = e => {
