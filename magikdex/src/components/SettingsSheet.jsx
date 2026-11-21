@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { createPortal } from "react-dom";
 import { useTheme } from "../theme/ThemeContext";
 import { getBrewDefaults, setBrewDefaults } from "../lib/brewDefaults.js";
@@ -39,6 +39,16 @@ export default function SettingsSheet({ open, onClose }) {
   // ('email_change' for a new email attach, 'email' for signing back in).
   const [pendingFlow, setPendingFlow] = useState(null); // 'backup' | 'signin' | null
   const [code, setCode] = useState("");
+  // Pasting the emailed code used to mean finding iOS's long-press menu on a
+  // small box (Ben, 2026-11-21). Now: the box is focused as soon as it shows,
+  // so iOS can offer the code above the keyboard (autocomplete one-time-code);
+  // a "paste code" button reads the clipboard in one tap; and a pasted code
+  // (even "Your code is 123456") is cleaned to its digits and verified at once.
+  const codeInputRef = useRef(null);
+  const canReadClipboard = typeof navigator !== "undefined" && !!navigator.clipboard?.readText;
+  useEffect(() => {
+    if (pendingFlow) codeInputRef.current?.focus();
+  }, [pendingFlow]);
   // Delete my data: a two-tap confirm, then the result or the error.
   const [wipe, setWipe] = useState("idle"); // idle | confirm | busy | error
 
@@ -142,8 +152,8 @@ export default function SettingsSheet({ open, onClose }) {
   // Verify the emailed code in-app — no link, so it works inside the iOS PWA.
   // The OTP type differs by intent: attaching a new email is an 'email_change',
   // signing back into an existing box is 'email'.
-  async function verifyCode() {
-    const token = code.trim();
+  async function verifyCode(pasted) {
+    const token = (typeof pasted === "string" ? pasted : code).trim();
     const flow = pendingFlow;
     if (token.length < 6 || emailBusy || !flow) return;
     setEmailBusy(true);
@@ -169,6 +179,26 @@ export default function SettingsSheet({ open, onClose }) {
     setEmailMsg(flow === "backup"
       ? "backed up — your box now survives new devices"
       : "signed in — your box is here");
+  }
+
+  // The code is 6 digits by default (a Supabase setting allows up to 10).
+  // Keep only the digits; a pasted code of 6+ digits goes straight to verify.
+  function takePastedCode(text) {
+    const digits = (text ?? "").replace(/\D/g, "").slice(0, 10);
+    if (!digits) return false;
+    setCode(digits);
+    if (digits.length >= 6) verifyCode(digits);
+    return true;
+  }
+
+  async function pasteFromClipboard() {
+    try {
+      const text = await navigator.clipboard.readText();
+      if (!takePastedCode(text)) setEmailMsg("nothing to paste — copy the code from your email first");
+    } catch {
+      setEmailMsg("couldn't read the clipboard — press and hold the box to paste");
+      codeInputRef.current?.focus();
+    }
   }
 
   // Bail out of code entry back to the email step (wrong address, want a resend
@@ -390,14 +420,28 @@ export default function SettingsSheet({ open, onClose }) {
                 enter the code we emailed to {email.trim()}
               </span>
               <input
+                ref={codeInputRef}
+                type="text"
+                name="one-time-code"
                 inputMode="numeric"
+                pattern="[0-9]*"
                 autoComplete="one-time-code"
+                aria-label="code from your email"
                 placeholder="code"
                 value={code}
+                onPaste={e => {
+                  if (takePastedCode(e.clipboardData?.getData("text"))) e.preventDefault();
+                }}
                 // Length is a Supabase setting (6–10 digits) — accept up to 10
                 // rather than assuming 6, so a longer configured code isn't
                 // silently truncated on entry.
-                onChange={e => setCode(e.target.value.replace(/\D/g, "").slice(0, 10))}
+                onChange={e => {
+                  const next = e.target.value.replace(/\D/g, "").slice(0, 10);
+                  // iOS's code suggestion fills the whole code in one change:
+                  // treat that like a paste and verify right away.
+                  if (!code && next.length >= 6) { takePastedCode(next); return; }
+                  setCode(next);
+                }}
                 style={{
                   width: "100%",
                   boxSizing: "border-box",
@@ -415,8 +459,28 @@ export default function SettingsSheet({ open, onClose }) {
                 }}
               />
               <div style={{ display: "flex", gap: 10 }}>
+                {canReadClipboard && !code && (
+                  <button
+                    onClick={pasteFromClipboard}
+                    disabled={emailBusy}
+                    style={{
+                      minHeight: 44, flex: 1,
+                      background: "transparent",
+                      border: `1px solid ${accent}`,
+                      color: accent,
+                      fontFamily: "'JetBrains Mono', monospace",
+                      fontSize: 11, letterSpacing: "0.06em",
+                      cursor: "pointer",
+                      opacity: emailBusy ? 0.5 : 1,
+                      WebkitTapHighlightColor: "transparent",
+                    }}
+                  >
+                    paste code
+                  </button>
+                )}
+                {(!canReadClipboard || code) && (
                 <button
-                  onClick={verifyCode}
+                  onClick={() => verifyCode()}
                   disabled={emailBusy || code.trim().length < 6}
                   style={{
                     minHeight: 44, flex: 1,
@@ -432,6 +496,7 @@ export default function SettingsSheet({ open, onClose }) {
                 >
                   verify
                 </button>
+                )}
                 <button
                   onClick={cancelCode}
                   disabled={emailBusy}
