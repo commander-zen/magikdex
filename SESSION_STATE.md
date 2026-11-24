@@ -1,5 +1,17 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-24 (cont.) — ✅ **Quick brew deals EDHREC Top Cards** (Ben: "Yes, switch it")
+
+- ✅ **Migration 040 applied to production.** `brew_stack` now orders by `inclusion` → synergy → theme_boost → global edhrec_rank, and returns `inclusion`. It was a drop + create: same signature, same pinned search_path, and default EXECUTE grants re-checked.
+- ✅ **Client:** `fetchBrewStack` carries `inclusion`, and `sortStack`'s "edhrec" order sorts by it first, so a re-sort after name/CMC rebuilds the RPC order. Cards from a session saved before 040 have no inclusion and fall back to synergy.
+- ✅ **Verified:** Meren's stack through the real client call (dev server, anon session) is Sol Ring 85%, Sakura-Tribe Elder 83%, Spore Frog 75%, Eternal Witness 74%, Victimize 69%. That matches EDHREC's Top Cards order. Not checked by swiping on a phone.
+
+### ⚠️ Known Issues — new
+- **Commanders with few EDHREC decks get flat inclusion.** Rocksteady has 8 cards at 100% (a handful of decks), so synergy decides that tie. That's what EDHREC's own page shows too, but the top of such stacks is noisy.
+- **Sol Ring / Arcane Signet now lead most stacks.** That's what "top cards" means, but staples the user already owns may feel like filler at the start of a swipe.
+
+Priority (**2026-11-24**): **Swipe a quick brew on a phone after Vercel deploys** and judge whether staples-first feels right. Then the phone check of rule 0 from 11-17.
+
 ## 2026-11-24 — ✅ **Supabase storage trim + EDHREC refresh** (`29f1861`, pushed)
 
 The DB sat at 412 MB of the 500 MB free tier, 266 MB of it `legend_synergy`. **Now 235 MB.**
@@ -11,12 +23,12 @@ The DB sat at 412 MB of the 500 MB free tier, 266 MB of it `legend_synergy`. **N
 - ✅ **VACUUM FULL** on cards (59 → 27 MB), card_tags, legend_synergy (→ 145 MB), legend_themes.
 
 ### ⚠️ Known Issues — new
-- **Quick brew sorts by EDHREC *synergy*, not *top cards*.** Synergy ≈1.0 means "played almost only with this commander", which surfaces niche picks (Rocksteady's top 3: Wildgrowth Archaic, Knight of Wundagore, Mister Hyde). Ben's stated intent is EDHREC's top cards, i.e. sort by `inclusion`. Meren by inclusion: Sol Ring 85%, Sakura-Tribe Elder 83%, Spore Frog 75%, Eternal Witness 74%… Needs a `brew_stack` order change.
+- ✅ (fixed in 040, see above) **Quick brew sorts by EDHREC *synergy*, not *top cards*.** Synergy ≈1.0 means "played almost only with this commander", which surfaces niche picks (Rocksteady's top 3: Wildgrowth Archaic, Knight of Wundagore, Mister Hyde). Ben's stated intent is EDHREC's top cards, i.e. sort by `inclusion`. Meren by inclusion: Sol Ring 85%, Sakura-Tribe Elder 83%, Spore Frog 75%, Eternal Witness 74%… Needs a `brew_stack` order change.
 - **Scryfall alone can't do this.** `order=edhrec` sorts by the GLOBAL EDHREC rank (Sol Ring, Arcane Signet, Swiftfoot Boots… for any green deck), which `cards.edhrec_rank` already stores and `brew_stack` uses as its last tiebreaker. Per-commander top cards exist only in EDHREC's feed.
 - **Every full re-ingest bloats `legend_synergy` by about 60 MB** (upserts leave dead rows). Run `vacuum full public.legend_synergy;` after each `--all`.
 - **magikdex has no theme picker.** `legend_themes` feeds `brew_stack`'s theme_boost (top 5 themes) and Bracket Card's play-style suggestions only. The picker planned in Aug was never built.
 
-Priority (**2026-11-24**): **Switch quick brew's `brew_stack` order from synergy to `inclusion`** (Ben's call). Then the phone check of rule 0 from 11-17.
+Priority (**2026-11-24**): ✅ superseded, see the entry above.
 
 ## 2026-11-17 — ✅ **Rule 0 custom commanders + Scryfall card sync** (`6093e0a`, pushed)
 
