@@ -189,6 +189,18 @@ function normalize(data, payload) {
     // 2026-11-10) and scoringVersion is the model that graded it. ScryCheck
     // sends no timestamp, so gradedAt is OUR server's clock, never the
     // browser's.
+    // How sure the grade is (ScryCheck v1 docs: check incomplete,
+    // totalCardCount and importWarnings before relying on a result).
+    // incomplete = fewer than 95 cards recognized; a total over 99 is an
+    // overstuffed list. The card page warns on any of these.
+    incomplete: data.incomplete === true,
+    totalCardCount: num(data.totalCardCount),
+    importWarnings: Array.isArray(data.importWarnings)
+      ? data.importWarnings.map(w => (typeof w?.code === "string" ? w.code : null)).filter(Boolean)
+      : [],
+    warnings: Array.isArray(data.summary?.warnings)
+      ? data.summary.warnings.filter(w => typeof w === "string").slice(0, 3)
+      : [],
     deckHash: typeof data.deckHash === "string" ? data.deckHash : null,
     scoringVersion: typeof data.scoringVersion === "string" ? data.scoringVersion : null,
     gradedAt: new Date().toISOString(),
