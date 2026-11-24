@@ -249,21 +249,24 @@ function applyNarrow(cards, input) {
   return cards.filter(c => cardMatchesNarrow(c, preds));
 }
 
-// The RPC stack arrives relevance-ordered (per-legend EDHREC synergy first,
-// then global EDHREC rank — brew_stack v2); name/CMC preferences re-sort it
-// client-side (the live-search path sorts server-side via the order param
-// instead). Synergy + edhrec_rank ride on RPC cards so the "edhrec" sort can
-// rebuild that exact order locally after a name/CMC detour; live-search cards
-// carry no synergy, so for them it degrades to plain edhrec_rank.
+// The RPC stack arrives relevance-ordered (this commander's EDHREC Top Cards
+// by inclusion, then synergy, then global EDHREC rank — brew_stack, migration
+// 040); name/CMC preferences re-sort it client-side (the live-search path
+// sorts server-side via the order param instead). inclusion + synergy +
+// edhrec_rank ride on RPC cards so the "edhrec" sort can rebuild that exact
+// order locally after a name/CMC detour; live-search cards carry neither, so
+// for them it degrades to plain edhrec_rank.
 function sortStack(cards, order, dir = "asc") {
   const mul = dir === "desc" ? -1 : 1;
   const key = order === "edhrec"
     ? (a, b) =>
-        // -1e9 floor: real synergy scores are tiny (|s| < 1), and a finite
-        // floor keeps the subtraction NaN-free when neither card has one.
-        // theme_boost (brew_stack v3, migration 012) breaks synergy ties so a
-        // re-sort rebuilds the RPC's exact order; absent (pre-012, live
-        // search, tag_stack) it's 0 everywhere and changes nothing.
+        // -1e9 floor: inclusion (0..1) and synergy (|s| < 1) are tiny, and a
+        // finite floor keeps the subtraction NaN-free when neither card has
+        // one. Cards resumed from a pre-040 session have no inclusion and
+        // fall through to synergy. theme_boost (migration 012) breaks ties so
+        // a re-sort rebuilds the RPC's exact order; absent (live search,
+        // tag_stack) it's 0 everywhere and changes nothing.
+        (b.inclusion ?? -1e9) - (a.inclusion ?? -1e9) ||
         (b.synergy ?? -1e9) - (a.synergy ?? -1e9) ||
         (b.theme_boost ?? 0) - (a.theme_boost ?? 0) ||
         (a.edhrec_rank ?? Infinity) - (b.edhrec_rank ?? Infinity)

@@ -339,6 +339,7 @@ export async function fetchBrewStack({ legendName, colorIdentity, deckId = null,
       edhrec_rank: row.edhrec_rank ?? undefined,
       matched_tags: row.matched_tags ?? [],
       synergy: row.synergy ?? undefined,
+      inclusion: row.inclusion ?? undefined,
       theme_boost: row.theme_boost ?? undefined,
     }));
   } catch {
