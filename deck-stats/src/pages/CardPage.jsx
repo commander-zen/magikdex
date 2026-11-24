@@ -95,6 +95,15 @@ export default function CardPage() {
         <div ref={resultRef} className="scroll-mt-4 sm:scroll-mt-24">
           <Step n={2} id="step-card" title="Your Bracket Card">
             <PrintPreview svg={cardSVG(card)} label={`Bracket Card for ${cardStats(card).title}`} className="max-w-xl" />
+            <GradeCheck stats={card.stats} />
+            {analysisUrl(card.stats) && (
+              <a href={analysisUrl(card.stats)} target="_blank" rel="noopener"
+                 className="mt-3 inline-flex min-h-11 items-center gap-2 text-sm font-semibold underline underline-offset-2 hover:text-primary">
+                See this deck&rsquo;s full analysis on ScryCheck
+                <ExternalLink aria-hidden className="size-4" />
+                <span className="sr-only">(opens scrycheck.com in a new tab)</span>
+              </a>
+            )}
             {!card.stats.gradedAt && (
               <Alert variant="warning" className="mt-4">
                 <AlertTriangle aria-hidden />
@@ -150,5 +159,45 @@ function NextRow({ as = "a", Icon, title, desc, ...props }) {
       </span>
       <ArrowRight aria-hidden className="size-5 shrink-0 text-primary" />
     </Comp>
+  );
+}
+
+// ScryCheck's own page for this grade (its terms ask for a link to it). Only
+// a scrycheck.com address is linked.
+function analysisUrl(stats) {
+  const u = stats?.deckUrl;
+  return typeof u === "string" && u.startsWith("https://scrycheck.com/") ? u : null;
+}
+
+const IMPORT_WARNINGS = {
+  inconsistentArchidektCategories: "Some Archidekt cards have conflicting category tags and were counted in the main deck. Check their categories on Archidekt.",
+};
+
+// A grade of a list that didn't import cleanly is not one to print with
+// confidence. Says why, in ScryCheck's terms, and what to do.
+function GradeCheck({ stats }) {
+  const lines = [];
+  const total = stats?.totalCardCount;
+  if (stats?.incomplete) {
+    lines.push(`ScryCheck recognized fewer than 95 cards in this list${total != null ? ` (it counted ${total})` : ""}, so this grade is less reliable.`);
+    for (const w of stats.warnings ?? []) lines.push(w);
+  } else if (total != null && total > 99) {
+    lines.push(`ScryCheck counted ${total} cards in this list, more than a Commander deck holds.`);
+  }
+  for (const code of stats?.importWarnings ?? []) {
+    lines.push(IMPORT_WARNINGS[code] ?? "ScryCheck flagged a problem with how this list imported.");
+  }
+  if (!lines.length) return null;
+  return (
+    <Alert variant="warning" role="alert" className="mt-4">
+      <AlertTriangle aria-hidden />
+      <AlertDescription className="text-foreground">
+        <p className="font-semibold">Check this list before you print.</p>
+        <ul className="mt-1 list-disc space-y-1 pl-5">
+          {[...new Set(lines)].map(l => <li key={l}>{l}</li>)}
+        </ul>
+        <p className="mt-1">Fix the list, then make the card again.</p>
+      </AlertDescription>
+    </Alert>
   );
 }
