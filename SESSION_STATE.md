@@ -1,5 +1,23 @@
 # SESSION_STATE — MTG DNA
 
+## 2026-11-24 — ✅ **Supabase storage trim + EDHREC refresh** (`29f1861`, pushed)
+
+The DB sat at 412 MB of the 500 MB free tier, 266 MB of it `legend_synergy`. **Now 235 MB.**
+
+- ✅ **Migration 039 applied to production.** Dropped `legend_synergy.card_name / num_decks / potential_decks / source_list` (nothing read them). `legend_oracle_id` changed from text to uuid on `legend_synergy` + `legend_themes`. `brew_stack` keeps its text param and casts once. Purged 7 Tagger trivia tags from `card_tags` (now blocklisted in `otag-taxonomy.mjs`) plus tags for cards no longer in `cards`.
+- ✅ **MDFC bug fixed.** EDHREC names MDFCs by front face ("bala ged recovery"), so 26.5k synergy rows (649 cards: every MDFC land/spell) never joined `cards`. As a result they were missing from every brew stack. Rows renamed, and the ingest now maps front face to full name. Verified: Rocksteady's stack gained Bala Ged Recovery, Bridgeworks Battle and Jugan Defends the Temple.
+- ✅ **New `legend_synergy.inclusion`** (num_decks / potential_decks) is the order of EDHREC's **Top Cards** list. `brew_stack` does NOT read it yet.
+- ✅ **`ingest:legend-edhrec -- --all`** (last run was 2026-09-25): 3,704 candidates, **3,669 cached**, 35 with no page. `legend_synergy` 884,175 → **963,256**, `legend_themes` 143,846 → **154,006**, 12 unjoined names left (ambiguous fronts like "start").
+- ✅ **VACUUM FULL** on cards (59 → 27 MB), card_tags, legend_synergy (→ 145 MB), legend_themes.
+
+### ⚠️ Known Issues — new
+- **Quick brew sorts by EDHREC *synergy*, not *top cards*.** Synergy ≈1.0 means "played almost only with this commander", which surfaces niche picks (Rocksteady's top 3: Wildgrowth Archaic, Knight of Wundagore, Mister Hyde). Ben's stated intent is EDHREC's top cards, i.e. sort by `inclusion`. Meren by inclusion: Sol Ring 85%, Sakura-Tribe Elder 83%, Spore Frog 75%, Eternal Witness 74%… Needs a `brew_stack` order change.
+- **Scryfall alone can't do this.** `order=edhrec` sorts by the GLOBAL EDHREC rank (Sol Ring, Arcane Signet, Swiftfoot Boots… for any green deck), which `cards.edhrec_rank` already stores and `brew_stack` uses as its last tiebreaker. Per-commander top cards exist only in EDHREC's feed.
+- **Every full re-ingest bloats `legend_synergy` by about 60 MB** (upserts leave dead rows). Run `vacuum full public.legend_synergy;` after each `--all`.
+- **magikdex has no theme picker.** `legend_themes` feeds `brew_stack`'s theme_boost (top 5 themes) and Bracket Card's play-style suggestions only. The picker planned in Aug was never built.
+
+Priority (**2026-11-24**): **Switch quick brew's `brew_stack` order from synergy to `inclusion`** (Ben's call). Then the phone check of rule 0 from 11-17.
+
 ## 2026-11-17 — ✅ **Rule 0 custom commanders + Scryfall card sync** (`6093e0a`, pushed)
 
 Ben wanted to brew a leaked card (Muad'Dib, Prophet Foretold) and table-agreed "rule 0" commanders without adding them to the card repo.
