@@ -27,7 +27,8 @@
 // / num_decks / potential_decks) and panels.taglinks holds the rank-ordered
 // theme tags (Hawkeye: Burn 13, Spellslinger 7 — the "main theme" signal).
 //
-// Requires migration 011 (legend_synergy + legend_themes).
+// Requires migrations 011 (legend_synergy + legend_themes) and 039 (trimmed
+// columns, uuid legend ids).
 
 import { makeSupabase, politeFetch } from "./ingest-shared.mjs";
 
@@ -65,6 +66,32 @@ async function lookupOracleId(name) {
     .eq("name_lower", name.toLowerCase())
     .maybeSingle();
   return data?.oracle_id ?? null;
+}
+
+// EDHREC names a modal double-faced card by its FRONT face ("bala ged
+// recovery"), but cards.name_lower holds "bala ged recovery // bala ged
+// sanctuary" — and brew_stack joins on that. Map front → full name so MDFCs
+// reach the stack (migration 039 fixed the rows already cached). A front that
+// maps to two different cards (start → Start // Finish | Start // Fire) is
+// ambiguous and left as-is.
+async function fetchFrontFaceMap() {
+  const seen = new Map();
+  const PAGE = 1000;
+  for (let from = 0; ; from += PAGE) {
+    const { data, error } = await supabase
+      .from("cards")
+      .select("name_lower")
+      .like("name_lower", "% // %")
+      .range(from, from + PAGE - 1);
+    if (error) throw new Error(`MDFC name read failed: ${error.message}`);
+    for (const { name_lower } of data ?? []) {
+      const front = name_lower.split(" // ")[0];
+      const prev = seen.get(front);
+      seen.set(front, prev === undefined || prev === name_lower ? name_lower : null);
+    }
+    if (!data || data.length < PAGE) break;
+  }
+  return new Map([...seen].filter(([, full]) => full !== null));
 }
 
 // --all: every commander-legal candidate in the cards cache — legendary
@@ -125,6 +152,7 @@ async function main() {
     return;
   }
 
+  const fullName = supabase ? await fetchFrontFaceMap() : new Map();
   const runIso = new Date().toISOString();
   let done = 0, missed = 0, synergyTotal = 0;
 
@@ -149,16 +177,17 @@ async function main() {
     for (const list of page.container?.json_dict?.cardlists ?? []) {
       for (const cv of list.cardviews ?? []) {
         if (!cv?.name) continue;
-        const key = cv.name.toLowerCase();
+        // 039 dropped card_name / num_decks / potential_decks / source_list to
+        // fit the free tier; the two deck counts survive as one `inclusion`
+        // ratio, the order of EDHREC's own Top Cards list.
+        const lower = cv.name.toLowerCase();
+        const key = fullName.get(lower) ?? lower;
         if (rows.has(key)) continue;
         rows.set(key, {
           legend_oracle_id: oracleId,
-          card_name: cv.name,
           name_lower: key,
           synergy: cv.synergy ?? null,
-          num_decks: cv.num_decks ?? null,
-          potential_decks: cv.potential_decks ?? null,
-          source_list: list.tag ?? null,
+          inclusion: cv.potential_decks > 0 ? (cv.num_decks ?? 0) / cv.potential_decks : null,
           updated_at: runIso,
         });
       }

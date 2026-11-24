@@ -79,6 +79,15 @@ export const TAG_BLOCKLIST = [
   /^card-names$/,
   /^personal-text$/,
   /^face-commander$/,
+  // Tagger trivia that leaked through legend profiling (2026-09-25 run);
+  // purged from card_tags by migration 039
+  /^anagram$/,
+  /^vanity-card$/,
+  /^fun-ruling$/,
+  /^type-errata$/,
+  /^unique-type-line$/,
+  /^deprecated-card-types$/,
+  /^normal-human-name$/,
 ];
 
 export function isBlockedTag(slug) {
