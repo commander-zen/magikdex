@@ -264,10 +264,27 @@ function applyNarrow(cards, input) {
 // edhrec_rank ride on RPC cards so the "edhrec" sort can rebuild that exact
 // order locally after a name/CMC detour; live-search cards carry neither, so
 // for them it degrades to plain edhrec_rank.
+// Quick brew leads with THIS commander's cards, not the staples every deck
+// runs (Ben, 2026-11-28, on Zevlor: "should serve the top EDHREC cards for
+// that commander not just the general top cards"). Ordering by inclusion
+// alone put Island, Command Tower, Arcane Signet and Sol Ring first: they're
+// in 85-98% of Zevlor decks, but EDHREC synergy (this commander's share minus
+// the share across all decks in its colours) is about 0 for them. So EDHREC
+// cards come in two tiers, each by inclusion: synergy >= STAPLE_SYNERGY first
+// (Zevlor: Storm-Kiln Artist 69%, Archmage Emeritus 68%, Cruel Ultimatum
+// 63%), then the staples. Cards with no EDHREC row (tag matches, live
+// search) trail as before.
+const STAPLE_SYNERGY = 0.1;
+function edhrecTier(c) {
+  if (c.inclusion == null) return 2;
+  return (c.synergy ?? 0) >= STAPLE_SYNERGY ? 0 : 1;
+}
+
 function sortStack(cards, order, dir = "asc") {
   const mul = dir === "desc" ? -1 : 1;
   const key = order === "edhrec"
     ? (a, b) =>
+        edhrecTier(a) - edhrecTier(b) ||
         // -1e9 floor: inclusion (0..1) and synergy (|s| < 1) are tiny, and a
         // finite floor keeps the subtraction NaN-free when neither card has
         // one. Cards resumed from a pre-040 session have no inclusion and
@@ -675,7 +692,9 @@ export default function Brew({ session, browse = false, initialQuery = "", onSes
       });
       // Already-in-deck cards are excluded client-side by every caller (same
       // as the live path), so p_deck_id isn't needed here.
-      if (stack.length) return order === "edhrec" ? stack : sortStack(stack, order, dir);
+      // Always re-sorted: brew_stack returns pure inclusion order, and the
+      // edhrec sort puts this commander's own cards ahead of the staples.
+      if (stack.length) return sortStack(stack, order, dir);
     }
     const q = withColorIdentity(excludeLands ? "-t:land" : "", colorIdentity);
     const { cards } = await fetchFirstPageForSwipe(q, { order, dir });
