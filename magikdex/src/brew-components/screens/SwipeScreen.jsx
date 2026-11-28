@@ -453,6 +453,10 @@ export default function SwipeScreen({
   const { gameChangerIds } = useGameChangers();
   const isGameChanger = card?.game_changer === true ||
     Boolean(card?.oracle_id && gameChangerIds.has(card.oracle_id));
+  // A previewed card that isn't out yet: Scryfall calls it not legal until
+  // its release date. Legal search lets these in (Brew.jsx withColorIdentity),
+  // so the card says so. null when the card is legal or already released.
+  const notLegalUntil = unreleasedUntil(card);
   const commanderName    = commanderCard?.name ?? null;
   const commanderArt     = commanderCard?.art ?? null;
 
@@ -669,6 +673,26 @@ export default function SwipeScreen({
                         fontSize: 28, color: "var(--color-text-primary)", letterSpacing: 2,
                         textAlign: "center", padding: "0 32px",
                       }}>{c.name}</span>
+                    </div>
+                  )}
+
+                  {isCurrent && notLegalUntil && (
+                    <div style={{
+                      position: "absolute",
+                      left: 10, top: 10,
+                      zIndex: 6,
+                      background: "rgba(10,14,26,0.85)",
+                      padding: "3px 6px",
+                      pointerEvents: "none",
+                    }}>
+                      <span style={{
+                        fontFamily: "'JetBrains Mono', monospace",
+                        fontSize: 10,
+                        letterSpacing: "0.1em",
+                        color: "#f2b84b",
+                      }}>
+                        NOT LEGAL UNTIL {notLegalUntil}
+                      </span>
                     </div>
                   )}
 
@@ -1334,4 +1358,16 @@ export default function SwipeScreen({
       )}
     </div>
   );
+}
+
+// "NOV 30" when Scryfall says this card isn't Commander legal yet because it
+// hasn't been released (released_at is in the future); otherwise null.
+function unreleasedUntil(card) {
+  if (!card || card.legalities?.commander === "legal") return null;
+  const r = card.released_at;
+  if (typeof r !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r)) return null;
+  const now = new Date();
+  const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
+  if (r <= today) return null;
+  return new Date(`${r}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
 }

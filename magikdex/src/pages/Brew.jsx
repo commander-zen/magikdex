@@ -128,11 +128,19 @@ function expandRows(rows, section) {
 // ci<=ub" meant "creatures of ANY color, or legal U/B planeswalkers" — the
 // legality and color filter only reached the last OR branch. Without an OR the
 // query is passed through byte-for-byte (AND is AND either way).
+//
+// Unreleased cards count too (Ben, 2026-11-28: "Show unreleased cards").
+// Scryfall marks a previewed card not legal anywhere until its release date
+// (the Dune Secret Lair: Chani in a Muad'Dib deck), so legal:commander alone
+// hides it. year>today lets in printings that haven't come out yet, minus
+// anything already banned in Commander and minus un-cards (is:funny).
+// SwipeScreen marks those cards "not legal until <date>".
+const COMMANDER_OK = "(legal:commander or (year>today -banned:commander -is:funny))";
 function withColorIdentity(q, colorIdentity) {
   const ci = colorIdentity?.length ? colorIdentity.join("").toLowerCase() : "c";
   const typed = (q ?? "").trim();
   const grouped = /(^|\s)or(\s|$)/i.test(typed) ? `(${typed})` : typed;
-  return `${grouped} legal:commander ci<=${ci}`.trim();
+  return `${grouped} ${COMMANDER_OK} ci<=${ci}`.trim();
 }
 
 // The decklist search bar (Change 1) is a STACK GENERATOR over all of Scryfall,
@@ -141,8 +149,8 @@ function withColorIdentity(q, colorIdentity) {
 // so pass it through untouched. Bare text is a name search, gated to 3+ chars so
 // a stray letter doesn't fire a 20k-card query. Scryfall already treats bare
 // words as name matches, so no name: wrapping is needed — and withColorIdentity
-// ANDs legal:commander + the deck's identity on top of either form, so an
-// illegal card can never surface no matter what the user types.
+// ANDs commander legality (or not released yet) + the deck's identity on top
+// of either form, so a card that's illegal for good can never surface.
 const SCRYFALL_SYNTAX = /[:=<>"]/;
 function nameOrSyntax(input) {
   const isSyntax = SCRYFALL_SYNTAX.test(input);
