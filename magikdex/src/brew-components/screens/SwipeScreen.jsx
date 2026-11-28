@@ -453,9 +453,9 @@ export default function SwipeScreen({
   const { gameChangerIds } = useGameChangers();
   const isGameChanger = card?.game_changer === true ||
     Boolean(card?.oracle_id && gameChangerIds.has(card.oracle_id));
-  // A previewed card that isn't out yet: Scryfall calls it not legal until
-  // its release date. Legal search lets these in (Brew.jsx withColorIdentity),
-  // so the card says so. null when the card is legal or already released.
+  // A card Scryfall calls not Commander legal (unreleased, e.g. a previewed
+  // Secret Lair). Legal search lets these in (Brew.jsx withColorIdentity), so
+  // the card says so. null when the card is legal.
   const notLegalUntil = unreleasedUntil(card);
   const commanderName    = commanderCard?.name ?? null;
   const commanderArt     = commanderCard?.art ?? null;
@@ -691,7 +691,7 @@ export default function SwipeScreen({
                         letterSpacing: "0.1em",
                         color: "#f2b84b",
                       }}>
-                        NOT LEGAL UNTIL {notLegalUntil}
+                        NOT LEGAL {notLegalUntil}
                       </span>
                     </div>
                   )}
@@ -1360,14 +1360,17 @@ export default function SwipeScreen({
   );
 }
 
-// "NOV 30" when Scryfall says this card isn't Commander legal yet because it
-// hasn't been released (released_at is in the future); otherwise null.
+// What the not-legal plate says, or null when the card is Commander legal.
+// Search lets in paper cards Scryfall calls not legal (unreleased ones, like
+// the Dune Secret Lair before Nov 30), so they say so. "UNTIL NOV 30" is added
+// only when Scryfall's release date for this printing is in the future.
 function unreleasedUntil(card) {
-  if (!card || card.legalities?.commander === "legal") return null;
+  if (!card || card.legalities?.commander !== "not_legal") return null;
   const r = card.released_at;
-  if (typeof r !== "string" || !/^\d{4}-\d{2}-\d{2}$/.test(r)) return null;
   const now = new Date();
   const today = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-${String(now.getDate()).padStart(2, "0")}`;
-  if (r <= today) return null;
-  return new Date(`${r}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase();
+  if (typeof r === "string" && /^\d{4}-\d{2}-\d{2}$/.test(r) && r > today) {
+    return `UNTIL ${new Date(`${r}T00:00:00`).toLocaleDateString("en-US", { month: "short", day: "numeric" }).toUpperCase()}`;
+  }
+  return "YET";
 }

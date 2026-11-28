@@ -130,12 +130,14 @@ function expandRows(rows, section) {
 // query is passed through byte-for-byte (AND is AND either way).
 //
 // Unreleased cards count too (Ben, 2026-11-28: "Show unreleased cards").
-// Scryfall marks a previewed card not legal anywhere until its release date
-// (the Dune Secret Lair: Chani in a Muad'Dib deck), so legal:commander alone
-// hides it. year>today lets in printings that haven't come out yet, minus
-// anything already banned in Commander and minus un-cards (is:funny).
-// SwipeScreen marks those cards "not legal until <date>".
-const COMMANDER_OK = "(legal:commander or (year>today -banned:commander -is:funny))";
+// Scryfall marks a previewed card not legal anywhere until it comes out (the
+// Dune Secret Lair: Chani in a Muad'Dib deck), so legal:commander alone hides
+// it. A first try used year>today and Chani still didn't show (Ben, Nov 28):
+// a Secret Lair printing may carry a release date that isn't in the future.
+// So the second branch doesn't use dates at all: any paper card that isn't
+// banned in Commander and isn't an un-card (is:funny). SwipeScreen marks the
+// ones that aren't legal yet.
+const COMMANDER_OK = "(legal:commander or (game:paper -banned:commander -is:funny))";
 function withColorIdentity(q, colorIdentity) {
   const ci = colorIdentity?.length ? colorIdentity.join("").toLowerCase() : "c";
   const typed = (q ?? "").trim();
